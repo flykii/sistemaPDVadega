@@ -181,6 +181,10 @@ class ConfiguracaoAtalhoPDV(models.Model):
         ('FOCAR_BUSCA', 'Buscar Produto / Focar Leitor', 'F2'),
         ('IDENTIFICAR_CLIENTE', 'Identificar / Selecionar Cliente', 'F4'),
         ('CANCELAR_FECHAR', 'Cancelar / Fechar Modais', 'Escape'),
+        ('PAG_DINHEIRO', 'Forma: Dinheiro', 'F6'),
+        ('PAG_PIX', 'Forma: PIX', 'F7'),
+        ('PAG_DEBITO', 'Forma: Cartão Débito', 'F8'),
+        ('PAG_CREDITO', 'Forma: Cartão Crédito', 'F9'),
     ]
 
     TECLAS_PERMITIDAS = [

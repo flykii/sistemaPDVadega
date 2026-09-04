@@ -11,8 +11,8 @@
 </script>
 
 <div class="row pdv-container g-3">
-    <!-- COLUNA ESQUERDA: ENTRADA DE PRODUTOS E CARRINHO (2/3 da Tela) -->
-    <div class="col-12 col-lg-7 col-xl-8 d-flex flex-column">
+    <!-- COLUNA ESQUERDA: ENTRADA DE PRODUTOS E CARRINHO (~80% da Tela) -->
+    <div class="col-12 col-xl-9 col-lg-8 pdv-left-area d-flex flex-column">
         <!-- Input de Busca / Leitor de Código de Barras -->
         <div class="card card-custom p-3 mb-3 bg-dark text-white position-relative shadow-sm border-0">
             <div class="row g-2 align-items-center">
@@ -101,8 +101,8 @@
         </div>
     </div>
 
-    <!-- COLUNA DIREITA: VALORES, DESCONTO, PAGAMENTO, AÇÕES (1/3 da Tela) -->
-    <div class="col-12 col-lg-5 col-xl-4 d-flex flex-column gap-3">
+    <!-- COLUNA DIREITA: VALORES, DESCONTO, PAGAMENTO, AÇÕES (~20% da Tela) -->
+    <div class="col-12 col-xl-3 col-lg-4 pdv-right-area d-flex flex-column gap-2">
         <!-- 1. Card de Resumo de Valor -->
         <div class="summary-box shadow-sm p-3 bg-white rounded border border-2 border-primary">
             <span class="text-muted fw-bold small text-uppercase">TOTAL A PAGAR</span>
@@ -177,6 +177,7 @@
 </div>
 
 <!-- ======================================================== -->
+<!-- ======================================================== -->
 <!-- MODAL DE PAGAMENTO (SUPORTE A PAGAMENTO ÚNICO E DIVIDIDO) -->
 <!-- ======================================================== -->
 <div class="modal fade" id="paymentModal" tabindex="-1" aria-hidden="true" data-bs-backdrop="static">
@@ -189,71 +190,80 @@
 
             <div class="modal-body p-4">
                 <!-- Resumo Financeiro da Venda -->
-                <div class="row g-3 mb-4">
+                <div class="row g-2 mb-3">
                     <div class="col-6 col-md-3">
-                        <div class="bg-light p-3 rounded border text-center">
-                            <span class="text-muted small fw-bold text-uppercase d-block">Total da Venda</span>
+                        <div class="bg-light p-2 rounded border text-center">
+                            <span class="text-secondary small fw-bold text-uppercase d-block">Total da Venda</span>
                             <h4 class="fw-bold text-dark mb-0" id="modal-display-total">R$ 0,00</h4>
                         </div>
                     </div>
                     <div class="col-6 col-md-3">
-                        <div class="bg-light p-3 rounded border text-center">
-                            <span class="text-muted small fw-bold text-uppercase d-block">Total Pago</span>
+                        <div class="bg-light p-2 rounded border text-center">
+                            <span class="text-secondary small fw-bold text-uppercase d-block">Total Pago</span>
                             <h4 class="fw-bold text-primary mb-0" id="modal-display-pago">R$ 0,00</h4>
                         </div>
                     </div>
                     <div class="col-6 col-md-3">
-                        <div class="bg-light p-3 rounded border text-center border-danger">
-                            <span class="text-danger small fw-bold text-uppercase d-block">Valor Restante</span>
+                        <div class="bg-light p-2 rounded border text-center border-danger" id="box-display-restante">
+                            <span class="text-danger small fw-bold text-uppercase d-block" id="label-display-restante">Falta Pagar</span>
                             <h4 class="fw-bold text-danger mb-0" id="modal-display-restante">R$ 0,00</h4>
                         </div>
                     </div>
                     <div class="col-6 col-md-3">
-                        <div class="bg-light p-3 rounded border text-center border-success">
+                        <div class="bg-light p-2 rounded border text-center border-success" id="box-display-troco">
                             <span class="text-success small fw-bold text-uppercase d-block">Troco</span>
                             <h4 class="fw-bold text-success mb-0" id="modal-display-troco">R$ 0,00</h4>
                         </div>
                     </div>
                 </div>
 
-                <!-- Lista de Pagamentos Adicionados -->
-                <div class="mb-4">
-                    <label class="form-label fw-bold small text-uppercase text-muted mb-2">
-                        <i class="bi bi-list-check me-1"></i> Pagamentos Adicionados nesta Venda
+                <!-- Seleção Rápida de Forma de Pagamento (Atalhos e Clicáveis) -->
+                <div class="mb-3">
+                    <label class="form-label fw-bold small text-uppercase text-dark mb-2">
+                        <i class="bi bi-credit-card-2-front me-1"></i> Selecione a Forma de Pagamento:
                     </label>
-                    <div id="modal-payments-list" style="max-height: 160px; overflow-y: auto;">
-                        <!-- Renderizado via JS -->
+                    <div class="row g-2">
+                        <div class="col-6 col-sm-3">
+                            <button type="button" class="btn btn-outline-primary w-100 py-2 fw-bold btn-pay-method active" id="btn-pay-dinheiro" onclick="pdvApp.selecionarFormaPagamento('DINHEIRO')">
+                                <i class="bi bi-cash me-1"></i> DINHEIRO <small class="d-block opacity-75 fw-normal">({{ atalhos_pdv.PAG_DINHEIRO|default:"F6" }})</small>
+                            </button>
+                        </div>
+                        <div class="col-6 col-sm-3">
+                            <button type="button" class="btn btn-outline-primary w-100 py-2 fw-bold btn-pay-method" id="btn-pay-pix" onclick="pdvApp.selecionarFormaPagamento('PIX')">
+                                <i class="bi bi-qr-code me-1"></i> PIX <small class="d-block opacity-75 fw-normal">({{ atalhos_pdv.PAG_PIX|default:"F7" }})</small>
+                            </button>
+                        </div>
+                        <div class="col-6 col-sm-3">
+                            <button type="button" class="btn btn-outline-primary w-100 py-2 fw-bold btn-pay-method" id="btn-pay-debito" onclick="pdvApp.selecionarFormaPagamento('CARTAO_DEBITO')">
+                                <i class="bi bi-credit-card me-1"></i> DÉBITO <small class="d-block opacity-75 fw-normal">({{ atalhos_pdv.PAG_DEBITO|default:"F8" }})</small>
+                            </button>
+                        </div>
+                        <div class="col-6 col-sm-3">
+                            <button type="button" class="btn btn-outline-primary w-100 py-2 fw-bold btn-pay-method" id="btn-pay-credito" onclick="pdvApp.selecionarFormaPagamento('CARTAO_CREDITO')">
+                                <i class="bi bi-credit-card-fill me-1"></i> CRÉDITO <small class="d-block opacity-75 fw-normal">({{ atalhos_pdv.PAG_CREDITO|default:"F9" }})</small>
+                            </button>
+                        </div>
                     </div>
                 </div>
 
-                <!-- Formulário para Adicionar Pagamento / Parcela -->
+                <!-- Campo de Valor Recebido / Valor da Parcela -->
                 <div class="card p-3 bg-light border mb-3">
-                    <h6 class="fw-bold text-primary mb-3"><i class="bi bi-plus-circle me-1"></i> Adicionar Parcela de Pagamento</h6>
-                    <div class="row g-2 align-items-end">
-                        <div class="col-12 col-md-4">
-                            <label for="modal-pay-forma" class="form-label small fw-bold">Forma de Pagamento</label>
-                            <select id="modal-pay-forma" class="form-select fw-bold" onchange="pdvApp.onFormaPagamentoChange()">
-                                <option value="DINHEIRO">Dinheiro</option>
-                                <option value="PIX">PIX</option>
-                                <option value="CARTAO_DEBITO">Cartão Débito</option>
-                                <option value="CARTAO_CREDITO">Cartão Crédito</option>
-                                <option value="CREDIARIO">Fiado / Crediário</option>
-                            </select>
+                    <div class="row g-2 align-items-center">
+                        <div class="col-12 col-md-7">
+                            <label for="modal-pay-valor" class="form-label small fw-bold text-dark text-uppercase mb-1" id="label-pay-valor">
+                                Valor Recebido (R$):
+                            </label>
+                            <div class="input-group input-group-lg">
+                                <span class="input-group-text fw-bold bg-white text-primary">R$</span>
+                                <input type="number" id="modal-pay-valor" class="form-control fw-bold fs-4 text-dark" placeholder="0,00" step="0.01" oninput="pdvApp.onValorRecebidoInput()" onkeydown="if(event.key === 'Enter'){ event.preventDefault(); pdvApp.adicionarParcelaPagamento(); }">
+                            </div>
                         </div>
-
-                        <div class="col-12 col-md-3">
-                            <label for="modal-pay-valor" class="form-label small fw-bold">Valor a Pagar (R$)</label>
-                            <input type="number" id="modal-pay-valor" class="form-control fw-bold fs-6" placeholder="0,00" step="0.01">
-                        </div>
-
-                        <div class="col-12 col-md-3" id="modal-dinheiro-recebido-box">
-                            <label for="modal-pay-dinheiro-recebido" class="form-label small fw-bold text-success">Valor Recebido (R$)</label>
-                            <input type="number" id="modal-pay-dinheiro-recebido" class="form-control fw-bold fs-6 text-success" placeholder="0,00" step="0.01">
-                        </div>
-
-                        <div class="col-12 col-md-2">
-                            <button type="button" class="btn btn-primary fw-bold w-100" onclick="pdvApp.adicionarParcelaPagamento()">
-                                <i class="bi bi-plus-lg"></i> Adicionar
+                        <div class="col-12 col-md-5 d-flex gap-2 align-items-end pt-md-4">
+                            <button type="button" class="btn btn-outline-primary py-2 fw-bold flex-grow-1" onclick="pdvApp.adicionarParcelaPagamento()">
+                                <i class="bi bi-plus-circle me-1"></i> Dividir / Adicionar
+                            </button>
+                            <button type="button" class="btn btn-outline-secondary py-2" onclick="pdvApp.toggleCrediarioBox()" title="Crediário / Fiado">
+                                <i class="bi bi-person-lines-fill"></i> Fiado
                             </button>
                         </div>
                     </div>
@@ -261,9 +271,9 @@
                     <!-- Seletor de Cliente específico para Fiado/Crediário -->
                     <div id="modal-crediario-customer-box" class="mt-3 d-none">
                         <label for="modal-cliente-select" class="form-label fw-bold small text-danger">
-                            <i class="bi bi-person-exclamation me-1"></i> Selecione o Cliente Obrigatório para Venda Fiada / Crediário:
+                            <i class="bi bi-person-exclamation me-1"></i> Cliente Obrigatório para Venda Fiada / Crediário:
                         </label>
-                        <select id="modal-cliente-select" class="form-select" onchange="pdvApp.onCrediarioCustomerChange(this)">
+                        <select id="modal-cliente-select" class="form-select text-dark" onchange="pdvApp.onCrediarioCustomerChange(this)">
                             <option value="">-- Selecione o Cliente --</option>
                             {% for cli in clientes %}
                                 <option value="{{ cli.id }}" data-nome="{{ cli.nome|escapejs }}" data-limite="{{ cli.limite_credito|stringformat:'.2f' }}" data-devedor="{{ cli.saldo_devedor|stringformat:'.2f' }}" data-disponivel="{{ cli.credito_disponivel|stringformat:'.2f' }}">
@@ -276,14 +286,64 @@
                         </div>
                     </div>
                 </div>
+
+                <!-- Lista de Pagamentos Múltiplos Adicionados (Visível quando há parcelas) -->
+                <div id="modal-payments-section" class="mb-2 d-none">
+                    <label class="form-label fw-bold small text-uppercase text-dark mb-1">
+                        <i class="bi bi-list-check me-1"></i> Pagamentos Adicionados nesta Venda:
+                    </label>
+                    <div id="modal-payments-list" style="max-height: 120px; overflow-y: auto;">
+                        <!-- Renderizado via JS -->
+                    </div>
+                </div>
             </div>
 
             <div class="modal-footer bg-light py-3 d-flex justify-content-between">
                 <button type="button" class="btn btn-outline-secondary px-4 fw-bold" data-bs-dismiss="modal">
                     <i class="bi bi-arrow-left me-1"></i> Voltar ao Carrinho
                 </button>
-                <button type="button" id="modal-btn-finalizar" class="btn btn-secondary px-4 py-2 fw-bold fs-5 shadow" disabled onclick="pdvApp.executarFinalizacaoVenda()">
-                    <i class="bi bi-check2-circle me-1"></i> CONFIRMAR E FINALIZAR VENDA
+                <button type="button" id="modal-btn-finalizar" class="btn btn-success px-4 py-2 fw-bold fs-5 shadow" onclick="pdvApp.abrirModalConfirmacao()">
+                    <i class="bi bi-check2-circle me-1"></i> FINALIZAR (<span id="label-shortcut-modal-finalizar">{{ atalhos_pdv.FINALIZAR_COMPRA|default:"F5" }}</span>)
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ======================================================== -->
+<!-- MODAL DE CONFIRMAÇÃO FINAL PRÉ-GRAVAÇÃO DA VENDA        -->
+<!-- ======================================================== -->
+<div class="modal fade" id="confirmSaleModal" tabindex="-1" aria-hidden="true" data-bs-backdrop="static">
+    <div class="modal-dialog modal-dialog-centered modal-md">
+        <div class="modal-content card-custom border-0 shadow-lg">
+            <div class="modal-header bg-success text-white py-3">
+                <h5 class="modal-title fw-bold"><i class="bi bi-check2-circle me-2"></i>CONFIRMAR VENDA</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body p-4 text-center">
+                <span class="text-muted small fw-bold text-uppercase d-block">VALOR TOTAL DA VENDA</span>
+                <h1 class="fw-bold text-success my-2" id="confirm-modal-total">R$ 0,00</h1>
+                
+                <div class="card bg-light border p-3 my-3 text-start">
+                    <h6 class="fw-bold text-dark mb-2 border-bottom pb-1"><i class="bi bi-wallet2 me-1"></i> Formas de Pagamento:</h6>
+                    <div id="confirm-modal-payments-breakdown">
+                        <!-- Preenchido dinamicamente via JS -->
+                    </div>
+                    <div id="confirm-modal-troco-box" class="mt-2 pt-2 border-top text-success fw-bold d-none">
+                        Troco: <span id="confirm-modal-troco">R$ 0,00</span>
+                    </div>
+                </div>
+
+                <div class="text-muted small mb-0">
+                    <span id="confirm-modal-items-count">1</span> item(s) no carrinho | Operador: <strong>{{ request.user.username }}</strong>
+                </div>
+            </div>
+            <div class="modal-footer bg-light py-3 d-flex justify-content-between">
+                <button type="button" class="btn btn-outline-secondary px-4 fw-bold" onclick="pdvApp.cancelarConfirmacaoVenda()">
+                    <i class="bi bi-arrow-left me-1"></i> CANCELAR
+                </button>
+                <button type="button" id="btn-efetivar-confirmacao" class="btn btn-success px-4 py-2 fw-bold fs-5 shadow" onclick="pdvApp.confirmarEGravarVenda()">
+                    <i class="bi bi-check2-all me-1"></i> CONFIRMAR VENDA
                 </button>
             </div>
         </div>

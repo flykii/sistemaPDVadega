@@ -51,7 +51,11 @@ class PDVApp {
             FINALIZAR_COMPRA: 'F5',
             FOCAR_BUSCA: 'F2',
             IDENTIFICAR_CLIENTE: 'F4',
-            CANCELAR_FECHAR: 'Escape'
+            CANCELAR_FECHAR: 'Escape',
+            PAG_DINHEIRO: 'F6',
+            PAG_PIX: 'F7',
+            PAG_DEBITO: 'F8',
+            PAG_CREDITO: 'F9'
         };
 
         if (window.PDV_SHORTCUTS && typeof window.PDV_SHORTCUTS === 'object' && Object.keys(window.PDV_SHORTCUTS).length > 0) {
@@ -82,6 +86,9 @@ class PDVApp {
         const btnFin = document.getElementById('label-shortcut-finalizar');
         if (btnFin) btnFin.textContent = getLabel(this.shortcuts.FINALIZAR_COMPRA);
 
+        const btnModFin = document.getElementById('label-shortcut-modal-finalizar');
+        if (btnModFin) btnModFin.textContent = getLabel(this.shortcuts.FINALIZAR_COMPRA);
+
         const kbdFin = document.getElementById('kbd-shortcut-finalizar');
         if (kbdFin) kbdFin.textContent = getLabel(this.shortcuts.FINALIZAR_COMPRA);
 
@@ -108,7 +115,9 @@ class PDVApp {
         if (isPdvPage) {
             document.addEventListener('keydown', (e) => {
                 const paymentModalEl = document.getElementById('paymentModal');
-                const isModalOpen = paymentModalEl && paymentModalEl.classList.contains('show');
+                const isPaymentModalOpen = paymentModalEl && paymentModalEl.classList.contains('show');
+                const confirmModalEl = document.getElementById('confirmSaleModal');
+                const isConfirmModalOpen = confirmModalEl && confirmModalEl.classList.contains('show');
 
                 const isKeyMatch = (funcCode) => {
                     const configured = this.shortcuts ? this.shortcuts[funcCode] : null;
@@ -128,18 +137,65 @@ class PDVApp {
                     if (cliSelect) cliSelect.focus();
                 } else if (isKeyMatch('FINALIZAR_COMPRA')) {
                     e.preventDefault();
-                    this.abrirModalPagamento();
-                } else if (isKeyMatch('CANCELAR_FECHAR')) {
-                    this.closeModals();
-                } else if (e.key === 'Enter' && isModalOpen) {
-                    const activeEl = document.activeElement;
-                    if (activeEl && activeEl.tagName === 'INPUT' && activeEl.id === 'modal-pay-valor') {
-                        e.preventDefault();
-                        this.adicionarParcelaPagamento();
-                    } else if (this.getRemainingToPay() <= 0.001) {
-                        e.preventDefault();
-                        this.executarFinalizacaoVenda();
+                    if (isConfirmModalOpen) {
+                        this.confirmarEGravarVenda();
+                    } else if (isPaymentModalOpen) {
+                        this.abrirModalConfirmacao();
+                    } else {
+                        this.abrirModalPagamento();
                     }
+                } else if (isKeyMatch('CANCELAR_FECHAR')) {
+                    if (isConfirmModalOpen) {
+                        e.preventDefault();
+                        this.cancelarConfirmacaoVenda();
+                    } else {
+                        this.closeModals();
+                    }
+                } else if (isKeyMatch('PAG_DINHEIRO')) {
+                    e.preventDefault();
+                    if (!isPaymentModalOpen && !isConfirmModalOpen) this.abrirModalPagamento();
+                    this.selecionarFormaPagamento('DINHEIRO');
+                } else if (isKeyMatch('PAG_PIX')) {
+                    e.preventDefault();
+                    if (!isPaymentModalOpen && !isConfirmModalOpen) this.abrirModalPagamento();
+                    this.selecionarFormaPagamento('PIX');
+                } else if (isKeyMatch('PAG_DEBITO')) {
+                    e.preventDefault();
+                    if (!isPaymentModalOpen && !isConfirmModalOpen) this.abrirModalPagamento();
+                    this.selecionarFormaPagamento('CARTAO_DEBITO');
+                } else if (isKeyMatch('PAG_CREDITO')) {
+                    e.preventDefault();
+                    if (!isPaymentModalOpen && !isConfirmModalOpen) this.abrirModalPagamento();
+                    this.selecionarFormaPagamento('CARTAO_CREDITO');
+                } else if (e.key === 'Enter') {
+                    if (isConfirmModalOpen) {
+                        e.preventDefault();
+                        this.confirmarEGravarVenda();
+                    } else if (isPaymentModalOpen) {
+                        const activeEl = document.activeElement;
+                        if (activeEl && (activeEl.id === 'modal-pay-valor' || activeEl.id === 'modal-cliente-select')) {
+                            e.preventDefault();
+                            this.adicionarParcelaPagamento();
+                        }
+                    }
+                }
+            });
+        }
+
+        const payModalEl = document.getElementById('paymentModal');
+        if (payModalEl) {
+            payModalEl.addEventListener('hidden.bs.modal', () => {
+                if (!this.isTransitioningToConfirm) {
+                    this.resetModalPagamento();
+                }
+            });
+        }
+
+        const confirmModalEl = document.getElementById('confirmSaleModal');
+        if (confirmModalEl) {
+            confirmModalEl.addEventListener('hidden.bs.modal', () => {
+                if (!this.isTransitioningToPayment && !this.isProcessingSale) {
+                    this.resetModalPagamento();
                 }
             });
         }
@@ -259,6 +315,7 @@ class PDVApp {
             const instance = bootstrap.Modal.getInstance(m);
             if (instance) instance.hide();
         });
+        this.resetModalPagamento();
         const dropdown = document.getElementById('search-results-dropdown');
         if (dropdown) dropdown.classList.add('d-none');
         this.focusBarcodeScanner();
@@ -650,7 +707,15 @@ class PDVApp {
         }
     }
 
-    // --- MODAL DE PAGAMENTO & PARCELAS ---
+    // --- MODAL DE PAGAMENTO & FLUXO REFINADO ---
+
+    resetModalPagamento() {
+        this.payments = [];
+        this.selectedPaymentMethod = 'DINHEIRO';
+        const crediarioBox = document.getElementById('modal-crediario-customer-box');
+        if (crediarioBox) crediarioBox.classList.add('d-none');
+        this.salvarCarrinhoPersistido();
+    }
 
     abrirModalPagamento() {
         if (this.cart.length === 0) {
@@ -659,7 +724,10 @@ class PDVApp {
             return;
         }
 
-        const remaining = this.getRemainingToPay();
+        // Toda nova entrada a partir do carrinho começa limpa
+        this.isTransitioningToConfirm = false;
+        this.isTransitioningToPayment = false;
+        this.resetModalPagamento();
 
         const cliSelectMain = document.getElementById('cliente-select');
         const cliSelectModal = document.getElementById('modal-cliente-select');
@@ -671,38 +739,78 @@ class PDVApp {
         if (modalEl) {
             const modal = bootstrap.Modal.getInstance(modalEl) || new bootstrap.Modal(modalEl);
             modal.show();
-            this.onFormaPagamentoChange();
+            this.selecionarFormaPagamento('DINHEIRO');
             this.renderPaymentModal();
-
-            setTimeout(() => {
-                const valorInput = document.getElementById('modal-pay-valor');
-                if (valorInput) {
-                    valorInput.value = remaining.toFixed(2);
-                    valorInput.focus();
-                    valorInput.select();
-                }
-            }, 300);
         }
     }
 
-    onFormaPagamentoChange() {
-        const formaSelect = document.getElementById('modal-pay-forma');
-        if (formaSelect) {
-            this.selectedPaymentMethod = formaSelect.value;
-        }
-        const forma = this.selectedPaymentMethod || 'DINHEIRO';
+    selecionarFormaPagamento(forma) {
+        this.selectedPaymentMethod = forma || 'DINHEIRO';
 
-        const dinheiroBox = document.getElementById('modal-dinheiro-recebido-box');
-        if (dinheiroBox) {
-            dinheiroBox.classList.toggle('d-none', forma !== 'DINHEIRO');
+        // Atualiza estilo dos botões rápidos
+        ['btn-pay-dinheiro', 'btn-pay-pix', 'btn-pay-debito', 'btn-pay-credito'].forEach(id => {
+            const el = document.getElementById(id);
+            if (el) el.classList.remove('active');
+        });
+
+        const activeMap = {
+            'DINHEIRO': 'btn-pay-dinheiro',
+            'PIX': 'btn-pay-pix',
+            'CARTAO_DEBITO': 'btn-pay-debito',
+            'CARTAO_CREDITO': 'btn-pay-credito'
+        };
+        const activeBtn = document.getElementById(activeMap[forma]);
+        if (activeBtn) activeBtn.classList.add('active');
+
+        // Atualiza label do input
+        const lbl = document.getElementById('label-pay-valor');
+        if (lbl) {
+            if (forma === 'DINHEIRO') {
+                lbl.innerText = 'Valor Recebido (R$):';
+            } else {
+                const nomes = { 'PIX': 'PIX', 'CARTAO_DEBITO': 'Cartão Débito', 'CARTAO_CREDITO': 'Cartão Crédito', 'CREDIARIO': 'Fiado' };
+                lbl.innerText = `Valor a Pagar em ${nomes[forma] || forma} (R$):`;
+            }
         }
 
         const crediarioBox = document.getElementById('modal-crediario-customer-box');
-        if (crediarioBox) {
-            crediarioBox.classList.toggle('d-none', forma !== 'CREDIARIO');
-            if (forma === 'CREDIARIO') {
-                this.validarLimiteClienteModal();
+        if (crediarioBox && forma !== 'CREDIARIO') {
+            crediarioBox.classList.add('d-none');
+        }
+
+        const remaining = this.getRemainingToPay();
+        const valorInput = document.getElementById('modal-pay-valor');
+        if (valorInput) {
+            if (remaining > 0) {
+                valorInput.value = remaining.toFixed(2);
             }
+            setTimeout(() => {
+                valorInput.focus();
+                valorInput.select();
+            }, 100);
+        }
+
+        this.onValorRecebidoInput();
+    }
+
+    toggleCrediarioBox(forceOpen = false) {
+        const crediarioBox = document.getElementById('modal-crediario-customer-box');
+        if (!crediarioBox) return;
+
+        const isCurrentlyHidden = crediarioBox.classList.contains('d-none');
+        if (forceOpen || isCurrentlyHidden) {
+            crediarioBox.classList.remove('d-none');
+            this.selectedPaymentMethod = 'CREDIARIO';
+            ['btn-pay-dinheiro', 'btn-pay-pix', 'btn-pay-debito', 'btn-pay-credito'].forEach(id => {
+                const el = document.getElementById(id);
+                if (el) el.classList.remove('active');
+            });
+            const lbl = document.getElementById('label-pay-valor');
+            if (lbl) lbl.innerText = 'Valor no Fiado / Crediário (R$):';
+            this.validarLimiteClienteModal();
+        } else {
+            crediarioBox.classList.add('d-none');
+            this.selecionarFormaPagamento('DINHEIRO');
         }
     }
 
@@ -752,18 +860,81 @@ class PDVApp {
         }
     }
 
-    adicionarParcelaPagamento() {
-        const formaSelect = document.getElementById('modal-pay-forma');
-        if (formaSelect) {
-            this.selectedPaymentMethod = formaSelect.value;
+    onValorRecebidoInput() {
+        const totalVenda = this.getTotal();
+        const totalPaidEffective = this.getTotalPaidEffective();
+        const remainingBefore = Math.max(0.00, totalVenda - totalPaidEffective);
+
+        const valorInput = document.getElementById('modal-pay-valor');
+        const inputVal = valorInput ? parseFloat(valorInput.value.replace(',', '.')) : 0.00;
+        const currentVal = isNaN(inputVal) || inputVal < 0 ? 0.00 : inputVal;
+
+        const forma = this.selectedPaymentMethod || 'DINHEIRO';
+
+        let novoFalta = remainingBefore;
+        let novoTroco = this.getTotalTroco();
+        let totalPagoDisplay = totalPaidEffective;
+
+        if (forma === 'DINHEIRO') {
+            if (currentVal >= remainingBefore) {
+                novoTroco = currentVal - remainingBefore;
+                novoFalta = 0.00;
+                totalPagoDisplay = totalVenda;
+            } else {
+                novoTroco = 0.00;
+                novoFalta = remainingBefore - currentVal;
+                totalPagoDisplay = totalPaidEffective + currentVal;
+            }
+        } else {
+            // PIX / CRÉDITO / DÉBITO nunca geram troco
+            novoTroco = 0.00;
+            if (currentVal >= remainingBefore) {
+                novoFalta = 0.00;
+                totalPagoDisplay = totalVenda;
+            } else {
+                novoFalta = remainingBefore - currentVal;
+                totalPagoDisplay = totalPaidEffective + currentVal;
+            }
         }
+
+        const paidEl = document.getElementById('modal-display-pago');
+        const remEl = document.getElementById('modal-display-restante');
+        const trocoEl = document.getElementById('modal-display-troco');
+        const btnFinalizar = document.getElementById('modal-btn-finalizar');
+
+        if (paidEl) paidEl.innerText = `R$ ${totalPagoDisplay.toFixed(2).replace('.', ',')}`;
+        if (remEl) remEl.innerText = `R$ ${novoFalta.toFixed(2).replace('.', ',')}`;
+        if (trocoEl) trocoEl.innerText = `R$ ${novoTroco.toFixed(2).replace('.', ',')}`;
+
+        if (btnFinalizar) {
+            const isCovered = (remainingBefore <= 0.001 && this.payments.length > 0) || (currentVal >= remainingBefore - 0.001 && remainingBefore > 0);
+            btnFinalizar.disabled = !isCovered;
+            if (isCovered) {
+                btnFinalizar.classList.remove('btn-secondary');
+                btnFinalizar.classList.add('btn-success');
+            } else {
+                btnFinalizar.classList.remove('btn-success');
+                btnFinalizar.classList.add('btn-secondary');
+            }
+        }
+    }
+
+    adicionarParcelaPagamento() {
+        if (this._isAddingPayment) return;
+        this._isAddingPayment = true;
+        setTimeout(() => { this._isAddingPayment = false; }, 300);
+
         const forma = this.selectedPaymentMethod || 'DINHEIRO';
         const valorInput = document.getElementById('modal-pay-valor');
-        if (!valorInput) return;
+        if (!valorInput) {
+            this._isAddingPayment = false;
+            return;
+        }
 
         const val = parseFloat(valorInput.value.replace(',', '.'));
         if (isNaN(val) || val <= 0) {
-            alert('Informe um valor de pagamento válido maior que zero.');
+            this._isAddingPayment = false;
+            alert('Informe um valor válido maior que zero.');
             valorInput.focus();
             return;
         }
@@ -773,8 +944,9 @@ class PDVApp {
         if (forma === 'CREDIARIO') {
             const cliSelect = document.getElementById('modal-cliente-select') || document.getElementById('cliente-select');
             if (!cliSelect || !cliSelect.value) {
+                this._isAddingPayment = false;
                 alert('Para lançar parcela no Crediário / Fiado é obrigatório selecionar um cliente.');
-                if (cliSelect) cliSelect.focus();
+                this.toggleCrediarioBox(true);
                 return;
             }
         }
@@ -783,16 +955,13 @@ class PDVApp {
         let troco = 0.00;
 
         if (forma === 'DINHEIRO') {
-            const dinheiroRecebidoInput = document.getElementById('modal-pay-dinheiro-recebido');
-            const dinheiroRecebido = dinheiroRecebidoInput && dinheiroRecebidoInput.value ? parseFloat(dinheiroRecebidoInput.value.replace(',', '.')) : NaN;
-            if (!isNaN(dinheiroRecebido) && dinheiroRecebido > val) {
-                valorRegistrado = dinheiroRecebido;
-                troco = dinheiroRecebido - val;
-            } else if (val > remaining) {
+            if (val > remaining) {
+                valorRegistrado = val;
                 troco = val - remaining;
             }
         } else {
             if (val > remaining + 0.001) {
+                this._isAddingPayment = false;
                 alert(`Para pagamentos em ${forma}, o valor não pode exceder o saldo restante (R$ ${remaining.toFixed(2)}).`);
                 valorInput.value = remaining.toFixed(2);
                 valorInput.focus();
@@ -840,6 +1009,7 @@ class PDVApp {
         const remEl = document.getElementById('modal-display-restante');
         const trocoEl = document.getElementById('modal-display-troco');
         const listEl = document.getElementById('modal-payments-list');
+        const sectionEl = document.getElementById('modal-payments-section');
         const btnFinalizar = document.getElementById('modal-btn-finalizar');
         const valorInput = document.getElementById('modal-pay-valor');
 
@@ -852,52 +1022,184 @@ class PDVApp {
             valorInput.value = remaining.toFixed(2);
         }
 
+        if (sectionEl) {
+            sectionEl.classList.toggle('d-none', this.payments.length === 0);
+        }
+
         if (listEl) {
             listEl.innerHTML = '';
-            if (this.payments.length === 0) {
-                listEl.innerHTML = '<div class="text-muted small text-center py-2">Nenhuma parcela adicionada ainda.</div>';
+            const nomesFormas = {
+                'DINHEIRO': 'Dinheiro',
+                'PIX': 'PIX',
+                'CARTAO_DEBITO': 'Cartão Débito',
+                'CARTAO_CREDITO': 'Cartão Crédito',
+                'CREDIARIO': 'Fiado / Crediário'
+            };
+
+            this.payments.forEach((p, idx) => {
+                const div = document.createElement('div');
+                div.className = 'd-flex justify-content-between align-items-center bg-light border rounded p-2 mb-2 text-dark';
+
+                let det = `<strong class="text-dark">${nomesFormas[p.forma] || p.forma}</strong>: <span class="fw-bold text-dark">R$ ${(p.valor - p.troco).toFixed(2).replace('.', ',')}</span>`;
+                if (p.forma === 'DINHEIRO' && p.troco > 0) {
+                    det += ` <small class="text-secondary">(Recebido: R$ ${p.valor.toFixed(2).replace('.', ',')} | Troco: R$ ${p.troco.toFixed(2).replace('.', ',')})</small>`;
+                }
+
+                div.innerHTML = `
+                    <div class="text-dark">${det}</div>
+                    <button type="button" class="btn btn-outline-danger btn-sm py-0 px-2" onclick="pdvApp.removerParcelaPagamento(${idx})" title="Remover parcela">
+                        <i class="bi bi-x-lg"></i>
+                    </button>
+                `;
+                listEl.appendChild(div);
+            });
+        }
+
+        this.onValorRecebidoInput();
+    }
+
+    // --- MODAL DE CONFIRMAÇÃO FINAL PRÉ-GRAVAÇÃO ---
+
+    abrirModalConfirmacao() {
+        if (this.cart.length === 0) {
+            alert('Adicione ao menos um produto no carrinho antes de prosseguir.');
+            return;
+        }
+
+        const totalVenda = this.getTotal();
+        let paymentsToReview = [...this.payments];
+
+        // Se o operador não adicionou parcelas mas preencheu valor diretamente no input:
+        if (paymentsToReview.length === 0) {
+            const valorInput = document.getElementById('modal-pay-valor');
+            const val = valorInput ? parseFloat(valorInput.value.replace(',', '.')) : totalVenda;
+            const forma = this.selectedPaymentMethod || 'DINHEIRO';
+            const valorFinal = isNaN(val) || val <= 0 ? totalVenda : val;
+
+            let troco = 0.00;
+            if (forma === 'DINHEIRO') {
+                if (valorFinal < totalVenda - 0.001) {
+                    alert(`O valor em dinheiro (R$ ${valorFinal.toFixed(2)}) é insuficiente para cobrir o total de R$ ${totalVenda.toFixed(2)}.`);
+                    if (valorInput) valorInput.focus();
+                    return;
+                }
+                if (valorFinal > totalVenda) {
+                    troco = valorFinal - totalVenda;
+                }
             } else {
-                const nomesFormas = {
-                    'DINHEIRO': 'Dinheiro',
-                    'PIX': 'PIX',
-                    'CARTAO_DEBITO': 'Cartão Débito',
-                    'CARTAO_CREDITO': 'Cartão Crédito',
-                    'CREDIARIO': 'Fiado / Crediário'
-                };
+                if (valorFinal < totalVenda - 0.001) {
+                    alert(`O valor informado em ${forma} (R$ ${valorFinal.toFixed(2)}) é insuficiente para cobrir a venda de R$ ${totalVenda.toFixed(2)}.`);
+                    if (valorInput) valorInput.focus();
+                    return;
+                }
+                if (valorFinal > totalVenda + 0.001) {
+                    alert(`Para pagamentos em ${forma}, o valor não pode ultrapassar o total da venda (R$ ${totalVenda.toFixed(2)}).`);
+                    if (valorInput) valorInput.focus();
+                    return;
+                }
+            }
 
-                this.payments.forEach((p, idx) => {
-                    const div = document.createElement('div');
-                    div.className = 'd-flex justify-content-between align-items-center bg-light border rounded p-2 mb-2';
-
-                    let det = `<strong>${nomesFormas[p.forma] || p.forma}</strong>: R$ ${(p.valor - p.troco).toFixed(2).replace('.', ',')}`;
-                    if (p.forma === 'DINHEIRO' && p.troco > 0) {
-                        det += ` <small class="text-muted">(Recebido: R$ ${p.valor.toFixed(2).replace('.', ',')} | Troco: R$ ${p.troco.toFixed(2).replace('.', ',')})</small>`;
-                    }
-
-                    div.innerHTML = `
-                        <div>${det}</div>
-                        <button type="button" class="btn btn-outline-danger btn-sm py-0 px-2" onclick="pdvApp.removerParcelaPagamento(${idx})">
-                            <i class="bi bi-x-lg"></i>
-                        </button>
-                    `;
-                    listEl.appendChild(div);
-                });
+            paymentsToReview.push({
+                forma: forma,
+                valor: valorFinal,
+                troco: troco
+            });
+            this.payments = paymentsToReview;
+            this.salvarCarrinhoPersistido();
+        } else {
+            const remaining = this.getRemainingToPay();
+            if (remaining > 0.001) {
+                alert(`Ainda resta um saldo de R$ ${remaining.toFixed(2)} a ser pago.`);
+                return;
             }
         }
 
-        if (btnFinalizar) {
-            if (remaining <= 0.001 && this.payments.length > 0) {
-                btnFinalizar.disabled = false;
-                btnFinalizar.classList.remove('btn-secondary');
-                btnFinalizar.classList.add('btn-success');
+        const temCrediario = this.payments.some(p => p.forma === 'CREDIARIO');
+        const cliSelect = document.getElementById('modal-cliente-select') || document.getElementById('cliente-select');
+        if (temCrediario && (!cliSelect || !cliSelect.value)) {
+            alert('Vendas contendo parcelas no Crediário / Fiado exigem a seleção de um Cliente.');
+            this.toggleCrediarioBox(true);
+            return;
+        }
+
+        const nomesFormas = {
+            'DINHEIRO': 'Dinheiro',
+            'PIX': 'PIX',
+            'CARTAO_DEBITO': 'Cartão Débito',
+            'CARTAO_CREDITO': 'Cartão Crédito',
+            'CREDIARIO': 'Fiado / Crediário'
+        };
+
+        const totalEl = document.getElementById('confirm-modal-total');
+        const breakdownEl = document.getElementById('confirm-modal-payments-breakdown');
+        const trocoBox = document.getElementById('confirm-modal-troco-box');
+        const trocoEl = document.getElementById('confirm-modal-troco');
+        const countEl = document.getElementById('confirm-modal-items-count');
+
+        if (totalEl) totalEl.innerText = `R$ ${totalVenda.toFixed(2).replace('.', ',')}`;
+        if (countEl) countEl.innerText = this.cart.reduce((acc, i) => acc + i.quantidade, 0);
+
+        let totalTroco = 0.00;
+        if (breakdownEl) {
+            let html = '<ul class="list-unstyled mb-0 text-dark">';
+            this.payments.forEach(p => {
+                const valorLiquido = p.valor - p.troco;
+                html += `<li class="d-flex justify-content-between py-1 border-bottom text-dark">
+                    <span class="text-dark"><strong>${nomesFormas[p.forma] || p.forma}</strong></span>
+                    <span class="fw-bold text-dark">R$ ${valorLiquido.toFixed(2).replace('.', ',')}</span>
+                </li>`;
+                if (p.troco > 0) totalTroco += p.troco;
+            });
+            html += '</ul>';
+            breakdownEl.innerHTML = html;
+        }
+
+        if (trocoBox && trocoEl) {
+            if (totalTroco > 0) {
+                trocoBox.classList.remove('d-none');
+                trocoEl.innerText = `R$ ${totalTroco.toFixed(2).replace('.', ',')}`;
             } else {
-                btnFinalizar.disabled = true;
-                btnFinalizar.classList.remove('btn-success');
-                btnFinalizar.classList.add('btn-secondary');
+                trocoBox.classList.add('d-none');
             }
         }
 
-        this.onFormaPagamentoChange();
+        this.isTransitioningToConfirm = true;
+        // Esconde modal de pagamento e exibe modal de confirmação
+        const payModalEl = document.getElementById('paymentModal');
+        const payModal = payModalEl ? bootstrap.Modal.getInstance(payModalEl) : null;
+        if (payModal) payModal.hide();
+
+        const confirmModalEl = document.getElementById('confirmSaleModal');
+        if (confirmModalEl) {
+            const confirmModal = bootstrap.Modal.getInstance(confirmModalEl) || new bootstrap.Modal(confirmModalEl);
+            confirmModal.show();
+            setTimeout(() => {
+                this.isTransitioningToConfirm = false;
+                const btnConfirm = document.getElementById('btn-efetivar-confirmacao');
+                if (btnConfirm) btnConfirm.focus();
+            }, 300);
+        }
+    }
+
+    cancelarConfirmacaoVenda() {
+        this.isTransitioningToPayment = true;
+        const confirmModalEl = document.getElementById('confirmSaleModal');
+        const confirmModal = confirmModalEl ? bootstrap.Modal.getInstance(confirmModalEl) : null;
+        if (confirmModal) confirmModal.hide();
+
+        const payModalEl = document.getElementById('paymentModal');
+        if (payModalEl) {
+            const payModal = bootstrap.Modal.getInstance(payModalEl) || new bootstrap.Modal(payModalEl);
+            payModal.show();
+            this.renderPaymentModal();
+            setTimeout(() => {
+                this.isTransitioningToPayment = false;
+            }, 300);
+        }
+    }
+
+    async confirmarEGravarVenda() {
+        await this.executarFinalizacaoVenda();
     }
 
     // --- FINALIZAÇÃO E SINCRONIZAÇÃO DA VENDA (OFFLINE / ONLINE) ---
@@ -931,10 +1233,10 @@ class PDVApp {
         }
 
         this.isProcessingSale = true;
-        const btnFinalizar = document.getElementById('modal-btn-finalizar');
-        if (btnFinalizar) {
-            btnFinalizar.disabled = true;
-            btnFinalizar.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span> Processando...';
+        const btnConfirm = document.getElementById('btn-efetivar-confirmacao');
+        if (btnConfirm) {
+            btnConfirm.disabled = true;
+            btnConfirm.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span> Processando...';
         }
 
         const offlineUuid = (typeof crypto !== 'undefined' && crypto.randomUUID) ? crypto.randomUUID() : ('OFF-' + Date.now() + '-' + Math.random().toString(36).substring(2, 9));
@@ -1012,9 +1314,9 @@ class PDVApp {
             alert(`Erro ao gravar operação: ${err.message || err}`);
         } finally {
             this.isProcessingSale = false;
-            if (btnFinalizar) {
-                btnFinalizar.disabled = false;
-                btnFinalizar.innerHTML = '<i class="bi bi-check2-circle me-1"></i> CONFIRMAR E FINALIZAR VENDA';
+            if (btnConfirm) {
+                btnConfirm.disabled = false;
+                btnConfirm.innerHTML = '<i class="bi bi-check2-all me-1"></i> CONFIRMAR VENDA';
             }
         }
     }

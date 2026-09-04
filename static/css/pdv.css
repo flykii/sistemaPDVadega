@@ -191,3 +191,60 @@ body[data-page="pdv"] .pdv-cart-table-wrapper table td {
     border-color: var(--cor-pdv-botao-divida, #7c3aed) !important;
     color: #ffffff !important;
 }
+
+/* Layout 80% / 20% Proporcional da Frente de Caixa */
+@media (min-width: 1200px) {
+    .pdv-left-area {
+        flex: 0 0 78% !important;
+        max-width: 78% !important;
+    }
+    .pdv-right-area {
+        flex: 0 0 22% !important;
+        max-width: 22% !important;
+    }
+}
+
+/* Botões Rápidos de Seleção de Forma de Pagamento */
+.btn-pay-method {
+    border-width: 2px;
+    font-size: 0.95rem;
+    transition: all 0.15s ease-in-out;
+}
+
+.btn-pay-method.active {
+    background-color: var(--cor-principal, #2563eb) !important;
+    border-color: var(--cor-principal, #2563eb) !important;
+    color: #ffffff !important;
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+}
+
+/* Modais no PDV: contraste e legibilidade sobre fundo claro */
+body[data-page="pdv"] .modal-content {
+    color: #1e293b;
+    background-color: #ffffff;
+}
+
+body[data-page="pdv"] .modal-content .modal-body {
+    color: #1e293b;
+}
+
+body[data-page="pdv"] .modal-content .card {
+    color: #1e293b;
+}
+
+body[data-page="pdv"] #modal-payments-list {
+    color: #0f172a;
+}
+
+body[data-page="pdv"] #modal-payments-list strong {
+    color: #0f172a;
+}
+
+body[data-page="pdv"] #confirm-modal-payments-breakdown {
+    color: #0f172a;
+}
+
+body[data-page="pdv"] #confirm-modal-payments-breakdown strong {
+    color: #0f172a;
+}
+
