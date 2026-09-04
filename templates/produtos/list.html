@@ -17,7 +17,7 @@
             <a href="{% url 'movimentacoes_list' %}" class="btn btn-outline-dark fw-bold">
                 <i class="bi bi-clock-history me-1"></i> Histórico de Estoque
             </a>
-            <a href="{% url 'produto_novo' %}" class="btn btn-primary fw-bold shadow-sm">
+            <a href="{% url 'produto_novo' %}{% if request.GET.urlencode %}?next={{ request.get_full_path|urlencode }}{% endif %}" class="btn btn-primary fw-bold shadow-sm">
                 <i class="bi bi-plus-lg me-1"></i> Novo Produto
             </a>
         </div>
@@ -115,9 +115,9 @@
                         </td>
                         <td class="text-end pe-3">
                             <div class="d-flex justify-content-end gap-1">
-                                <a href="{% url 'estoque_ajuste' prod.id %}" class="btn btn-sm btn-outline-warning" title="Ajustar Estoque"><i class="bi bi-arrow-left-right"></i></a>
-                                <a href="{% url 'produto_editar' prod.id %}" class="btn btn-sm btn-outline-primary" title="Editar Produto"><i class="bi bi-pencil"></i></a>
-                                <a href="{% url 'produto_excluir' prod.id %}" class="btn btn-sm btn-outline-danger" title="Excluir / Inativar" onclick="return confirm('Deseja realmente inativar/excluir o produto \'{{ prod.nome }}\'?');"><i class="bi bi-trash"></i></a>
+                                <a href="{% url 'estoque_ajuste' prod.id %}{% if request.GET.urlencode %}?next={{ request.get_full_path|urlencode }}{% endif %}" class="btn btn-sm btn-outline-warning" title="Ajustar Estoque"><i class="bi bi-arrow-left-right"></i></a>
+                                <a href="{% url 'produto_editar' prod.id %}{% if request.GET.urlencode %}?next={{ request.get_full_path|urlencode }}{% endif %}" class="btn btn-sm btn-outline-primary" title="Editar Produto"><i class="bi bi-pencil"></i></a>
+                                <a href="{% url 'produto_excluir' prod.id %}{% if request.GET.urlencode %}?next={{ request.get_full_path|urlencode }}{% endif %}" class="btn btn-sm btn-outline-danger" title="Excluir / Inativar" onclick="return confirm('Deseja realmente inativar/excluir o produto \'{{ prod.nome }}\'?');"><i class="bi bi-trash"></i></a>
                             </div>
                         </td>
                     </tr>

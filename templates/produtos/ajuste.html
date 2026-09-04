@@ -41,7 +41,8 @@
                 </div>
 
                 <div class="d-flex gap-2">
-                    <a href="{% url 'produtos_list' %}" class="btn btn-secondary w-50 py-3 fw-bold">Cancelar</a>
+                    <input type="hidden" name="next" value="{{ next_url|default:'' }}">
+                    <a href="{{ next_url|default:'/produtos/' }}" class="btn btn-secondary w-50 py-3 fw-bold">Cancelar</a>
                     <button type="submit" class="btn btn-warning text-dark w-50 py-3 fw-bold fs-5 shadow">
                         <i class="bi bi-check-circle-fill me-1"></i> Confirmar Ajuste
                     </button>

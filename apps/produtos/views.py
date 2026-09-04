@@ -65,6 +65,11 @@ def produto_form(request, pk=None):
     produto = get_object_or_404(Produto, pk=pk, empresa=empresa) if pk else None
     categorias = Categoria.objects.filter(empresa=empresa, ativo=True)
     fornecedores = Fornecedor.objects.filter(empresa=empresa, ativo=True)
+    unidades = Produto.UNIDADE_CHOICES
+
+    next_url = request.GET.get('next') or request.POST.get('next') or ''
+    if next_url and not (next_url.startswith('/produtos/') or next_url.startswith('/')):
+        next_url = ''
 
     if request.method == 'POST':
         nome = request.POST.get('nome', '').strip()
@@ -81,13 +86,17 @@ def produto_form(request, pk=None):
         estoque_minimo = safe_decimal(request.POST.get('estoque_minimo'), '5.000')
         estoque_maximo = safe_decimal(request.POST.get('estoque_maximo'), '1000.000')
         unidade_medida = request.POST.get('unidade_medida', 'UN')
-        controle_estoque = request.POST.get('controle_estoque') == 'on' or request.POST.get('controle_estoque') == 'true'
-        ativo = request.POST.get('ativo') == 'on' or request.POST.get('ativo') == 'true' or ('ativo' not in request.POST and pk is None)
+        controle_estoque = request.POST.get('controle_estoque') in ['on', 'true', '1']
+        ativo = request.POST.get('ativo') in ['on', 'true', '1'] or ('ativo' not in request.POST and pk is None)
 
         if not nome or not codigo_barras:
             messages.error(request, "Nome e Código de Barras são obrigatórios.")
             return render(request, 'produtos/form.html', {
-                'produto': produto, 'categorias': categorias, 'fornecedores': fornecedores
+                'produto': produto,
+                'categorias': categorias,
+                'fornecedores': fornecedores,
+                'unidades': unidades,
+                'next_url': next_url,
             })
 
         # Verifica duplicidade de código de barras na mesma empresa
@@ -97,7 +106,11 @@ def produto_form(request, pk=None):
         if duplicado.exists():
             messages.error(request, f"Já existe um produto cadastrado com o código de barras '{codigo_barras}'.")
             return render(request, 'produtos/form.html', {
-                'produto': produto, 'categorias': categorias, 'fornecedores': fornecedores
+                'produto': produto,
+                'categorias': categorias,
+                'fornecedores': fornecedores,
+                'unidades': unidades,
+                'next_url': next_url,
             })
 
         categoria = Categoria.objects.filter(id=categoria_id, empresa=empresa).first() if categoria_id else None
@@ -121,7 +134,7 @@ def produto_form(request, pk=None):
         # Se for edição e o estoque mudou manualmente via form, registra movimentação
         if not is_novo and produto.estoque_atual != estoque_atual:
             StockService.adjust_stock(produto, estoque_atual, motivo="Ajuste pelo formulário de edição", usuario=request.user)
-        else:
+        elif is_novo:
             produto.estoque_atual = estoque_atual
 
         produto.estoque_minimo = estoque_minimo
@@ -139,6 +152,8 @@ def produto_form(request, pk=None):
                 StockService.add_stock(produto, estoque_atual, motivo="Estoque Inicial", usuario=request.user)
 
             messages.success(request, f"Produto '{produto.nome}' salvo com sucesso! Preço Venda: R$ {produto.preco_venda:.2f}")
+            if next_url:
+                return redirect(next_url)
             return redirect('produtos_list')
         except Exception as e:
             messages.error(request, f"Erro ao salvar produto: {str(e)}")
@@ -147,6 +162,8 @@ def produto_form(request, pk=None):
         'produto': produto,
         'categorias': categorias,
         'fornecedores': fornecedores,
+        'unidades': unidades,
+        'next_url': next_url,
     })
 
 
@@ -155,6 +172,9 @@ def produto_form(request, pk=None):
 def produto_excluir(request, pk):
     empresa = request.tenant or request.user.empresa
     produto = get_object_or_404(Produto, pk=pk, empresa=empresa)
+    next_url = request.GET.get('next') or ''
+    if next_url and not (next_url.startswith('/produtos/') or next_url.startswith('/')):
+        next_url = ''
 
     # Verifica se o produto tem histórico (vendas, compras ou movimentações)
     tem_vendas = produto.itens_venda.exists() if hasattr(produto, 'itens_venda') else False
@@ -170,6 +190,8 @@ def produto_excluir(request, pk):
         produto.delete()
         messages.success(request, f"Produto '{produto.nome}' excluído com sucesso!")
 
+    if next_url:
+        return redirect(next_url)
     return redirect('produtos_list')
 
 
@@ -178,6 +200,9 @@ def produto_excluir(request, pk):
 def estoque_ajuste(request, pk):
     empresa = request.tenant or request.user.empresa
     produto = get_object_or_404(Produto, pk=pk, empresa=empresa)
+    next_url = request.GET.get('next') or request.POST.get('next') or ''
+    if next_url and not (next_url.startswith('/produtos/') or next_url.startswith('/')):
+        next_url = ''
 
     if request.method == 'POST':
         tipo = request.POST.get('tipo', 'AJUSTE')
@@ -193,11 +218,16 @@ def estoque_ajuste(request, pk):
             elif tipo == 'NOVO_SALDO':
                 StockService.adjust_stock(produto, novo_saldo, motivo=motivo or "Contagem / Balanço de Estoque", usuario=request.user)
             messages.success(request, f"Estoque do produto '{produto.nome}' atualizado com sucesso! Novo saldo: {produto.estoque_atual} {produto.unidade_medida}")
+            if next_url:
+                return redirect(next_url)
             return redirect('produtos_list')
         except Exception as e:
             messages.error(request, str(e))
 
-    return render(request, 'produtos/ajuste.html', {'produto': produto})
+    return render(request, 'produtos/ajuste.html', {
+        'produto': produto,
+        'next_url': next_url,
+    })
 
 
 @login_required

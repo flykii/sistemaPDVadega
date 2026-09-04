@@ -14,13 +14,14 @@
                     </h3>
                     <p class="text-muted mb-0">Preencha os dados cadastrais, fiscais e estoque do produto.</p>
                 </div>
-                <a href="{% url 'produtos_list' %}" class="btn btn-outline-secondary btn-sm">
+                <a href="{{ next_url|default:'/produtos/' }}" class="btn btn-outline-secondary btn-sm">
                     <i class="bi bi-arrow-left me-1"></i> Voltar à Lista
                 </a>
             </div>
 
             <form method="post" enctype="multipart/form-data">
                 {% csrf_token %}
+                <input type="hidden" name="next" value="{{ next_url|default:'' }}">
 
                 <!-- Dados Básicos -->
                 <div class="row g-3 mb-3">
@@ -71,16 +72,9 @@
                     <div class="col-12 col-md-4">
                         <label for="unidade_medida" class="form-label fw-bold">Unidade de Medida</label>
                         <select name="unidade_medida" id="unidade_medida" class="form-select">
-                            <option value="UN" {% if produto and produto.unidade_medida == 'UN' %}selected{% endif %}>UN (Unidade)</option>
-                            <option value="KG" {% if produto and produto.unidade_medida == 'KG' %}selected{% endif %}>KG (Quilograma)</option>
-                            <option value="G" {% if produto and produto.unidade_medida == 'G' %}selected{% endif %}>G (Grama)</option>
-                            <option value="L" {% if produto and produto.unidade_medida == 'L' %}selected{% endif %}>L (Litro)</option>
-                            <option value="ML" {% if produto and produto.unidade_medida == 'ML' %}selected{% endif %}>ML (Mililitro)</option>
-                            <option value="LT" {% if produto and produto.unidade_medida == 'LT' %}selected{% endif %}>LT (Lata)</option>
-                            <option value="CX" {% if produto and produto.unidade_medida == 'CX' %}selected{% endif %}>CX (Caixa)</option>
-                            <option value="PCT" {% if produto and produto.unidade_medida == 'PCT' %}selected{% endif %}>PCT (Pacote)</option>
-                            <option value="FD" {% if produto and produto.unidade_medida == 'FD' %}selected{% endif %}>FD (Fardo)</option>
-                            <option value="M2" {% if produto and produto.unidade_medida == 'M2' %}selected{% endif %}>M² (Metro Quadrado)</option>
+                            {% for code, label in unidades %}
+                                <option value="{{ code }}" {% if produto and produto.unidade_medida == code %}selected{% elif not produto and code == 'UN' %}selected{% endif %}>{{ label }}</option>
+                            {% endfor %}
                         </select>
                     </div>
 
@@ -97,23 +91,23 @@
                     <div class="row g-3">
                         <div class="col-12 col-md-4">
                             <label for="preco_custo" class="form-label fw-bold">Preço de Custo (R$)</label>
-                            <input type="number" step="0.01" min="0" name="preco_custo" id="preco_custo" class="form-control form-control-lg fw-bold" value="{{ produto.preco_custo|default:'0.00' }}" oninput="calcularPrecoVenda()">
+                            <input type="number" step="0.01" min="0" name="preco_custo" id="preco_custo" class="form-control form-control-lg fw-bold" value="{% if produto %}{{ produto.preco_custo|stringformat:'.2f' }}{% else %}0.00{% endif %}" oninput="calcularPrecoVenda()">
                         </div>
 
                         <div class="col-12 col-md-4">
                             <label for="margem_lucro" class="form-label fw-bold">Margem Lucro (%)</label>
-                            <input type="number" step="0.01" min="0" max="99.99" name="margem_lucro" id="margem_lucro" class="form-control form-control-lg fw-bold text-info" value="{{ produto.margem_lucro|default:'30.00' }}" oninput="calcularPrecoVenda()">
+                            <input type="number" step="0.01" min="0" max="99.99" name="margem_lucro" id="margem_lucro" class="form-control form-control-lg fw-bold text-info" value="{% if produto %}{{ produto.margem_lucro|stringformat:'.2f' }}{% else %}30.00{% endif %}" oninput="calcularPrecoVenda()">
                         </div>
 
                         <div class="col-12 col-md-4">
                             <label for="preco_venda" class="form-label fw-bold">Preço de Venda (R$) *</label>
-                            <input type="number" step="0.01" min="0" name="preco_venda" id="preco_venda" class="form-control form-control-lg fw-bold text-success fs-4" value="{{ produto.preco_venda|default:'0.00' }}" oninput="calcularMargem()">
+                            <input type="number" step="0.01" min="0" name="preco_venda" id="preco_venda" class="form-control form-control-lg fw-bold text-success fs-4" value="{% if produto %}{{ produto.preco_venda|stringformat:'.2f' }}{% else %}0.00{% endif %}" oninput="calcularMargem()">
                         </div>
                     </div>
 
                     <div class="alert alert-success mt-3 mb-0 d-flex justify-content-between align-items-center">
                         <span>Fórmula Aplicada: <strong>Custo / (1 - (Margem/100))</strong></span>
-                        <span class="fs-6">Lucro Bruto Unitário: <strong id="display-lucro-real" class="fs-5 text-success">R$ 0,00</strong></span>
+                        <span class="fs-6">Lucro Bruto Unitário: <strong id="display-lucro-real" class="fs-5 text-success">{% if produto %}R$ {{ produto.lucro_real|floatformat:2 }}{% else %}R$ 0,00{% endif %}</strong></span>
                     </div>
                 </div>
 
@@ -124,17 +118,17 @@
                     <div class="row g-3 mb-3">
                         <div class="col-12 col-md-4">
                             <label for="estoque_atual" class="form-label fw-bold">Estoque Inicial / Atual</label>
-                            <input type="number" step="0.001" min="0" name="estoque_atual" id="estoque_atual" class="form-control fw-bold fs-5 text-primary" value="{{ produto.estoque_atual|default:'0.000' }}">
+                            <input type="number" step="0.001" min="0" name="estoque_atual" id="estoque_atual" class="form-control fw-bold fs-5 text-primary" value="{% if produto %}{{ produto.estoque_atual|stringformat:'.3f' }}{% else %}0.000{% endif %}">
                         </div>
 
                         <div class="col-12 col-md-4">
                             <label for="estoque_minimo" class="form-label fw-bold">Estoque Mínimo (Alerta)</label>
-                            <input type="number" step="0.001" min="0" name="estoque_minimo" id="estoque_minimo" class="form-control" value="{{ produto.estoque_minimo|default:'5.000' }}">
+                            <input type="number" step="0.001" min="0" name="estoque_minimo" id="estoque_minimo" class="form-control" value="{% if produto %}{{ produto.estoque_minimo|stringformat:'.3f' }}{% else %}5.000{% endif %}">
                         </div>
 
                         <div class="col-12 col-md-4">
                             <label for="estoque_maximo" class="form-label fw-bold">Estoque Máximo (Capacidade)</label>
-                            <input type="number" step="0.001" min="0" name="estoque_maximo" id="estoque_maximo" class="form-control" value="{{ produto.estoque_maximo|default:'1000.000' }}">
+                            <input type="number" step="0.001" min="0" name="estoque_maximo" id="estoque_maximo" class="form-control" value="{% if produto and produto.estoque_maximo is not None %}{{ produto.estoque_maximo|stringformat:'.3f' }}{% elif not produto %}1000.000{% else %}{% endif %}">
                         </div>
                     </div>
 
@@ -155,7 +149,7 @@
                 </div>
 
                 <div class="d-flex gap-2">
-                    <a href="{% url 'produtos_list' %}" class="btn btn-secondary w-50 py-3 fw-bold">Cancelar</a>
+                    <a href="{{ next_url|default:'/produtos/' }}" class="btn btn-secondary w-50 py-3 fw-bold">Cancelar</a>
                     <button type="submit" class="btn btn-primary w-50 py-3 fw-bold fs-5 shadow">
                         <i class="bi bi-check-circle-fill me-1"></i> Salvar Produto
                     </button>
@@ -176,9 +170,7 @@
             const fator = 1 - (margem / 100);
             const venda = custo / fator;
             document.getElementById('preco_venda').value = venda.toFixed(2);
-            
-            const lucro = venda - custo;
-            document.getElementById('display-lucro-real').innerText = `R$ ${lucro.toFixed(2).replace('.', ',')}`;
+            atualizarDisplayLucro();
         }
     }
 
@@ -189,14 +181,22 @@
         if (custo > 0 && venda > custo) {
             const margem = ((venda - custo) / venda) * 100;
             document.getElementById('margem_lucro').value = margem.toFixed(2);
+            atualizarDisplayLucro();
+        }
+    }
 
-            const lucro = venda - custo;
-            document.getElementById('display-lucro-real').innerText = `R$ ${lucro.toFixed(2).replace('.', ',')}`;
+    function atualizarDisplayLucro() {
+        const custo = parseFloat(document.getElementById('preco_custo').value) || 0;
+        const venda = parseFloat(document.getElementById('preco_venda').value) || 0;
+        const lucro = venda - custo;
+        const display = document.getElementById('display-lucro-real');
+        if (display) {
+            display.innerText = `R$ ${lucro.toFixed(2).replace('.', ',')}`;
         }
     }
 
     document.addEventListener("DOMContentLoaded", function() {
-        calcularPrecoVenda();
+        atualizarDisplayLucro();
     });
 </script>
 {% endblock %}

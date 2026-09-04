@@ -71,8 +71,8 @@
                         </td>
                         <td class="text-center fw-bold">{{ prod.estoque_minimo }} {{ prod.unidade_medida }}</td>
                         <td class="text-end pe-3">
-                            <a href="{% url 'estoque_ajuste' prod.id %}" class="btn btn-sm btn-outline-dark fw-bold me-1" title="Ajustar Estoque"><i class="bi bi-arrow-left-right me-1"></i> Ajustar</a>
-                            <a href="{% url 'produto_editar' prod.id %}" class="btn btn-sm btn-outline-primary" title="Editar"><i class="bi bi-pencil"></i></a>
+                            <a href="{% url 'estoque_ajuste' prod.id %}?next={{ request.get_full_path|urlencode }}" class="btn btn-sm btn-outline-dark fw-bold me-1" title="Ajustar Estoque"><i class="bi bi-arrow-left-right me-1"></i> Ajustar</a>
+                            <a href="{% url 'produto_editar' prod.id %}?next={{ request.get_full_path|urlencode }}" class="btn btn-sm btn-outline-primary" title="Editar"><i class="bi bi-pencil"></i></a>
                         </td>
                     </tr>
                     {% empty %}
