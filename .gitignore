@@ -1,0 +1,8 @@
+﻿venv/
+.venv/
+__pycache__/
+*.py[cod]
+*.class
+*.sqlite3-journal
+.DS_Store
+*.log

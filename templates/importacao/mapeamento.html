@@ -1,0 +1,306 @@
+{% extends 'base.html' %}
+
+{% block title %}Mapeamento e Validação - Importação JSON{% endblock %}
+
+{% block content %}
+<div class="row mb-4">
+    <div class="col-12 d-flex justify-content-between align-items-center flex-wrap gap-2">
+        <div>
+            <h2 class="fw-bold text-dark mb-0">
+                <i class="bi bi-diagram-3 text-primary me-2"></i>Mapeamento de Campos e Pré-Visualização
+            </h2>
+            <p class="text-muted mb-0">Arquivo: <strong>{{ nome_arquivo }}</strong> ({{ total_registros }} registro(s) detectado(s))</p>
+        </div>
+        <div class="d-flex gap-2">
+            <a href="{% url 'importacao_hub' %}" class="btn btn-outline-secondary">
+                <i class="bi bi-arrow-left me-1"></i> Cancelar e Voltar
+            </a>
+        </div>
+    </div>
+</div>
+
+<form action="{% url 'importacao_executar' %}" method="POST" id="formExecutarImportacao">
+    {% csrf_token %}
+    <div class="row g-4">
+        <!-- Coluna Esquerda: Configurações de Entidade e Mapeamento -->
+        <div class="col-12 col-lg-7">
+            <div class="card card-custom p-4 shadow-sm border-0 mb-4">
+                <h5 class="fw-bold text-dark mb-3">
+                    <i class="bi bi-sliders text-primary me-2"></i>1. Tipo de Registro & Estratégia de Identificação
+                </h5>
+                
+                <div class="row g-3 mb-4">
+                    <div class="col-12 col-md-6">
+                        <label for="tipo_entidade" class="form-label fw-semibold">Entidade de Destino:</label>
+                        <select class="form-select" id="tipo_entidade" name="tipo_entidade" onchange="atualizarOpcoesEstrategia()">
+                            <option value="PRODUTOS" {% if tipo_sugerido == 'PRODUTOS' %}selected{% endif %}>Produtos & Estoque</option>
+                            <option value="CLIENTES" {% if tipo_sugerido == 'CLIENTES' %}selected{% endif %}>Clientes & Crediário</option>
+                            <option value="FORNECEDORES" {% if tipo_sugerido == 'FORNECEDORES' %}selected{% endif %}>Fornecedores</option>
+                        </select>
+                    </div>
+
+                    <div class="col-12 col-md-6">
+                        <label for="estrategia_identificacao" class="form-label fw-semibold">Chave Única de Identificação:</label>
+                        <select class="form-select" id="estrategia_identificacao" name="estrategia_identificacao">
+                            <!-- Preenchido via JS conforme entidade -->
+                        </select>
+                        <div class="form-text small">Evita duplicidades e atualiza registros existentes.</div>
+                    </div>
+                </div>
+
+                <h5 class="fw-bold text-dark mb-3 pt-3 border-top">
+                    <i class="bi bi-arrow-left-right text-primary me-2"></i>2. Mapeamento de Campos
+                </h5>
+                <p class="text-muted small">Associe cada campo do sistema ao campo correspondente do arquivo JSON.</p>
+
+                <div class="table-responsive">
+                    <table class="table table-bordered align-middle mb-0">
+                        <thead class="table-light">
+                            <tr>
+                                <th style="width: 40%;">Campo no Sistema</th>
+                                <th style="width: 60%;">Campo Correspondente no JSON</th>
+                            </tr>
+                        </thead>
+                        <tbody id="mapping-fields-body">
+                            <!-- Gerado dinamicamente via JS -->
+                        </tbody>
+                    </table>
+                </div>
+
+                <div class="d-flex justify-content-between align-items-center mt-4 pt-3 border-top">
+                    <button type="button" class="btn btn-outline-primary fw-bold" onclick="executarSimulacaoValidacao()">
+                        <i class="bi bi-shield-check me-1"></i> Simular Validação (Dry-Run)
+                    </button>
+                    <button type="submit" class="btn btn-success fw-bold px-4" id="btnConfirmarImportacao">
+                        <i class="bi bi-check2-circle me-1"></i> Confirmar e Gravar Importação
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Coluna Direita: Amostra dos Dados e Resumo da Validação -->
+        <div class="col-12 col-lg-5">
+            <!-- Box de Resultados da Simulação (Dry-run) -->
+            <div class="card card-custom p-4 shadow-sm border-0 mb-4 bg-light border-primary" id="validation-summary-card" style="display: none;">
+                <h5 class="fw-bold text-dark mb-3">
+                    <i class="bi bi-clipboard-data text-primary me-2"></i>Resultado da Simulação
+                </h5>
+                <div class="row g-2 mb-3">
+                    <div class="col-6 col-sm-4">
+                        <div class="bg-white p-2 rounded border text-center">
+                            <small class="text-muted d-block">Total</small>
+                            <strong class="fs-5" id="stat-total">0</strong>
+                        </div>
+                    </div>
+                    <div class="col-6 col-sm-4">
+                        <div class="bg-white p-2 rounded border text-center">
+                            <small class="text-muted d-block">Válidos</small>
+                            <strong class="fs-5 text-success" id="stat-validos">0</strong>
+                        </div>
+                    </div>
+                    <div class="col-6 col-sm-4">
+                        <div class="bg-white p-2 rounded border text-center">
+                            <small class="text-muted d-block">Inválidos</small>
+                            <strong class="fs-5 text-danger" id="stat-invalidos">0</strong>
+                        </div>
+                    </div>
+                    <div class="col-6 col-sm-4">
+                        <div class="bg-white p-2 rounded border text-center">
+                            <small class="text-muted d-block">Serão Criados</small>
+                            <strong class="fs-5 text-success" id="stat-criados">0</strong>
+                        </div>
+                    </div>
+                    <div class="col-6 col-sm-4">
+                        <div class="bg-white p-2 rounded border text-center">
+                            <small class="text-muted d-block">Atualizados</small>
+                            <strong class="fs-5 text-primary" id="stat-atualizados">0</strong>
+                        </div>
+                    </div>
+                    <div class="col-6 col-sm-4">
+                        <div class="bg-white p-2 rounded border text-center">
+                            <small class="text-muted d-block">Conflitos</small>
+                            <strong class="fs-5 text-warning" id="stat-conflitos">0</strong>
+                        </div>
+                    </div>
+                </div>
+
+                <div id="validation-errors-box" class="d-none">
+                    <h6 class="fw-bold text-danger mb-2"><i class="bi bi-exclamation-triangle-fill me-1"></i> Erros Detectados na Validação:</h6>
+                    <div class="bg-white p-2 rounded border" style="max-height: 200px; overflow-y: auto;">
+                        <ul class="mb-0 ps-3 small text-danger" id="validation-errors-list"></ul>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Box com Amostra dos Dados Brutos do JSON -->
+            <div class="card card-custom p-4 shadow-sm border-0">
+                <h5 class="fw-bold text-dark mb-2">
+                    <i class="bi bi-code-square text-secondary me-2"></i>Amostra do Arquivo JSON (Primeiros Itens)
+                </h5>
+                <p class="text-muted small">Verifique os dados brutos recebidos para conferir o mapeamento.</p>
+                <div class="bg-dark text-light p-3 rounded" style="max-height: 350px; overflow-y: auto;">
+                    <pre class="mb-0 text-warning" style="font-size: 0.85rem;"><code>{{ amostra_registros|pprint }}</code></pre>
+                </div>
+            </div>
+        </div>
+    </div>
+</form>
+
+<script>
+const CAMPOS_SISTEMA = {
+    'PRODUTOS': [
+        { key: 'nome', label: 'Nome do Produto *', required: true },
+        { key: 'codigo_barras', label: 'Código de Barras (EAN)', required: false },
+        { key: 'sku', label: 'SKU / Código Interno', required: false },
+        { key: 'preco_venda', label: 'Preço de Venda (R$)', required: false },
+        { key: 'preco_custo', label: 'Preço de Custo (R$)', required: false },
+        { key: 'estoque_atual', label: 'Estoque Inicial', required: false },
+        { key: 'estoque_minimo', label: 'Estoque Mínimo', required: false },
+        { key: 'unidade_medida', label: 'Unidade de Medida (ex: UN, KG)', required: false },
+        { key: 'categoria', label: 'Categoria (Nome)', required: false },
+        { key: 'fornecedor', label: 'Fornecedor (Nome)', required: false },
+        { key: 'ncm', label: 'NCM', required: false },
+        { key: 'ativo', label: 'Status Ativo (Sim/Não)', required: false },
+    ],
+    'CLIENTES': [
+        { key: 'nome', label: 'Nome do Cliente *', required: true },
+        { key: 'cpf_cnpj', label: 'CPF ou CNPJ', required: false },
+        { key: 'telefone', label: 'Telefone / Celular', required: false },
+        { key: 'email', label: 'E-mail', required: false },
+        { key: 'endereco', label: 'Endereço Completo', required: false },
+        { key: 'cidade', label: 'Cidade', required: false },
+        { key: 'estado', label: 'Estado (UF)', required: false },
+        { key: 'limite_credito', label: 'Limite de Crédito (R$)', required: false },
+        { key: 'ativo', label: 'Status Ativo (Sim/Não)', required: false },
+    ],
+    'FORNECEDORES': [
+        { key: 'razao_social', label: 'Razão Social *', required: true },
+        { key: 'nome_fantasia', label: 'Nome Fantasia', required: false },
+        { key: 'cnpj', label: 'CNPJ', required: false },
+        { key: 'telefone', label: 'Telefone', required: false },
+        { key: 'email', label: 'E-mail', required: false },
+        { key: 'contato', label: 'Nome do Contato', required: false },
+    ]
+};
+
+const CAMPOS_DETECTADOS_JSON = {{ campos_detectados|safe }};
+const MAPEAMENTO_SUGERIDO = {{ mapeamento_sugerido|safe }};
+
+function atualizarOpcoesEstrategia() {
+    const tipo = document.getElementById('tipo_entidade').value;
+    const selectEst = document.getElementById('estrategia_identificacao');
+    selectEst.innerHTML = '';
+
+    if (tipo === 'PRODUTOS') {
+        selectEst.innerHTML = `
+            <option value="codigo_barras">Código de Barras (EAN / Barcode)</option>
+            <option value="sku">SKU / Código Interno</option>
+        `;
+    } else if (tipo === 'CLIENTES') {
+        selectEst.innerHTML = `
+            <option value="cpf_cnpj">CPF ou CNPJ</option>
+        `;
+    } else if (tipo === 'FORNECEDORES') {
+        selectEst.innerHTML = `
+            <option value="cnpj">CNPJ</option>
+        `;
+    }
+
+    renderTabelaMapeamento(tipo);
+}
+
+function renderTabelaMapeamento(tipo) {
+    const tbody = document.getElementById('mapping-fields-body');
+    tbody.innerHTML = '';
+    const campos = CAMPOS_SISTEMA[tipo] || [];
+
+    campos.forEach(c => {
+        const tr = document.createElement('tr');
+        const sugerido = MAPEAMENTO_SUGERIDO[c.key] || '';
+
+        let optionsHtml = '<option value="">-- Não mapear / Ignorar --</option>';
+        CAMPOS_DETECTADOS_JSON.forEach(cj => {
+            const isSel = (sugerido === cj) ? 'selected' : '';
+            optionsHtml += `<option value="${cj}" ${isSel}>${cj}</option>`;
+        });
+
+        tr.innerHTML = `
+            <td>
+                <strong>${c.label}</strong>
+                ${c.required ? '<span class="badge bg-danger ms-1">Obrigatório</span>' : ''}
+            </td>
+            <td>
+                <select class="form-select form-select-sm" name="map_${c.key}" data-key="${c.key}">
+                    ${optionsHtml}
+                </select>
+            </td>
+        `;
+        tbody.appendChild(tr);
+    });
+}
+
+async function executarSimulacaoValidacao() {
+    const tipo = document.getElementById('tipo_entidade').value;
+    const estrategia = document.getElementById('estrategia_identificacao').value;
+
+    const mapeamento = {};
+    document.querySelectorAll('#mapping-fields-body select').forEach(sel => {
+        if (sel.value) {
+            mapeamento[sel.dataset.key] = sel.value;
+        }
+    });
+
+    const card = document.getElementById('validation-summary-card');
+    card.style.display = 'block';
+
+    try {
+        const resp = await fetch('{% url "importacao_validar_api" %}', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
+            },
+            body: JSON.stringify({
+                tipo_entidade: tipo,
+                estrategia_identificacao: estrategia,
+                mapeamento: mapeamento
+            })
+        });
+
+        const data = await resp.json();
+        if (data.sucesso) {
+            const res = data.resultado;
+            document.getElementById('stat-total').innerText = res.total;
+            document.getElementById('stat-validos').innerText = res.validos;
+            document.getElementById('stat-invalidos').innerText = res.invalidos;
+            document.getElementById('stat-criados').innerText = res.serao_criados;
+            document.getElementById('stat-atualizados').innerText = res.serao_atualizados;
+            document.getElementById('stat-conflitos').innerText = res.conflitos;
+
+            const errBox = document.getElementById('validation-errors-box');
+            const errList = document.getElementById('validation-errors-list');
+            errList.innerHTML = '';
+
+            if (res.erros_detalhados && res.erros_detalhados.length > 0) {
+                errBox.classList.remove('d-none');
+                res.erros_detalhados.slice(0, 50).forEach(e => {
+                    const li = document.createElement('li');
+                    li.innerHTML = `<strong>Linha ${e.linha}</strong> [${e.campo}]: ${e.erro} <em>(Recebido: "${e.valor_recebido}")</em>`;
+                    errList.appendChild(li);
+                });
+            } else {
+                errBox.classList.add('d-none');
+            }
+        } else {
+            alert(`Erro na validação: ${data.erro}`);
+        }
+    } catch (e) {
+        alert('Falha ao comunicar com o servidor para simulação.');
+    }
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+    atualizarOpcoesEstrategia();
+});
+</script>
+{% endblock %}

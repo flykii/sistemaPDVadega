@@ -1,0 +1,633 @@
+{% extends 'base.html' %}
+
+{% block title %}PDV Rápido - Frente de Caixa{% endblock %}
+
+{% block page_id %}pdv{% endblock %}
+
+{% block content %}
+<input type="hidden" name="csrfmiddlewaretoken" value="{{ csrf_token }}">
+<script>
+    window.PDV_SHORTCUTS = {{ atalhos_pdv_json|default:"{}"|safe }};
+</script>
+
+<div class="row pdv-container g-3">
+    <!-- COLUNA ESQUERDA: ENTRADA DE PRODUTOS E CARRINHO (2/3 da Tela) -->
+    <div class="col-12 col-lg-7 col-xl-8 d-flex flex-column">
+        <!-- Input de Busca / Leitor de Código de Barras -->
+        <div class="card card-custom p-3 mb-3 bg-dark text-white position-relative shadow-sm border-0">
+            <div class="row g-2 align-items-center">
+                <!-- Qtd Multiplicadora Prévia -->
+                <div class="col-12 col-sm-3 col-md-2">
+                    <label for="qtd-input" class="form-label small text-warning fw-bold mb-1">Qtd</label>
+                    <input type="number" id="qtd-input" class="form-control form-control-lg bg-dark text-white fw-bold border-warning text-center" value="1" min="0.001" step="any">
+                </div>
+
+                <!-- Busca de Produto por Nome ou Código -->
+                <div class="col-12 col-sm-9 col-md-10">
+                    <label for="barcode-input" class="form-label small text-warning fw-bold mb-1">
+                        Código de Barras ou Nome do Produto <small class="text-light opacity-75">(<span id="label-shortcut-busca">{{ atalhos_pdv.FOCAR_BUSCA|default:"F2" }}</span> para focar)</small>
+                    </label>
+                    <div class="d-flex gap-2">
+                        <div class="w-100 position-relative">
+                            <input type="text" id="barcode-input" class="form-control form-control-lg bg-dark text-warning fw-bold border-warning" placeholder="Digite o nome ou bipe o código de barras..." autocomplete="off" autofocus>
+                            <div id="search-results-dropdown" class="list-group position-absolute w-100 shadow-lg d-none" style="z-index: 1050; max-height: 280px; overflow-y: auto; top: 100%;"></div>
+                        </div>
+                        <button class="btn btn-warning fw-bold text-nowrap px-3" onclick="buscarEAdicionarProduto()">
+                            <i class="bi bi-plus-circle me-1"></i> Adicionar
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Tabela do Carrinho / Produtos Lançados (Área Aumentada Verticalmente) -->
+        <div class="card card-custom pdv-cart-card flex-grow-1 p-3 shadow-sm border-0 d-flex flex-column justify-content-between">
+            <div>
+                <div class="d-flex justify-content-between align-items-center mb-2 pb-2 border-bottom">
+                    <h5 class="fw-bold text-dark mb-0"><i class="bi bi-bag-fill text-primary me-2"></i>Produtos Lançados</h5>
+                    <div>
+                        <span class="badge bg-primary fs-6"><span id="cart-items-count">0</span> item(s)</span>
+                        <button class="btn btn-outline-danger btn-sm ms-2" onclick="if(confirm('Deseja limpar todo o carrinho?')) pdvApp.clearCart();">
+                            <i class="bi bi-trash"></i> Limpar
+                        </button>
+                    </div>
+                </div>
+
+                <div class="pdv-cart-table-wrapper" style="min-height: 300px; max-height: 480px; overflow-y: auto;">
+                    <table class="table table-hover align-middle mb-0">
+                        <thead>
+                            <tr class="table-light">
+                                <th>Produto</th>
+                                <th style="width: 140px;" class="text-center">Quantidade</th>
+                                <th>Unitário</th>
+                                <th>Subtotal</th>
+                                <th class="text-end">Ação</th>
+                            </tr>
+                        </thead>
+                        <tbody id="cart-table-body">
+                            <tr>
+                                <td colspan="5" class="text-center text-muted py-5">
+                                    <i class="bi bi-cart-x fs-1 d-block mb-2 text-secondary opacity-50"></i>
+                                    Carrinho Vazio (Escaneie ou escolha um produto)
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- Grade de Produtos Rápidos na parte inferior (Duas Linhas Completas) -->
+            <div class="mt-3 pt-3 border-top">
+                <h6 class="fw-bold text-muted text-uppercase mb-2"><i class="bi bi-grid-3x3-gap-fill me-1"></i>Produtos Rápidos</h6>
+                <div class="row g-2 overflow-auto" style="max-height: 185px;">
+                    {% for prod in produtos %}
+                    <div class="col-6 col-sm-4 col-md-3">
+                        <div class="product-card-item d-flex flex-column justify-content-between p-2 rounded border bg-light cursor-pointer hover-lift"
+                             style="cursor: pointer; min-height: 75px;"
+                             data-id="{{ prod.id }}"
+                             data-nome="{{ prod.nome }}"
+                             data-codigo="{{ prod.codigo_barras }}"
+                             data-preco="{{ prod.preco_venda|stringformat:'.2f' }}"
+                             onclick="adicionarProdutoCard(this)">
+                            <strong class="d-block text-truncate small text-dark">{{ prod.nome }}</strong>
+                            <div class="text-end mt-1">
+                                <span class="badge bg-primary fw-bold">R$ {{ prod.preco_venda }}</span>
+                            </div>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- COLUNA DIREITA: VALORES, DESCONTO, PAGAMENTO, AÇÕES (1/3 da Tela) -->
+    <div class="col-12 col-lg-5 col-xl-4 d-flex flex-column gap-3">
+        <!-- 1. Card de Resumo de Valor -->
+        <div class="summary-box shadow-sm p-3 bg-white rounded border border-2 border-primary">
+            <span class="text-muted fw-bold small text-uppercase">TOTAL A PAGAR</span>
+            <div class="display-total-value fs-1 fw-bold text-primary my-1" id="summary-total-pay">R$ 0,00</div>
+            
+            <div class="text-muted small border-top pt-2 mt-2 d-flex justify-content-between">
+                <span>Subtotal: <strong id="summary-subtotal">R$ 0,00</strong></span>
+                <span>Desconto: <strong id="summary-discount" class="text-danger">R$ 0,00</strong></span>
+            </div>
+        </div>
+
+        <!-- 2. Card de Desconto -->
+        <div class="card card-custom p-3 shadow-sm border-0">
+            <label for="discount-input" class="form-label fw-bold text-dark small text-uppercase mb-2">Desconto na Venda</label>
+            <div class="input-group">
+                <select id="discount-type-select" class="form-select fw-bold" style="max-width: 90px;" onchange="atualizarDesconto()">
+                    <option value="BRL">R$</option>
+                    <option value="PERCENT">%</option>
+                </select>
+                <input type="number" id="discount-input" class="form-control fw-bold" value="0" min="0" step="0.01" oninput="atualizarDesconto()">
+            </div>
+        </div>
+
+        <!-- 3. Seleção Rápida de Cliente -->
+        <div class="card card-custom p-3 shadow-sm border-0">
+            <label for="cliente-select" class="form-label fw-bold text-dark small text-uppercase mb-1">
+                Cliente <small class="text-muted">(Opcional / <span id="label-shortcut-cliente">{{ atalhos_pdv.IDENTIFICAR_CLIENTE|default:"F4" }}</span>)</small>
+            </label>
+            <select id="cliente-select" class="form-select" onchange="pdvApp.salvarCarrinhoPersistido()">
+                <option value="">-- Consumidor Não Identificado --</option>
+                {% for cli in clientes %}
+                    <option value="{{ cli.id }}">{{ cli.nome }} {% if cli.saldo_devedor > 0 %}(Dívida: R$ {{ cli.saldo_devedor }}){% endif %}</option>
+                {% endfor %}
+            </select>
+        </div>
+
+        <!-- 4. Botão Principal de Pagamento / Finalizar Venda -->
+        <button class="btn btn-success btn-lg shadow fw-bold py-3 w-100 fs-5" onclick="pdvApp.abrirModalPagamento()">
+            <i class="bi bi-credit-card-2-front-fill me-2"></i> PAGAMENTO / FINALIZAR (<span id="label-shortcut-finalizar">{{ atalhos_pdv.FINALIZAR_COMPRA|default:"F5" }}</span>)
+        </button>
+
+        <!-- 5. Bloco de Ações Especiais (Compacto e Diferenciado por Cores) -->
+        <div class="row g-2">
+            <div class="col-6">
+                <button class="btn btn-pdv-action btn-pdv-pausar w-100 fw-semibold text-white shadow-sm" onclick="pdvApp.pausarVendaAtual()">
+                    <i class="bi bi-pause-circle me-1"></i> Pausar Venda
+                </button>
+            </div>
+            <div class="col-6">
+                <button class="btn btn-pdv-action btn-pdv-espera w-100 fw-semibold text-white position-relative shadow-sm" onclick="pdvApp.abrirModalVendasEmEspera()">
+                    <i class="bi bi-inbox me-1"></i> Em Espera
+                    <span id="paused-sales-badge" class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger d-none">0</span>
+                </button>
+            </div>
+            <div class="col-12">
+                <button class="btn btn-pdv-action btn-pdv-divida w-100 fw-semibold text-white shadow-sm" onclick="abrirModalReceberDivida()">
+                    <i class="bi bi-cash-stack me-1"></i> Receber Dívida (Quitar Fiado)
+                </button>
+            </div>
+        </div>
+
+        <!-- Barra de Dicas de Atalhos -->
+        <div class="alert alert-light border small text-muted mb-0 py-2">
+            <div class="d-flex justify-content-between flex-wrap gap-1">
+                <span><kbd id="kbd-shortcut-busca">{{ atalhos_pdv.FOCAR_BUSCA|default:"F2" }}</kbd> Buscar</span>
+                <span><kbd id="kbd-shortcut-cliente">{{ atalhos_pdv.IDENTIFICAR_CLIENTE|default:"F4" }}</kbd> Cliente</span>
+                <span><kbd id="kbd-shortcut-finalizar">{{ atalhos_pdv.FINALIZAR_COMPRA|default:"F5" }}</kbd> Pagamento</span>
+                <span><kbd id="kbd-shortcut-fechar">{% if atalhos_pdv.CANCELAR_FECHAR == 'Escape' %}ESC{% else %}{{ atalhos_pdv.CANCELAR_FECHAR|default:"ESC" }}{% endif %}</kbd> Fechar</span>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ======================================================== -->
+<!-- MODAL DE PAGAMENTO (SUPORTE A PAGAMENTO ÚNICO E DIVIDIDO) -->
+<!-- ======================================================== -->
+<div class="modal fade" id="paymentModal" tabindex="-1" aria-hidden="true" data-bs-backdrop="static">
+    <div class="modal-dialog modal-dialog-centered modal-lg">
+        <div class="modal-content card-custom border-0 shadow-lg">
+            <div class="modal-header bg-dark text-white py-3">
+                <h5 class="modal-title fw-bold"><i class="bi bi-wallet2 text-warning me-2"></i>Finalização e Pagamento da Venda</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+
+            <div class="modal-body p-4">
+                <!-- Resumo Financeiro da Venda -->
+                <div class="row g-3 mb-4">
+                    <div class="col-6 col-md-3">
+                        <div class="bg-light p-3 rounded border text-center">
+                            <span class="text-muted small fw-bold text-uppercase d-block">Total da Venda</span>
+                            <h4 class="fw-bold text-dark mb-0" id="modal-display-total">R$ 0,00</h4>
+                        </div>
+                    </div>
+                    <div class="col-6 col-md-3">
+                        <div class="bg-light p-3 rounded border text-center">
+                            <span class="text-muted small fw-bold text-uppercase d-block">Total Pago</span>
+                            <h4 class="fw-bold text-primary mb-0" id="modal-display-pago">R$ 0,00</h4>
+                        </div>
+                    </div>
+                    <div class="col-6 col-md-3">
+                        <div class="bg-light p-3 rounded border text-center border-danger">
+                            <span class="text-danger small fw-bold text-uppercase d-block">Valor Restante</span>
+                            <h4 class="fw-bold text-danger mb-0" id="modal-display-restante">R$ 0,00</h4>
+                        </div>
+                    </div>
+                    <div class="col-6 col-md-3">
+                        <div class="bg-light p-3 rounded border text-center border-success">
+                            <span class="text-success small fw-bold text-uppercase d-block">Troco</span>
+                            <h4 class="fw-bold text-success mb-0" id="modal-display-troco">R$ 0,00</h4>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Lista de Pagamentos Adicionados -->
+                <div class="mb-4">
+                    <label class="form-label fw-bold small text-uppercase text-muted mb-2">
+                        <i class="bi bi-list-check me-1"></i> Pagamentos Adicionados nesta Venda
+                    </label>
+                    <div id="modal-payments-list" style="max-height: 160px; overflow-y: auto;">
+                        <!-- Renderizado via JS -->
+                    </div>
+                </div>
+
+                <!-- Formulário para Adicionar Pagamento / Parcela -->
+                <div class="card p-3 bg-light border mb-3">
+                    <h6 class="fw-bold text-primary mb-3"><i class="bi bi-plus-circle me-1"></i> Adicionar Parcela de Pagamento</h6>
+                    <div class="row g-2 align-items-end">
+                        <div class="col-12 col-md-4">
+                            <label for="modal-pay-forma" class="form-label small fw-bold">Forma de Pagamento</label>
+                            <select id="modal-pay-forma" class="form-select fw-bold" onchange="pdvApp.onFormaPagamentoChange()">
+                                <option value="DINHEIRO">Dinheiro</option>
+                                <option value="PIX">PIX</option>
+                                <option value="CARTAO_DEBITO">Cartão Débito</option>
+                                <option value="CARTAO_CREDITO">Cartão Crédito</option>
+                                <option value="CREDIARIO">Fiado / Crediário</option>
+                            </select>
+                        </div>
+
+                        <div class="col-12 col-md-3">
+                            <label for="modal-pay-valor" class="form-label small fw-bold">Valor a Pagar (R$)</label>
+                            <input type="number" id="modal-pay-valor" class="form-control fw-bold fs-6" placeholder="0,00" step="0.01">
+                        </div>
+
+                        <div class="col-12 col-md-3" id="modal-dinheiro-recebido-box">
+                            <label for="modal-pay-dinheiro-recebido" class="form-label small fw-bold text-success">Valor Recebido (R$)</label>
+                            <input type="number" id="modal-pay-dinheiro-recebido" class="form-control fw-bold fs-6 text-success" placeholder="0,00" step="0.01">
+                        </div>
+
+                        <div class="col-12 col-md-2">
+                            <button type="button" class="btn btn-primary fw-bold w-100" onclick="pdvApp.adicionarParcelaPagamento()">
+                                <i class="bi bi-plus-lg"></i> Adicionar
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Seletor de Cliente específico para Fiado/Crediário -->
+                    <div id="modal-crediario-customer-box" class="mt-3 d-none">
+                        <label for="modal-cliente-select" class="form-label fw-bold small text-danger">
+                            <i class="bi bi-person-exclamation me-1"></i> Selecione o Cliente Obrigatório para Venda Fiada / Crediário:
+                        </label>
+                        <select id="modal-cliente-select" class="form-select" onchange="pdvApp.onCrediarioCustomerChange(this)">
+                            <option value="">-- Selecione o Cliente --</option>
+                            {% for cli in clientes %}
+                                <option value="{{ cli.id }}" data-nome="{{ cli.nome|escapejs }}" data-limite="{{ cli.limite_credito|stringformat:'.2f' }}" data-devedor="{{ cli.saldo_devedor|stringformat:'.2f' }}" data-disponivel="{{ cli.credito_disponivel|stringformat:'.2f' }}">
+                                    {{ cli.nome }} [Limite: R$ {{ cli.limite_credito|floatformat:2 }} | Devedor: R$ {{ cli.saldo_devedor|floatformat:2 }} | Disp: R$ {{ cli.credito_disponivel|floatformat:2 }}]
+                                </option>
+                            {% endfor %}
+                        </select>
+                        <div id="modal-crediario-credit-info" class="alert mt-2 mb-0 d-none">
+                            <!-- Preenchido dinamicamente via JS -->
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="modal-footer bg-light py-3 d-flex justify-content-between">
+                <button type="button" class="btn btn-outline-secondary px-4 fw-bold" data-bs-dismiss="modal">
+                    <i class="bi bi-arrow-left me-1"></i> Voltar ao Carrinho
+                </button>
+                <button type="button" id="modal-btn-finalizar" class="btn btn-secondary px-4 py-2 fw-bold fs-5 shadow" disabled onclick="pdvApp.executarFinalizacaoVenda()">
+                    <i class="bi bi-check2-circle me-1"></i> CONFIRMAR E FINALIZAR VENDA
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- MODAL: VENDAS EM ESPERA (PAUSADAS) -->
+<div class="modal fade" id="pausedSalesModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-lg">
+        <div class="modal-content card-custom border-0 shadow-lg">
+            <div class="modal-header bg-dark text-white">
+                <h5 class="modal-title fw-bold"><i class="bi bi-pause-circle-fill text-warning me-2"></i>Vendas em Espera</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body p-4" id="paused-sales-list">
+                <!-- Renderizado via JS -->
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- MODAL: RECEBER DÍVIDA (QUITAR FIADO / CREDIÁRIO) -->
+<div class="modal fade" id="receberDividaModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-lg">
+        <div class="modal-content card-custom border-0 shadow-lg">
+            <div class="modal-header bg-info text-white">
+                <h5 class="modal-title fw-bold"><i class="bi bi-cash-stack me-2"></i>Receber Dívida de Cliente (Crediário / Fiado)</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body p-4">
+                <div class="row g-3 mb-3">
+                    <div class="col-12 col-md-8">
+                        <label for="divida-cliente-select" class="form-label fw-bold">Selecione o Cliente</label>
+                        <select id="divida-cliente-select" class="form-select" onchange="carregarContasCliente(this.value)">
+                            <option value="">-- Escolha um Cliente --</option>
+                            {% for cli in clientes %}
+                                <option value="{{ cli.id }}">{{ cli.nome }} (Saldo Devedor: R$ {{ cli.saldo_devedor }})</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="col-12 col-md-4">
+                        <label for="divida-forma-pagamento" class="form-label fw-bold">Forma de Pagamento</label>
+                        <select id="divida-forma-pagamento" class="form-select fw-bold">
+                            <option value="DINHEIRO">Dinheiro (Gaveta)</option>
+                            <option value="PIX">PIX</option>
+                            <option value="CARTAO_DEBITO">Cartão Débito</option>
+                            <option value="CARTAO_CREDITO">Cartão Crédito</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div id="contas-cliente-container" class="mt-3">
+                    <p class="text-muted text-center py-3">Selecione um cliente para visualizar os débitos pendentes.</p>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    let searchTimeout = null;
+    let currentResults = [];
+    let selectedIndex = -1;
+
+    const barcodeInput = document.getElementById('barcode-input');
+    const dropdown = document.getElementById('search-results-dropdown');
+
+    // Autocomplete da busca por nome / código
+    barcodeInput.addEventListener('input', function() {
+        const query = this.value.trim();
+        clearTimeout(searchTimeout);
+        selectedIndex = -1;
+
+        if (query.length === 0) {
+            dropdown.classList.add('d-none');
+            dropdown.innerHTML = '';
+            currentResults = [];
+            return;
+        }
+
+        searchTimeout = setTimeout(async () => {
+            try {
+                const resp = await fetch(`/api/v1/produtos/?q=${encodeURIComponent(query)}`);
+                const data = await resp.json();
+                currentResults = data.results || data;
+                renderDropdown(currentResults);
+            } catch (err) {
+                console.error('Erro na busca ao vivo:', err);
+            }
+        }, 100);
+    });
+
+    function renderDropdown(produtos) {
+        dropdown.innerHTML = '';
+        selectedIndex = -1;
+
+        if (!produtos || produtos.length === 0) {
+            dropdown.innerHTML = `<div class="list-group-item text-muted small text-center py-2">Nenhum produto encontrado</div>`;
+            dropdown.classList.remove('d-none');
+            return;
+        }
+
+        produtos.forEach((p, index) => {
+            const item = document.createElement('button');
+            item.type = 'button';
+            item.className = 'list-group-item list-group-item-action d-flex justify-content-between align-items-center py-2 px-3 search-item';
+            
+            const estoqueBadge = p.estoque_atual > 0 
+                ? `<span class="badge bg-success-subtle text-success border border-success me-2">Estoque: ${p.estoque_atual} ${p.unidade_medida}</span>`
+                : `<span class="badge bg-danger-subtle text-danger border border-danger me-2">Sem Estoque (${p.estoque_atual})</span>`;
+
+            item.innerHTML = `
+                <div>
+                    <strong class="d-block text-dark">${p.nome}</strong>
+                    <small class="text-muted">Cód: ${p.codigo_barras} | SKU: ${p.sku || '-'}</small>
+                </div>
+                <div class="text-end">
+                    ${estoqueBadge}
+                    <span class="badge bg-primary fs-6 fw-bold">R$ ${parseFloat(p.preco_venda).toFixed(2).replace('.', ',')}</span>
+                </div>
+            `;
+
+            item.onmousedown = function(e) {
+                e.preventDefault();
+                selecionarProdutoDropdown(p);
+            };
+
+            dropdown.appendChild(item);
+        });
+
+        dropdown.classList.remove('d-none');
+    }
+
+    function selecionarProdutoDropdown(p) {
+        if (!p) return;
+        pdvApp.addItemToCart({
+            id: p.id,
+            nome: p.nome,
+            codigo_barras: p.codigo_barras,
+            preco_venda: p.preco_venda
+        });
+
+        barcodeInput.value = '';
+        dropdown.classList.add('d-none');
+        dropdown.innerHTML = '';
+        currentResults = [];
+        selectedIndex = -1;
+        barcodeInput.focus();
+    }
+
+    function adicionarProdutoCard(el) {
+        if (!el || !el.dataset) return;
+        pdvApp.addItemToCart({
+            id: el.dataset.id,
+            nome: el.dataset.nome,
+            codigo_barras: el.dataset.codigo,
+            preco_venda: el.dataset.preco
+        });
+    }
+
+    async function buscarEAdicionarProduto() {
+        const query = barcodeInput.value.trim();
+        if (!query) return;
+
+        if (selectedIndex >= 0 && currentResults[selectedIndex]) {
+            selecionarProdutoDropdown(currentResults[selectedIndex]);
+            return;
+        }
+
+        if (currentResults.length > 0) {
+            selecionarProdutoDropdown(currentResults[0]);
+            return;
+        }
+
+        try {
+            const resp = await fetch(`/api/v1/produtos/?q=${encodeURIComponent(query)}`);
+            const data = await resp.json();
+            const produtos = data.results || data;
+
+            if (produtos.length > 0) {
+                selecionarProdutoDropdown(produtos[0]);
+            } else {
+                alert(`Produto com código ou termo '${query}' não encontrado.`);
+            }
+        } catch (e) {
+            console.error(e);
+        }
+    }
+
+    barcodeInput.addEventListener('keydown', function(e) {
+        const items = dropdown.querySelectorAll('.search-item');
+
+        if (e.key === 'ArrowDown') {
+            e.preventDefault();
+            if (items.length === 0) return;
+            selectedIndex = (selectedIndex + 1) % items.length;
+            highlightItem(items);
+        } else if (e.key === 'ArrowUp') {
+            e.preventDefault();
+            if (items.length === 0) return;
+            selectedIndex = (selectedIndex - 1 + items.length) % items.length;
+            highlightItem(items);
+        } else if (e.key === 'Enter') {
+            e.preventDefault();
+            buscarEAdicionarProduto();
+        } else if (e.key === 'Escape') {
+            dropdown.classList.add('d-none');
+        }
+    });
+
+    function highlightItem(items) {
+        items.forEach((item, idx) => {
+            if (idx === selectedIndex) {
+                item.classList.add('active', 'bg-primary', 'text-white');
+                item.scrollIntoView({ block: 'nearest' });
+            } else {
+                item.classList.remove('active', 'bg-primary', 'text-white');
+            }
+        });
+    }
+
+    document.addEventListener('click', function(e) {
+        if (!barcodeInput.contains(e.target) && !dropdown.contains(e.target)) {
+            dropdown.classList.add('d-none');
+        }
+    });
+
+    function atualizarDesconto() {
+        const type = document.getElementById('discount-type-select').value;
+        const val = document.getElementById('discount-input').value;
+        pdvApp.updateDiscount(type, val);
+    }
+
+    // Modal de Receber Dívida
+    function abrirModalReceberDivida() {
+        const modalEl = document.getElementById('receberDividaModal');
+        if (modalEl) {
+            const modal = bootstrap.Modal.getInstance(modalEl) || new bootstrap.Modal(modalEl);
+            modal.show();
+        }
+    }
+
+    async function carregarContasCliente(clienteId) {
+        const container = document.getElementById('contas-cliente-container');
+        if (!clienteId) {
+            container.innerHTML = '<p class="text-muted text-center py-3">Selecione um cliente para visualizar os débitos pendentes.</p>';
+            return;
+        }
+
+        container.innerHTML = '<div class="text-center py-3"><div class="spinner-border text-primary"></div></div>';
+
+        try {
+            const resp = await fetch(`/api/v1/financeiro/contas-pendentes/${clienteId}/`);
+            const data = await resp.json();
+
+            if (!data.contas || data.contas.length === 0) {
+                container.innerHTML = `<div class="alert alert-success text-center">Este cliente não possui débitos pendentes!</div>`;
+                return;
+            }
+
+            let html = `
+                <div class="alert alert-danger py-2 mb-3 d-flex justify-content-between align-items-center">
+                    <span>Cliente: <strong>${data.cliente}</strong></span>
+                    <span class="fs-6">Saldo Devedor Total: <strong>R$ ${data.saldo_devedor.toFixed(2).replace('.', ',')}</strong></span>
+                </div>
+                <div class="list-group">
+            `;
+
+            data.contas.forEach(c => {
+                html += `
+                    <div class="list-group-item p-3 mb-2 rounded border">
+                        <div class="d-flex justify-content-between align-items-center mb-2">
+                            <div>
+                                <strong class="d-block text-dark fs-6">${c.descricao}</strong>
+                                <small class="text-muted">Vencimento: <strong>${c.data_vencimento}</strong> | Status: <span class="badge ${c.is_vencida ? 'bg-danger' : 'bg-warning text-dark'}">${c.status}</span></small>
+                            </div>
+                            <div class="text-end">
+                                <span class="text-muted small d-block">Saldo Devedor</span>
+                                <span class="badge bg-danger fs-5">R$ ${c.saldo.toFixed(2).replace('.', ',')}</span>
+                            </div>
+                        </div>
+                        <div class="row g-2 align-items-center pt-2 border-top">
+                            <div class="col-12 col-sm-6">
+                                <div class="input-group input-group-sm">
+                                    <span class="input-group-text fw-bold">Valor a Quitar R$</span>
+                                    <input type="number" id="valor-quitar-${c.id}" class="form-control fw-bold" value="${c.saldo.toFixed(2)}" max="${c.saldo.toFixed(2)}" step="0.01">
+                                </div>
+                            </div>
+                            <div class="col-12 col-sm-6 text-end">
+                                <button class="btn btn-success btn-sm fw-bold px-3 py-1 shadow-sm" onclick="quitarContaCliente(${c.id})">
+                                    <i class="bi bi-check2-circle me-1"></i> Confirmar Recebimento
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            });
+
+            html += '</div>';
+            container.innerHTML = html;
+        } catch (err) {
+            container.innerHTML = '<div class="alert alert-danger">Erro ao carregar débitos do cliente.</div>';
+        }
+    }
+
+    async function quitarContaCliente(contaId) {
+        const valorInput = document.getElementById(`valor-quitar-${contaId}`);
+        const valorPago = valorInput ? parseFloat(valorInput.value.replace(',', '.')) : null;
+        const formaPagamento = document.getElementById('divida-forma-pagamento')?.value || 'DINHEIRO';
+
+        if (valorPago !== null && (isNaN(valorPago) || valorPago <= 0)) {
+            alert('Informe um valor de quitação válido maior que zero.');
+            return;
+        }
+
+        if (!confirm(`Confirmar o recebimento de R$ ${valorPago ? valorPago.toFixed(2) : ''} (${formaPagamento}) para esta dívida?`)) return;
+
+        try {
+            const resp = await fetch('/api/v1/financeiro/receber-divida/', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': pdvApp.getCsrfToken()
+                },
+                body: JSON.stringify({
+                    conta_id: contaId,
+                    valor_pago: valorPago,
+                    forma_pagamento: formaPagamento
+                })
+            });
+
+            const res = await resp.json();
+            if (res.sucesso) {
+                alert(res.mensagem);
+                const cliSelect = document.getElementById('divida-cliente-select');
+                if (cliSelect) carregarContasCliente(cliSelect.value);
+            } else {
+                alert(`Erro: ${res.error || 'Não foi possível quitar a dívida'}`);
+            }
+        } catch (err) {
+            alert('Falha na comunicação com o servidor.');
+        }
+    }
+</script>
+{% endblock %}

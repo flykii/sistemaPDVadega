@@ -1,0 +1,71 @@
+{% extends 'base.html' %}
+
+{% block title %}Ajuste Manual de Estoque - PDV Enterprise{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center my-4">
+    <div class="col-12 col-md-6 col-lg-5">
+        <div class="card card-custom p-4 shadow-sm border-0">
+            <h3 class="fw-bold text-dark mb-2"><i class="bi bi-arrow-left-right text-warning me-2"></i>Ajuste Manual de Estoque</h3>
+            <p class="text-muted mb-3">Produto: <strong>{{ produto.nome }}</strong> (<code>{{ produto.codigo_barras }}</code>)</p>
+
+            <div class="alert alert-info py-2 d-flex justify-content-between align-items-center mb-4">
+                <span>Estoque Físico Atual:</span>
+                <strong class="fs-4 text-primary">{{ produto.estoque_atual }} {{ produto.unidade_medida }}</strong>
+            </div>
+
+            <form method="post">
+                {% csrf_token %}
+                <div class="mb-3">
+                    <label for="tipo" class="form-label fw-bold">Tipo de Ajuste *</label>
+                    <select name="tipo" id="tipo" class="form-select form-select-lg" required onchange="toggleAjusteMode()">
+                        <option value="NOVO_SALDO">📝 Definir Novo Saldo Físico (Balanço / Inventário)</option>
+                        <option value="ENTRADA">➕ Adicionar Unidades ao Estoque (Entrada)</option>
+                        <option value="SAIDA">➖ Subtrair Unidades do Estoque (Perda / Avaria / Saída)</option>
+                    </select>
+                </div>
+
+                <div class="mb-3" id="group-novo-saldo">
+                    <label for="novo_saldo" class="form-label fw-bold">Novo Saldo Total em Estoque *</label>
+                    <input type="number" step="0.001" min="0" name="novo_saldo" id="novo_saldo" class="form-control form-control-lg fw-bold fs-4 text-primary" value="{{ produto.estoque_atual }}">
+                </div>
+
+                <div class="mb-3 d-none" id="group-quantidade">
+                    <label for="quantidade" class="form-label fw-bold">Quantidade a Movimentar *</label>
+                    <input type="number" step="0.001" min="0.001" name="quantidade" id="quantidade" class="form-control form-control-lg fw-bold fs-4 text-warning" placeholder="0.000">
+                </div>
+
+                <div class="mb-4">
+                    <label for="motivo" class="form-label fw-bold">Motivo do Ajuste *</label>
+                    <input type="text" name="motivo" id="motivo" class="form-control form-control-lg" placeholder="Ex: Contagem física de inventário, Garrafa quebrada, Brinde..." required>
+                </div>
+
+                <div class="d-flex gap-2">
+                    <a href="{% url 'produtos_list' %}" class="btn btn-secondary w-50 py-3 fw-bold">Cancelar</a>
+                    <button type="submit" class="btn btn-warning text-dark w-50 py-3 fw-bold fs-5 shadow">
+                        <i class="bi bi-check-circle-fill me-1"></i> Confirmar Ajuste
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    function toggleAjusteMode() {
+        const tipo = document.getElementById('tipo').value;
+        const gNovo = document.getElementById('group-novo-saldo');
+        const gQtd = document.getElementById('group-quantidade');
+
+        if (tipo === 'NOVO_SALDO') {
+            gNovo.classList.remove('d-none');
+            gQtd.classList.add('d-none');
+        } else {
+            gNovo.classList.add('d-none');
+            gQtd.classList.remove('d-none');
+        }
+    }
+</script>
+{% endblock %}

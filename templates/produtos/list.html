@@ -1,0 +1,137 @@
+{% extends 'base.html' %}
+
+{% block title %}Catálogo de Produtos - PDV Enterprise{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-3">
+    <!-- CABEÇALHO -->
+    <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
+        <div>
+            <h2 class="fw-bold text-dark mb-0"><i class="bi bi-box-seam text-primary me-2"></i>Catálogo de Produtos</h2>
+            <p class="text-muted mb-0">Gestão de produtos, código de barras, estoque mínimo, fornecedores e precificação com margem real.</p>
+        </div>
+        <div class="d-flex gap-2">
+            <a href="{% url 'categorias_list' %}" class="btn btn-outline-secondary fw-bold">
+                <i class="bi bi-tags me-1"></i> Categorias
+            </a>
+            <a href="{% url 'movimentacoes_list' %}" class="btn btn-outline-dark fw-bold">
+                <i class="bi bi-clock-history me-1"></i> Histórico de Estoque
+            </a>
+            <a href="{% url 'produto_novo' %}" class="btn btn-primary fw-bold shadow-sm">
+                <i class="bi bi-plus-lg me-1"></i> Novo Produto
+            </a>
+        </div>
+    </div>
+
+    <!-- FILTROS E BUSCA -->
+    <div class="card card-custom p-3 border-0 shadow-sm mb-4">
+        <form method="get" class="row g-2 align-items-center">
+            <div class="col-12 col-md-5">
+                <div class="input-group">
+                    <span class="input-group-text bg-white"><i class="bi bi-search text-muted"></i></span>
+                    <input type="text" name="q" value="{{ query }}" class="form-control" placeholder="Buscar por Nome, Código de Barras (EAN) ou SKU...">
+                </div>
+            </div>
+            <div class="col-12 col-md-3">
+                <select name="categoria" class="form-select" onchange="this.form.submit()">
+                    <option value="">Todas as Categorias</option>
+                    {% for cat in categorias %}
+                        <option value="{{ cat.id }}" {% if categoria_id|slugify == cat.id|slugify %}selected{% endif %}>{{ cat.nome }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-12 col-md-2">
+                <select name="estoque" class="form-select" onchange="this.form.submit()">
+                    <option value="">Status Estoque (Todos)</option>
+                    <option value="baixo" {% if filtro_estoque == 'baixo' %}selected{% endif %}>⚠️ Estoque Baixo</option>
+                    <option value="zerado" {% if filtro_estoque == 'zerado' %}selected{% endif %}>⛔ Estoque Zerado</option>
+                </select>
+            </div>
+            <div class="col-12 col-md-2 d-flex gap-1">
+                <button type="submit" class="btn btn-primary w-100 fw-bold">Filtrar</button>
+                {% if query or categoria_id or filtro_estoque %}
+                    <a href="{% url 'produtos_list' %}" class="btn btn-outline-secondary" title="Limpar Filtros"><i class="bi bi-x-lg"></i></a>
+                {% endif %}
+            </div>
+        </form>
+    </div>
+
+    <!-- TABELA DE PRODUTOS -->
+    <div class="card card-custom p-0 border-0 shadow-sm rounded-4 overflow-hidden mb-4">
+        <div class="table-responsive">
+            <table class="table table-hover align-middle mb-0">
+                <thead class="table-light">
+                    <tr>
+                        <th class="ps-3">Código / EAN</th>
+                        <th>Produto</th>
+                        <th>Categoria</th>
+                        <th class="text-end">Custo</th>
+                        <th class="text-center">Margem</th>
+                        <th class="text-end">Venda</th>
+                        <th class="text-end">Lucro Unit.</th>
+                        <th class="text-center">Estoque Atual</th>
+                        <th class="text-center">Status</th>
+                        <th class="text-end pe-3">Ações</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for prod in produtos %}
+                    <tr class="{% if not prod.ativo %}table-secondary text-muted{% elif prod.estoque_zerado %}table-danger-subtle{% elif prod.estoque_baixo %}table-warning-subtle{% endif %}">
+                        <td class="ps-3">
+                            <code class="fw-bold fs-6 {% if prod.ativo %}text-dark{% else %}text-muted{% endif %}">{{ prod.codigo_barras }}</code>
+                            {% if prod.sku %}
+                                <small class="d-block text-muted">SKU: {{ prod.sku }}</small>
+                            {% endif %}
+                        </td>
+                        <td>
+                            <strong class="d-block {% if not prod.ativo %}text-decoration-line-through text-muted{% else %}text-dark{% endif %}">
+                                {{ prod.nome }}
+                            </strong>
+                            {% if prod.fornecedor_principal %}
+                                <small class="text-muted"><i class="bi bi-truck me-1"></i>{{ prod.fornecedor_principal.nome_fantasia }}</small>
+                            {% endif %}
+                        </td>
+                        <td><span class="badge bg-light text-dark border">{{ prod.categoria.nome|default:"Sem Categoria" }}</span></td>
+                        <td class="text-end">R$ {{ prod.preco_custo|floatformat:2 }}</td>
+                        <td class="text-center"><span class="badge bg-info-subtle text-dark border border-info">{{ prod.margem_lucro }}%</span></td>
+                        <td class="text-end fw-bold text-primary fs-6">R$ {{ prod.preco_venda|floatformat:2 }}</td>
+                        <td class="text-end"><span class="badge badge-profit p-2">R$ {{ prod.lucro_real|floatformat:2 }}</span></td>
+                        <td class="text-center">
+                            {% if prod.estoque_zerado %}
+                                <span class="badge bg-danger p-2 fs-6"><i class="bi bi-x-circle me-1"></i> ZERADO (0)</span>
+                            {% elif prod.estoque_baixo %}
+                                <span class="badge bg-warning text-dark p-2 fs-6"><i class="bi bi-exclamation-triangle me-1"></i> {{ prod.estoque_atual }} {{ prod.unidade_medida }} (Baixo)</span>
+                            {% else %}
+                                <span class="badge bg-success-subtle text-success border border-success p-2 fs-6">{{ prod.estoque_atual }} {{ prod.unidade_medida }}</span>
+                            {% endif %}
+                            <small class="d-block text-muted">Mín: {{ prod.estoque_minimo }}</small>
+                        </td>
+                        <td class="text-center">
+                            {% if prod.ativo %}
+                                <span class="badge bg-success">Ativo</span>
+                            {% else %}
+                                <span class="badge bg-secondary">Inativo</span>
+                            {% endif %}
+                        </td>
+                        <td class="text-end pe-3">
+                            <div class="d-flex justify-content-end gap-1">
+                                <a href="{% url 'estoque_ajuste' prod.id %}" class="btn btn-sm btn-outline-warning" title="Ajustar Estoque"><i class="bi bi-arrow-left-right"></i></a>
+                                <a href="{% url 'produto_editar' prod.id %}" class="btn btn-sm btn-outline-primary" title="Editar Produto"><i class="bi bi-pencil"></i></a>
+                                <a href="{% url 'produto_excluir' prod.id %}" class="btn btn-sm btn-outline-danger" title="Excluir / Inativar" onclick="return confirm('Deseja realmente inativar/excluir o produto \'{{ prod.nome }}\'?');"><i class="bi bi-trash"></i></a>
+                            </div>
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="10" class="text-center text-muted py-5">
+                            <i class="bi bi-box-seam fs-1 d-block mb-2 text-muted"></i>
+                            Nenhum produto encontrado com os filtros selecionados.
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}

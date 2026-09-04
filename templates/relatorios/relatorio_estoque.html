@@ -1,0 +1,134 @@
+{% extends 'base.html' %}
+
+{% block title %}Posição & Valor do Estoque - PDV Enterprise{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-3">
+    <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
+        <div>
+            <h2 class="fw-bold text-dark mb-0"><i class="bi bi-boxes text-primary me-2"></i>Posição & Valor do Estoque</h2>
+            <p class="text-muted mb-0">Valoração patrimonial, auditoria de níveis de estoque, reposição e ruptura.</p>
+        </div>
+        <div class="d-flex gap-2 d-print-none">
+            <a href="{% url 'exportar_relatorio_csv' 'estoque' %}" class="btn btn-outline-success fw-bold">
+                <i class="bi bi-file-earmark-excel me-1"></i> Exportar CSV
+            </a>
+            <button onclick="window.print()" class="btn btn-outline-dark fw-bold">
+                <i class="bi bi-printer me-1"></i> Imprimir
+            </button>
+        </div>
+    </div>
+
+    <!-- Cards de Indicadores de Estoque -->
+    <div class="row g-3 mb-4">
+        <div class="col-12 col-md-3">
+            <div class="card p-3 border-0 shadow-sm border-start border-primary border-4 bg-light">
+                <span class="text-primary small text-uppercase fw-bold">Valor em Estoque (Custo)</span>
+                <h3 class="fw-bold text-primary mb-0">R$ {{ estoque_data.valor_total_custo|floatformat:2 }}</h3>
+                <small class="text-muted">Preço Venda: R$ {{ estoque_data.valor_total_venda|floatformat:2 }}</small>
+            </div>
+        </div>
+        <div class="col-12 col-md-3">
+            <div class="card p-3 border-0 shadow-sm border-start border-info border-4 bg-light">
+                <span class="text-info small text-uppercase fw-bold">Produtos Ativos</span>
+                <h3 class="fw-bold text-dark mb-0">{{ estoque_data.total_produtos_ativos }} itens</h3>
+                <small class="text-muted">{{ estoque_data.qtd_normais }} com estoque normal</small>
+            </div>
+        </div>
+        <div class="col-12 col-md-3">
+            <div class="card p-3 border-0 shadow-sm border-start border-warning border-4 bg-light">
+                <span class="text-warning small text-uppercase fw-bold">Estoque Baixo / Alerta</span>
+                <h3 class="fw-bold text-warning mb-0">{{ estoque_data.qtd_baixo }} itens</h3>
+                <small class="text-muted">Abaixo do estoque mínimo</small>
+            </div>
+        </div>
+        <div class="col-12 col-md-3">
+            <div class="card p-3 border-0 shadow-sm border-start border-danger border-4 bg-light">
+                <span class="text-danger small text-uppercase fw-bold">Estoque Zerado / Ruptura</span>
+                <h3 class="fw-bold text-danger mb-0">{{ estoque_data.qtd_zerados }} itens</h3>
+                <small class="text-muted">Sem unidades disponíveis</small>
+            </div>
+        </div>
+    </div>
+
+    <!-- Filtros de Status e Categoria -->
+    <div class="card card-custom p-3 border-0 shadow-sm mb-4 d-print-none">
+        <form method="get" class="row g-2 align-items-center">
+            <div class="col-12 col-md-4">
+                <label class="form-label small fw-bold mb-1">Filtrar por Status:</label>
+                <select name="status" class="form-select" onchange="this.form.submit()">
+                    <option value="todos" {% if status_filtro == 'todos' %}selected{% endif %}>📦 Todos os Produtos</option>
+                    <option value="baixo" {% if status_filtro == 'baixo' %}selected{% endif %}>⚠️ Apenas com Estoque Baixo</option>
+                    <option value="zerado" {% if status_filtro == 'zerado' %}selected{% endif %}>🛑 Apenas com Estoque Zerado</option>
+                    <option value="normal" {% if status_filtro == 'normal' %}selected{% endif %}>✅ Apenas com Estoque Normal</option>
+                </select>
+            </div>
+
+            <div class="col-12 col-md-4">
+                <label class="form-label small fw-bold mb-1">Filtrar por Categoria:</label>
+                <select name="categoria" class="form-select" onchange="this.form.submit()">
+                    <option value="">Todas as Categorias</option>
+                    {% for cat in categorias %}
+                        <option value="{{ cat.id }}" {% if categoria_id|slugify == cat.id|slugify %}selected{% endif %}>{{ cat.nome }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <div class="col-12 col-md-4 d-flex align-items-end">
+                <button type="submit" class="btn btn-primary w-100 fw-bold mt-3"><i class="bi bi-funnel me-1"></i> Aplicar Filtros</button>
+            </div>
+        </form>
+    </div>
+
+    <!-- Tabela de Produtos -->
+    <div class="card card-custom p-0 border-0 shadow-sm rounded-4 overflow-hidden">
+        <div class="table-responsive">
+            <table class="table table-hover align-middle mb-0">
+                <thead class="table-light">
+                    <tr>
+                        <th class="ps-4">Produto</th>
+                        <th>Categoria</th>
+                        <th class="text-center">Estoque Atual</th>
+                        <th class="text-center">Estoque Mínimo</th>
+                        <th class="text-end">Custo Unitário</th>
+                        <th class="text-end">Preço Venda</th>
+                        <th class="text-end">Valor Total em Estoque</th>
+                        <th class="text-center pe-4">Status</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for p in estoque_data.produtos %}
+                    <tr class="{% if p.estoque_atual <= 0 %}table-danger-subtle{% elif p.estoque_atual <= p.estoque_minimo %}table-warning-subtle{% endif %}">
+                        <td class="ps-4">
+                            <strong class="text-dark">{{ p.nome }}</strong>
+                            <small class="d-block text-muted">Cód: {{ p.codigo_barras|default:"-" }} | SKU: {{ p.sku|default:"-" }}</small>
+                        </td>
+                        <td><span class="badge bg-light text-dark border">{{ p.categoria.nome|default:"Sem Categoria" }}</span></td>
+                        <td class="text-center fw-bold fs-6 {% if p.estoque_atual <= 0 %}text-danger{% elif p.estoque_atual <= p.estoque_minimo %}text-warning{% else %}text-dark{% endif %}">
+                            {{ p.estoque_atual|floatformat:0 }}
+                        </td>
+                        <td class="text-center text-muted">{{ p.estoque_minimo|floatformat:0 }}</td>
+                        <td class="text-end text-muted">R$ {{ p.preco_custo|floatformat:2 }}</td>
+                        <td class="text-end text-primary fw-semibold">R$ {{ p.preco_venda|floatformat:2 }}</td>
+                        <td class="text-end fw-bold text-dark">R$ {{ p.valor_estoque_custo|floatformat:2 }}</td>
+                        <td class="text-center pe-4">
+                            {% if p.estoque_atual <= 0 %}
+                                <span class="badge bg-danger">Zerado</span>
+                            {% elif p.estoque_atual <= p.estoque_minimo %}
+                                <span class="badge bg-warning text-dark">Baixo</span>
+                            {% else %}
+                                <span class="badge bg-success">Normal</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="8" class="text-center text-muted py-5">Nenhum produto cadastrado ou correspondente aos filtros.</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}

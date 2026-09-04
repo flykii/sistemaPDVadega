@@ -1,0 +1,193 @@
+.pdv-container {
+    min-height: calc(100vh - 75px);
+}
+
+.pdv-cart-card {
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+}
+
+.pdv-cart-table-wrapper {
+    flex: 1;
+    max-height: 480px;
+    overflow-y: auto;
+}
+
+.product-card-item {
+    cursor: pointer;
+    border: 1px solid #e2e8f0;
+    border-radius: 8px;
+    padding: 10px;
+    transition: all 0.15s ease-in-out;
+}
+
+.product-card-item:hover {
+    border-color: #2563eb;
+    background-color: #eff6ff;
+    transform: translateY(-2px);
+}
+
+.shortcut-badge {
+    background-color: #334155;
+    color: #f8fafc;
+    padding: 2px 6px;
+    border-radius: 4px;
+    font-size: 0.75rem;
+    font-weight: bold;
+}
+
+/* Cards de Formas de Pagamento (Grid como no modelo do usuário) */
+.payment-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 10px;
+}
+
+@media (max-width: 576px) {
+    .payment-grid {
+        grid-template-columns: repeat(2, 1fr);
+    }
+}
+
+.payment-card-btn {
+    border: 2px solid #e2e8f0;
+    border-radius: 12px;
+    padding: 12px 6px;
+    background: #ffffff;
+    cursor: pointer;
+    text-align: center;
+    transition: all 0.15s ease-in-out;
+    user-select: none;
+}
+
+.payment-card-btn:hover {
+    border-color: #16a34a;
+    background-color: #f0fdf4;
+}
+
+.payment-card-btn.active {
+    border-color: #16a34a;
+    background-color: #dc2626; /* ou verde conforme seleção */
+    background: #f0fdf4;
+    box-shadow: 0 0 0 3px rgba(22, 163, 74, 0.2);
+}
+
+.payment-card-btn i {
+    font-size: 1.5rem;
+    display: block;
+    margin-bottom: 4px;
+}
+
+.payment-card-btn.active i {
+    color: #16a34a;
+}
+
+.payment-card-btn .pay-title {
+    font-size: 0.85rem;
+    font-weight: 700;
+    color: #1e293b;
+}
+
+/* Painel de Valor e Resumo */
+.summary-box {
+    background: #ffffff;
+    border: 1px solid #e2e8f0;
+    border-radius: 12px;
+    padding: 16px;
+}
+
+.display-total-value {
+    font-size: 2.2rem;
+    font-weight: 800;
+    color: #0f172a;
+}
+
+.btn-finalize-huge {
+    background-color: #16a34a;
+    color: #ffffff;
+    font-size: 1.25rem;
+    font-weight: 700;
+    border-radius: 10px;
+    padding: 12px;
+    border: none;
+    transition: background 0.2s;
+}
+
+.btn-finalize-huge:hover {
+    background-color: #15803d;
+    color: #ffffff;
+}
+
+.btn-action-sub {
+    border-radius: 8px;
+    font-weight: 600;
+    font-size: 0.9rem;
+}
+
+/* Aplicação de Personalização Visual do PDV */
+body[data-page="pdv"] {
+    background-color: var(--cor-pdv-fundo, #0f172a) !important;
+    color: var(--cor-pdv-texto, #ffffff);
+}
+
+body[data-page="pdv"] .display-total-value {
+    color: var(--cor-pdv-total, #eab308) !important;
+    font-size: var(--pdv-fonte-total, 2.2rem) !important;
+}
+
+body[data-page="pdv"] .summary-box {
+    border-color: var(--cor-pdv-total, #eab308) !important;
+}
+
+body[data-page="pdv"] .btn-success,
+body[data-page="pdv"] .btn-finalize-huge,
+body[data-page="pdv"] button[onclick*="abrirModalPagamento"] {
+    background-color: var(--cor-pdv-botao-finalizar, #16a34a) !important;
+    border-color: var(--cor-pdv-botao-finalizar, #16a34a) !important;
+}
+
+body[data-page="pdv"] .product-card-item .badge {
+    font-size: var(--pdv-fonte-preco, 1.0rem);
+    color: var(--cor-pdv-preco, #22c55e);
+}
+
+body[data-page="pdv"] .pdv-cart-table-wrapper table td {
+    font-size: var(--pdv-fonte-itens, 1.0rem);
+}
+
+/* Botões de Ação Secundários do PDV (Compactos e Coloridos) */
+.btn-pdv-action {
+    padding: 6px 12px;
+    font-size: 0.875rem;
+    line-height: 1.35;
+    border-radius: 8px;
+    transition: filter 0.15s ease-in-out, transform 0.1s ease;
+}
+
+.btn-pdv-action:hover {
+    filter: brightness(0.92);
+    transform: translateY(-1px);
+}
+
+.btn-pdv-action:active {
+    transform: translateY(0);
+}
+
+.btn-pdv-pausar {
+    background-color: var(--cor-pdv-botao-pausar, #d97706) !important;
+    border-color: var(--cor-pdv-botao-pausar, #d97706) !important;
+    color: #ffffff !important;
+}
+
+.btn-pdv-espera {
+    background-color: var(--cor-pdv-botao-espera, #2563eb) !important;
+    border-color: var(--cor-pdv-botao-espera, #2563eb) !important;
+    color: #ffffff !important;
+}
+
+.btn-pdv-divida {
+    background-color: var(--cor-pdv-botao-divida, #7c3aed) !important;
+    border-color: var(--cor-pdv-botao-divida, #7c3aed) !important;
+    color: #ffffff !important;
+}

@@ -1,0 +1,91 @@
+{% extends 'base.html' %}
+
+{% block title %}Alerta de Estoque Baixo / Zerado - PDV Enterprise{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-3">
+    <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
+        <div>
+            <h2 class="fw-bold text-dark mb-0"><i class="bi bi-exclamation-triangle-fill text-warning me-2"></i>Alerta de Reposição de Estoque</h2>
+            <p class="text-muted mb-0">Produtos que atingiram o limite mínimo de segurança ou que estão completamente zerados.</p>
+        </div>
+        <div class="d-flex gap-2">
+            <a href="{% url 'compra_nova' %}" class="btn btn-success fw-bold shadow-sm">
+                <i class="bi bi-cart-plus me-1"></i> Fazer Pedido de Compra
+            </a>
+            <a href="{% url 'produtos_list' %}" class="btn btn-outline-secondary fw-bold">
+                <i class="bi bi-arrow-left me-1"></i> Todos os Produtos
+            </a>
+        </div>
+    </div>
+
+    <!-- Cards de Resumo -->
+    <div class="row g-3 mb-4">
+        <div class="col-12 col-md-6">
+            <div class="card p-3 border-start border-danger border-4 shadow-sm bg-light">
+                <span class="text-danger fw-bold small text-uppercase">Produtos com Estoque Zerado (0)</span>
+                <h3 class="fw-bold text-danger mb-0">{{ total_zerados }} itens</h3>
+            </div>
+        </div>
+        <div class="col-12 col-md-6">
+            <div class="card p-3 border-start border-warning border-4 shadow-sm bg-light">
+                <span class="text-warning fw-bold small text-uppercase">Produtos Abaixo do Mínimo</span>
+                <h3 class="fw-bold text-warning mb-0">{{ total_baixos }} itens</h3>
+            </div>
+        </div>
+    </div>
+
+    <!-- Tabela de Produtos Críticos -->
+    <div class="card card-custom p-0 border-0 shadow-sm rounded-4 overflow-hidden mb-4">
+        <div class="table-responsive">
+            <table class="table table-hover align-middle mb-0">
+                <thead class="table-light">
+                    <tr>
+                        <th class="ps-3">Código</th>
+                        <th>Produto</th>
+                        <th>Fornecedor</th>
+                        <th class="text-end">Custo</th>
+                        <th class="text-end">Preço Venda</th>
+                        <th class="text-center">Estoque Atual</th>
+                        <th class="text-center">Estoque Mínimo</th>
+                        <th class="text-end pe-3">Ações Rápidas</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for prod in produtos_baixos %}
+                    <tr class="{% if prod.estoque_zerado %}table-danger{% else %}table-warning{% endif %}">
+                        <td class="ps-3"><code class="fw-bold fs-6">{{ prod.codigo_barras }}</code></td>
+                        <td>
+                            <strong class="d-block text-dark">{{ prod.nome }}</strong>
+                            <small class="text-muted">{{ prod.categoria.nome|default:"Geral" }}</small>
+                        </td>
+                        <td>{{ prod.fornecedor_principal.nome_fantasia|default:"Não vinculado" }}</td>
+                        <td class="text-end">R$ {{ prod.preco_custo|floatformat:2 }}</td>
+                        <td class="text-end fw-bold text-primary">R$ {{ prod.preco_venda|floatformat:2 }}</td>
+                        <td class="text-center">
+                            {% if prod.estoque_zerado %}
+                                <span class="badge bg-danger p-2 fs-6">0.000 {{ prod.unidade_medida }} (ZERADO)</span>
+                            {% else %}
+                                <span class="badge bg-warning text-dark p-2 fs-6">{{ prod.estoque_atual }} {{ prod.unidade_medida }}</span>
+                            {% endif %}
+                        </td>
+                        <td class="text-center fw-bold">{{ prod.estoque_minimo }} {{ prod.unidade_medida }}</td>
+                        <td class="text-end pe-3">
+                            <a href="{% url 'estoque_ajuste' prod.id %}" class="btn btn-sm btn-outline-dark fw-bold me-1" title="Ajustar Estoque"><i class="bi bi-arrow-left-right me-1"></i> Ajustar</a>
+                            <a href="{% url 'produto_editar' prod.id %}" class="btn btn-sm btn-outline-primary" title="Editar"><i class="bi bi-pencil"></i></a>
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="8" class="text-center text-success py-5">
+                            <i class="bi bi-check-circle-fill fs-1 d-block mb-2 text-success"></i>
+                            Excelente! Nenhum produto está com estoque baixo no momento.
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}

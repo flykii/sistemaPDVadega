@@ -1,0 +1,86 @@
+{% extends 'base.html' %}
+
+{% block title %}Movimentação de Caixa - PDV Enterprise{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center my-4">
+    <div class="col-12 col-md-6 col-lg-5">
+        <div class="card card-custom p-4 shadow-lg border-0">
+            <h3 class="fw-bold text-dark mb-2"><i class="bi bi-arrow-left-right text-primary me-2"></i>Movimentação de Caixa</h3>
+            <p class="text-muted mb-3">Lançamento operacional na sessão #{{ sessao.id }} do <strong>{{ sessao.caixa.nome }}</strong>.</p>
+            
+            <div class="alert alert-info py-2 d-flex justify-content-between align-items-center mb-4">
+                <span>Dinheiro Disponível na Gaveta:</span>
+                <strong class="fs-5 text-primary">R$ {{ sessao.saldo_atual|floatformat:2 }}</strong>
+            </div>
+
+            <form method="post" id="form-mov">
+                {% csrf_token %}
+                <div class="mb-3">
+                    <label for="tipo" class="form-label fw-bold">Tipo de Operação *</label>
+                    <select name="tipo" id="tipo" class="form-select form-select-lg fw-bold" required onchange="ajustarTipoMovimentacao()">
+                        <option value="SUPRIMENTO">➕ Suprimento (Aporte / Entrada de Troco)</option>
+                        <option value="SANGRIA">➖ Sangria (Retirada de Dinheiro da Gaveta)</option>
+                        <option value="DESPESA">💸 Despesa Paga Diretamente pelo Caixa</option>
+                    </select>
+                </div>
+
+                <div class="mb-3">
+                    <label for="valor" class="form-label fw-bold">Valor da Movimentação (R$) *</label>
+                    <div class="input-group input-group-lg">
+                        <span class="input-group-text fw-bold">R$</span>
+                        <input type="number" step="0.01" min="0.01" name="valor" id="valor" class="form-control fw-bold fs-4 text-primary" placeholder="0,00" required autofocus>
+                    </div>
+                </div>
+
+                <div class="mb-4">
+                    <label for="motivo" class="form-label fw-bold">Motivo / Descrição Detalhada *</label>
+                    <input type="text" name="motivo" id="motivo" class="form-control form-control-lg" placeholder="Ex: Pagamento do Fornecedor de Gelo, Retirada para Cofre..." required>
+                </div>
+
+                <div class="d-flex gap-2">
+                    <a href="{% url 'caixas_list' %}" class="btn btn-secondary w-50 py-3 fw-bold">Cancelar</a>
+                    <button type="submit" id="btn-salvar-mov" class="btn btn-primary w-50 py-3 fw-bold fs-5 shadow">
+                        <i class="bi bi-check-circle-fill me-1"></i> Confirmar
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    const saldoGaveta = parseFloat("{{ sessao.saldo_atual|stringformat:'.2f' }}") || 0.00;
+
+    function ajustarTipoMovimentacao() {
+        const tipo = document.getElementById('tipo').value;
+        const btn = document.getElementById('btn-salvar-mov');
+        if (tipo === 'SUPRIMENTO') {
+            btn.className = 'btn btn-success w-50 py-3 fw-bold fs-5 shadow';
+        } else if (tipo === 'SANGRIA') {
+            btn.className = 'btn btn-warning w-50 py-3 fw-bold fs-5 shadow text-dark';
+        } else {
+            btn.className = 'btn btn-danger w-50 py-3 fw-bold fs-5 shadow';
+        }
+    }
+
+    document.getElementById('form-mov').addEventListener('submit', function(e) {
+        const tipo = document.getElementById('tipo').value;
+        const valor = parseFloat(document.getElementById('valor').value.replace(',', '.')) || 0;
+
+        if ((tipo === 'SANGRIA' || tipo === 'DESPESA') && valor > saldoGaveta) {
+            e.preventDefault();
+            alert(`Saldo insuficiente na gaveta. Saldo disponível: R$ ${saldoGaveta.toFixed(2).replace('.', ',')}, Solicitado: R$ ${valor.toFixed(2).replace('.', ',')}.`);
+            return;
+        }
+
+        if (!confirm(`Confirma o lançamento de ${tipo} no valor de R$ ${valor.toFixed(2).replace('.', ',')}?`)) {
+            e.preventDefault();
+        }
+    });
+
+    document.addEventListener('DOMContentLoaded', ajustarTipoMovimentacao);
+</script>
+{% endblock %}

@@ -1,0 +1,741 @@
+{% extends 'base.html' %}
+
+{% block title %}Configurações & Personalização Visual - PDV Enterprise{% endblock %}
+
+{% block content %}
+<div class="row mb-4">
+    <div class="col-12 d-flex justify-content-between align-items-center flex-wrap gap-2">
+        <div>
+            <h2 class="fw-bold text-dark mb-0"><i class="bi bi-palette-fill text-primary me-2"></i>Configurações do Sistema & Personalização Visual</h2>
+            <p class="text-muted mb-0">Personalize a identidade da empresa, temas de cores e layout do PDV de forma exclusiva por estabelecimento.</p>
+        </div>
+        <div>
+            <a href="{% url 'importacao_hub' %}" class="btn btn-primary fw-bold">
+                <i class="bi bi-filetype-json me-1"></i> Central de Importação JSON
+            </a>
+        </div>
+    </div>
+</div>
+
+<div class="row g-4">
+    <div class="col-12">
+        <div class="card card-custom p-0 shadow-sm border-0">
+            <!-- Navegação em Abas -->
+            <div class="card-header bg-white border-bottom p-3">
+                <ul class="nav nav-pills card-header-pills" id="configTabs" role="tablist">
+                    <li class="nav-item">
+                        <button class="nav-link active fw-bold" id="tab-visual-btn" data-bs-toggle="pill" data-bs-target="#tab-visual" type="button">
+                            <i class="bi bi-palette me-1"></i> Cores & Tema do Sistema
+                        </button>
+                    </li>
+                    <li class="nav-item">
+                        <button class="nav-link fw-bold" id="tab-pdv-btn" data-bs-toggle="pill" data-bs-target="#tab-pdv" type="button">
+                            <i class="bi bi-cart4 me-1"></i> Cores & Layout do PDV
+                        </button>
+                    </li>
+                    <li class="nav-item">
+                        <button class="nav-link fw-bold" id="tab-identidade-btn" data-bs-toggle="pill" data-bs-target="#tab-identidade" type="button">
+                            <i class="bi bi-image me-1"></i> Identidade Visual & Logo
+                        </button>
+                    </li>
+                    <li class="nav-item">
+                        <button class="nav-link fw-bold" id="tab-dados-btn" data-bs-toggle="pill" data-bs-target="#tab-dados" type="button">
+                            <i class="bi bi-building me-1"></i> Dados Cadastrais
+                        </button>
+                    </li>
+                    <li class="nav-item">
+                        <button class="nav-link fw-bold" id="tab-atalhos-btn" data-bs-toggle="pill" data-bs-target="#tab-atalhos" type="button">
+                            <i class="bi bi-keyboard me-1"></i> Atalhos do PDV
+                        </button>
+                    </li>
+                </ul>
+            </div>
+
+            <div class="card-body p-4">
+                <div class="tab-content" id="configTabsContent">
+                    
+                    <!-- ABA 1: CORES DO SISTEMA -->
+                    <div class="tab-pane fade show active" id="tab-visual" role="tabpanel">
+                        <form method="POST" action="{% url 'configuracoes' %}" id="formCoresSistema">
+                            {% csrf_token %}
+                            <input type="hidden" name="action" value="salvar_tema_cores">
+                            
+                            <h5 class="fw-bold text-dark mb-3"><i class="bi bi-brush text-primary me-2"></i>Paleta de Cores do Painel Geral</h5>
+                            <p class="text-muted small mb-4">Escolha as cores através do seletor ou digite o código HEX (ex: <code>#2563EB</code>).</p>
+
+                            <div class="row g-3">
+                                <div class="col-12 col-md-6 col-lg-4">
+                                    <label class="form-label fw-semibold">Cor Principal:</label>
+                                    <div class="input-group">
+                                        <input type="color" class="form-control form-control-color" id="picker_cor_principal" value="{{ config_visual.cor_principal }}" onchange="syncColorInput(this, 'cor_principal')">
+                                        <input type="text" class="form-control font-monospace" id="cor_principal" name="cor_principal" value="{{ config_visual.cor_principal }}" onchange="syncPickerInput(this, 'picker_cor_principal')" required>
+                                    </div>
+                                </div>
+
+                                <div class="col-12 col-md-6 col-lg-4">
+                                    <label class="form-label fw-semibold">Cor Secundária:</label>
+                                    <div class="input-group">
+                                        <input type="color" class="form-control form-control-color" id="picker_cor_secundaria" value="{{ config_visual.cor_secundaria }}" onchange="syncColorInput(this, 'cor_secundaria')">
+                                        <input type="text" class="form-control font-monospace" id="cor_secundaria" name="cor_secundaria" value="{{ config_visual.cor_secundaria }}" onchange="syncPickerInput(this, 'picker_cor_secundaria')" required>
+                                    </div>
+                                </div>
+
+                                <div class="col-12 col-md-6 col-lg-4">
+                                    <label class="form-label fw-semibold">Cor de Destaque:</label>
+                                    <div class="input-group">
+                                        <input type="color" class="form-control form-control-color" id="picker_cor_destaque" value="{{ config_visual.cor_destaque }}" onchange="syncColorInput(this, 'cor_destaque')">
+                                        <input type="text" class="form-control font-monospace" id="cor_destaque" name="cor_destaque" value="{{ config_visual.cor_destaque }}" onchange="syncPickerInput(this, 'picker_cor_destaque')" required>
+                                    </div>
+                                </div>
+
+                                <div class="col-12 col-md-6 col-lg-4">
+                                    <label class="form-label fw-semibold">Cor do Menu / Barra Superior:</label>
+                                    <div class="input-group">
+                                        <input type="color" class="form-control form-control-color" id="picker_cor_menu_sidebar" value="{{ config_visual.cor_menu_sidebar }}" onchange="syncColorInput(this, 'cor_menu_sidebar')">
+                                        <input type="text" class="form-control font-monospace" id="cor_menu_sidebar" name="cor_menu_sidebar" value="{{ config_visual.cor_menu_sidebar }}" onchange="syncPickerInput(this, 'picker_cor_menu_sidebar')" required>
+                                    </div>
+                                </div>
+
+                                <div class="col-12 col-md-6 col-lg-4">
+                                    <label class="form-label fw-semibold">Cor do Plano de Fundo Geral:</label>
+                                    <div class="input-group">
+                                        <input type="color" class="form-control form-control-color" id="picker_cor_fundo" value="{{ config_visual.cor_fundo }}" onchange="syncColorInput(this, 'cor_fundo')">
+                                        <input type="text" class="form-control font-monospace" id="cor_fundo" name="cor_fundo" value="{{ config_visual.cor_fundo }}" onchange="syncPickerInput(this, 'picker_cor_fundo')" required>
+                                    </div>
+                                </div>
+
+                                <div class="col-12 col-md-6 col-lg-4">
+                                    <label class="form-label fw-semibold">Cor dos Cartões / Painéis:</label>
+                                    <div class="input-group">
+                                        <input type="color" class="form-control form-control-color" id="picker_cor_cards" value="{{ config_visual.cor_cards }}" onchange="syncColorInput(this, 'cor_cards')">
+                                        <input type="text" class="form-control font-monospace" id="cor_cards" name="cor_cards" value="{{ config_visual.cor_cards }}" onchange="syncPickerInput(this, 'picker_cor_cards')" required>
+                                    </div>
+                                </div>
+
+                                <div class="col-12 col-md-6 col-lg-4">
+                                    <label class="form-label fw-semibold">Cor do Texto Principal:</label>
+                                    <div class="input-group">
+                                        <input type="color" class="form-control form-control-color" id="picker_cor_texto" value="{{ config_visual.cor_texto }}" onchange="syncColorInput(this, 'cor_texto')">
+                                        <input type="text" class="form-control font-monospace" id="cor_texto" name="cor_texto" value="{{ config_visual.cor_texto }}" onchange="syncPickerInput(this, 'picker_cor_texto')" required>
+                                    </div>
+                                </div>
+
+                                <div class="col-12 col-md-6 col-lg-4">
+                                    <label class="form-label fw-semibold">Cor dos Botões de Ação:</label>
+                                    <div class="input-group">
+                                        <input type="color" class="form-control form-control-color" id="picker_cor_botoes_acao" value="{{ config_visual.cor_botoes_acao }}" onchange="syncColorInput(this, 'cor_botoes_acao')">
+                                        <input type="text" class="form-control font-monospace" id="cor_botoes_acao" name="cor_botoes_acao" value="{{ config_visual.cor_botoes_acao }}" onchange="syncPickerInput(this, 'picker_cor_botoes_acao')" required>
+                                    </div>
+                                </div>
+
+                                <div class="col-12 col-md-6 col-lg-4">
+                                    <label class="form-label fw-semibold">Cor de Sucesso / Lucro:</label>
+                                    <div class="input-group">
+                                        <input type="color" class="form-control form-control-color" id="picker_cor_sucesso" value="{{ config_visual.cor_sucesso }}" onchange="syncColorInput(this, 'cor_sucesso')">
+                                        <input type="text" class="form-control font-monospace" id="cor_sucesso" name="cor_sucesso" value="{{ config_visual.cor_sucesso }}" onchange="syncPickerInput(this, 'picker_cor_sucesso')" required>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- PRÉ-VISUALIZAÇÃO EM TEMPO REAL: SISTEMA & NAVBAR -->
+                            <div class="card mt-4 border-primary border-opacity-25 bg-light shadow-sm">
+                                <div class="card-header bg-white border-bottom py-2 d-flex justify-content-between align-items-center">
+                                    <span class="fw-bold text-dark small text-uppercase"><i class="bi bi-eye text-primary me-1"></i> Pré-Visualização Dinâmica da Barra Superior e Sistema</span>
+                                    <span class="badge bg-primary text-white">Ao Vivo</span>
+                                </div>
+                                <div class="card-body p-3">
+                                    <div class="rounded border p-3 mb-3 shadow-sm" id="prev-navbar" style="background: {{ config_visual.cor_menu_sidebar }};">
+                                        <div class="d-flex justify-content-between align-items-center">
+                                            <div class="d-flex align-items-center gap-2">
+                                                <i class="bi bi-cart-check-fill fs-5" id="prev-logo-icon" style="color: {{ config_visual.cor_principal }};"></i>
+                                                <span class="fw-bold text-white fs-6">PDV Enterprise</span>
+                                                <span class="badge bg-secondary ms-2 opacity-75 d-none d-sm-inline">{{ empresa.nome_fantasia }}</span>
+                                            </div>
+                                            <div>
+                                                <button type="button" class="btn btn-sm text-white fw-bold" id="prev-nav-btn" style="background-color: {{ config_visual.cor_principal }};">
+                                                    <i class="bi bi-lightning-charge-fill me-1"></i> PDV Rápido
+                                                </button>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <div class="row g-2">
+                                        <div class="col-md-6">
+                                            <div class="p-3 rounded border shadow-sm" id="prev-card-demo" style="background-color: {{ config_visual.cor_cards }}; color: {{ config_visual.cor_texto }};">
+                                                <div class="fw-bold small" id="prev-card-title">Card Exemplo do Painel</div>
+                                                <div class="small mt-1" id="prev-card-desc" style="color: {{ config_visual.cor_texto_secundario }};">Texto secundário de exemplo no sistema</div>
+                                            </div>
+                                        </div>
+                                        <div class="col-md-6 d-flex align-items-center gap-2">
+                                            <button type="button" class="btn btn-sm text-white fw-bold px-3 py-2" id="prev-btn-demo" style="background-color: {{ config_visual.cor_botoes }};">Botão Primário</button>
+                                            <button type="button" class="btn btn-sm text-white fw-bold px-3 py-2" id="prev-btn-action-demo" style="background-color: {{ config_visual.cor_botoes_acao }};">Botão de Ação</button>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="d-flex justify-content-between align-items-center mt-4 pt-3 border-top">
+                                <button type="submit" class="btn btn-success fw-bold px-4">
+                                    <i class="bi bi-check2-circle me-1"></i> Salvar Cores do Sistema
+                                </button>
+                                <button type="submit" class="btn btn-outline-danger btn-sm" onclick="return confirm('Deseja realmente restaurar as cores padrão de fábrica?');" formaction="{% url 'configuracoes' %}?action=restaurar_padroes">
+                                    <input type="hidden" name="action" value="restaurar_padroes">
+                                    <i class="bi bi-arrow-counterclockwise me-1"></i> Restaurar Padrões
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+
+                    <!-- ABA 2: CORES & LAYOUT DO PDV -->
+                    <div class="tab-pane fade" id="tab-pdv" role="tabpanel">
+                        <form method="POST" action="{% url 'configuracoes' %}" id="formCoresPDV">
+                            {% csrf_token %}
+                            <input type="hidden" name="action" value="salvar_tema_cores">
+
+                            <h5 class="fw-bold text-dark mb-3"><i class="bi bi-cart-check text-primary me-2"></i>Personalização da Tela do PDV</h5>
+                            <p class="text-muted small mb-4">Ajuste o contraste, tamanhos de fontes e cores dos preços para facilitar a visão do operador de caixa.</p>
+
+                            <div class="row g-3 mb-4">
+                                <div class="col-12 col-md-6 col-lg-4">
+                                    <label class="form-label fw-semibold">Plano de Fundo do PDV:</label>
+                                    <div class="input-group">
+                                        <input type="color" class="form-control form-control-color" id="picker_cor_pdv_fundo" value="{{ config_visual.cor_pdv_fundo }}" onchange="syncColorInput(this, 'cor_pdv_fundo')">
+                                        <input type="text" class="form-control font-monospace" id="cor_pdv_fundo" name="cor_pdv_fundo" value="{{ config_visual.cor_pdv_fundo }}" onchange="syncPickerInput(this, 'picker_cor_pdv_fundo')" required>
+                                    </div>
+                                </div>
+
+                                <div class="col-12 col-md-6 col-lg-4">
+                                    <label class="form-label fw-semibold">Cor dos Preços Unitários:</label>
+                                    <div class="input-group">
+                                        <input type="color" class="form-control form-control-color" id="picker_cor_pdv_preco" value="{{ config_visual.cor_pdv_preco }}" onchange="syncColorInput(this, 'cor_pdv_preco')">
+                                        <input type="text" class="form-control font-monospace" id="cor_pdv_preco" name="cor_pdv_preco" value="{{ config_visual.cor_pdv_preco }}" onchange="syncPickerInput(this, 'picker_cor_pdv_preco')" required>
+                                    </div>
+                                </div>
+
+                                <div class="col-12 col-md-6 col-lg-4">
+                                    <label class="form-label fw-semibold">Cor do Total Geral da Venda:</label>
+                                    <div class="input-group">
+                                        <input type="color" class="form-control form-control-color" id="picker_cor_pdv_total" value="{{ config_visual.cor_pdv_total }}" onchange="syncColorInput(this, 'cor_pdv_total')">
+                                        <input type="text" class="form-control font-monospace" id="cor_pdv_total" name="cor_pdv_total" value="{{ config_visual.cor_pdv_total }}" onchange="syncPickerInput(this, 'picker_cor_pdv_total')" required>
+                                    </div>
+                                </div>
+
+                                <div class="col-12 col-md-6 col-lg-4">
+                                    <label class="form-label fw-semibold">Botão Finalizar Venda:</label>
+                                    <div class="input-group">
+                                        <input type="color" class="form-control form-control-color" id="picker_cor_pdv_botao_finalizar" value="{{ config_visual.cor_pdv_botao_finalizar }}" onchange="syncColorInput(this, 'cor_pdv_botao_finalizar')">
+                                        <input type="text" class="form-control font-monospace" id="cor_pdv_botao_finalizar" name="cor_pdv_botao_finalizar" value="{{ config_visual.cor_pdv_botao_finalizar }}" onchange="syncPickerInput(this, 'picker_cor_pdv_botao_finalizar')" required>
+                                    </div>
+                                </div>
+
+                                <div class="col-12 col-md-6 col-lg-4">
+                                    <label class="form-label fw-semibold">Botão Cancelar Venda:</label>
+                                    <div class="input-group">
+                                        <input type="color" class="form-control form-control-color" id="picker_cor_pdv_botao_cancelar" value="{{ config_visual.cor_pdv_botao_cancelar }}" onchange="syncColorInput(this, 'cor_pdv_botao_cancelar')">
+                                        <input type="text" class="form-control font-monospace" id="cor_pdv_botao_cancelar" name="cor_pdv_botao_cancelar" value="{{ config_visual.cor_pdv_botao_cancelar }}" onchange="syncPickerInput(this, 'picker_cor_pdv_botao_cancelar')" required>
+                                    </div>
+                                </div>
+
+                                <div class="col-12 col-md-6 col-lg-4">
+                                    <label class="form-label fw-semibold">Botões de Formas de Pagamento:</label>
+                                    <div class="input-group">
+                                        <input type="color" class="form-control form-control-color" id="picker_cor_pdv_botoes_pagamento" value="{{ config_visual.cor_pdv_botoes_pagamento }}" onchange="syncColorInput(this, 'cor_pdv_botoes_pagamento')">
+                                        <input type="text" class="form-control font-monospace" id="cor_pdv_botoes_pagamento" name="cor_pdv_botoes_pagamento" value="{{ config_visual.cor_pdv_botoes_pagamento }}" onchange="syncPickerInput(this, 'picker_cor_pdv_botoes_pagamento')" required>
+                                    </div>
+                                </div>
+
+                                <div class="col-12 col-md-6 col-lg-4">
+                                    <label class="form-label fw-semibold">Botão Pausar Venda:</label>
+                                    <div class="input-group">
+                                        <input type="color" class="form-control form-control-color" id="picker_cor_pdv_botao_pausar" value="{{ config_visual.cor_pdv_botao_pausar }}" onchange="syncColorInput(this, 'cor_pdv_botao_pausar')">
+                                        <input type="text" class="form-control font-monospace" id="cor_pdv_botao_pausar" name="cor_pdv_botao_pausar" value="{{ config_visual.cor_pdv_botao_pausar }}" onchange="syncPickerInput(this, 'picker_cor_pdv_botao_pausar')" required>
+                                    </div>
+                                </div>
+
+                                <div class="col-12 col-md-6 col-lg-4">
+                                    <label class="form-label fw-semibold">Botão Em Espera:</label>
+                                    <div class="input-group">
+                                        <input type="color" class="form-control form-control-color" id="picker_cor_pdv_botao_espera" value="{{ config_visual.cor_pdv_botao_espera }}" onchange="syncColorInput(this, 'cor_pdv_botao_espera')">
+                                        <input type="text" class="form-control font-monospace" id="cor_pdv_botao_espera" name="cor_pdv_botao_espera" value="{{ config_visual.cor_pdv_botao_espera }}" onchange="syncPickerInput(this, 'picker_cor_pdv_botao_espera')" required>
+                                    </div>
+                                </div>
+
+                                <div class="col-12 col-md-6 col-lg-4">
+                                    <label class="form-label fw-semibold">Botão Receber Dívida (Fiado):</label>
+                                    <div class="input-group">
+                                        <input type="color" class="form-control form-control-color" id="picker_cor_pdv_botao_divida" value="{{ config_visual.cor_pdv_botao_divida }}" onchange="syncColorInput(this, 'cor_pdv_botao_divida')">
+                                        <input type="text" class="form-control font-monospace" id="cor_pdv_botao_divida" name="cor_pdv_botao_divida" value="{{ config_visual.cor_pdv_botao_divida }}" onchange="syncPickerInput(this, 'picker_cor_pdv_botao_divida')" required>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <h5 class="fw-bold text-dark mb-3 pt-3 border-top"><i class="bi bi-type text-primary me-2"></i>Tipografia e Densidade do PDV</h5>
+                            <div class="row g-3">
+                                <div class="col-12 col-md-4">
+                                    <label class="form-label fw-semibold">Tamanho da Fonte do Total:</label>
+                                    <select class="form-select" name="tamanho_fonte_total" id="tamanho_fonte_total">
+                                        <option value="1.75rem" {% if config_visual.tamanho_fonte_total == '1.75rem' %}selected{% endif %}>Médio (1.75rem)</option>
+                                        <option value="2.0rem" {% if config_visual.tamanho_fonte_total == '2.0rem' %}selected{% endif %}>Grande - Padrão (2.0rem)</option>
+                                        <option value="2.5rem" {% if config_visual.tamanho_fonte_total == '2.5rem' %}selected{% endif %}>Gigante (2.5rem)</option>
+                                    </select>
+                                </div>
+
+                                <div class="col-12 col-md-4">
+                                    <label class="form-label fw-semibold">Tamanho da Fonte dos Preços:</label>
+                                    <select class="form-select" name="tamanho_fonte_preco" id="tamanho_fonte_preco">
+                                        <option value="1.0rem" {% if config_visual.tamanho_fonte_preco == '1.0rem' %}selected{% endif %}>Compacto (1.0rem)</option>
+                                        <option value="1.25rem" {% if config_visual.tamanho_fonte_preco == '1.25rem' %}selected{% endif %}>Normal - Padrão (1.25rem)</option>
+                                        <option value="1.5rem" {% if config_visual.tamanho_fonte_preco == '1.5rem' %}selected{% endif %}>Destacado (1.5rem)</option>
+                                    </select>
+                                </div>
+
+                                <div class="col-12 col-md-4">
+                                    <label class="form-label fw-semibold">Densidade do Carrinho:</label>
+                                    <select class="form-select" name="modo_layout" id="modo_layout">
+                                        <option value="CONFORTAVEL" {% if config_visual.modo_layout == 'CONFORTAVEL' %}selected{% endif %}>Confortável (Maior espaçamento)</option>
+                                        <option value="COMPACTO" {% if config_visual.modo_layout == 'COMPACTO' %}selected{% endif %}>Compacto (Mais linhas por tela)</option>
+                                    </select>
+                                </div>
+                            </div>
+
+                            <!-- PRÉ-VISUALIZAÇÃO EM TEMPO REAL: PDV -->
+                            <div class="card mt-4 border-warning border-opacity-25 bg-light shadow-sm">
+                                <div class="card-header bg-white border-bottom py-2 d-flex justify-content-between align-items-center">
+                                    <span class="fw-bold text-dark small text-uppercase"><i class="bi bi-cart4 text-warning me-1"></i> Pré-Visualização Dinâmica da Frente de Caixa (PDV)</span>
+                                    <span class="badge bg-warning text-dark">Ao Vivo</span>
+                                </div>
+                                <div class="card-body p-3">
+                                    <div class="rounded border p-4 shadow-sm" id="prev-pdv-box" style="background-color: {{ config_visual.cor_pdv_fundo }}; color: {{ config_visual.cor_pdv_texto }};">
+                                        <div class="row g-3">
+                                            <div class="col-12 col-md-7">
+                                                <div class="p-3 rounded bg-dark border border-secondary">
+                                                    <table class="table table-dark table-sm mb-0 align-middle">
+                                                        <thead>
+                                                            <tr class="text-secondary">
+                                                                <th>Item</th>
+                                                                <th class="text-center">Qtd</th>
+                                                                <th class="text-end">Unitário</th>
+                                                                <th class="text-end">Subtotal</th>
+                                                            </tr>
+                                                        </thead>
+                                                        <tbody>
+                                                            <tr>
+                                                                <td><strong id="prev-item-name" style="font-size: {{ config_visual.tamanho_fonte_itens }};">Café Especial 500g</strong></td>
+                                                                <td class="text-center">2 UN</td>
+                                                                <td class="text-end" id="prev-item-price" style="color: {{ config_visual.cor_pdv_preco }}; font-size: {{ config_visual.tamanho_fonte_preco }};">R$ 16,00</td>
+                                                                <td class="text-end fw-bold" id="prev-item-subtotal" style="color: {{ config_visual.cor_pdv_preco }}; font-size: {{ config_visual.tamanho_fonte_preco }};">R$ 32,00</td>
+                                                            </tr>
+                                                        </tbody>
+                                                    </table>
+                                                </div>
+                                            </div>
+                                            <div class="col-12 col-md-5">
+                                                <div class="p-3 rounded bg-dark border border-secondary text-center">
+                                                    <small class="text-muted text-uppercase fw-bold">TOTAL DA VENDA</small>
+                                                    <h2 class="fw-bold mb-3" id="prev-total-display" style="color: {{ config_visual.cor_pdv_total }}; font-size: {{ config_visual.tamanho_fonte_total }};">
+                                                        R$ 32,00
+                                                    </h2>
+                                                    <div class="d-flex justify-content-center gap-2 mb-3">
+                                                        <span class="badge prev-pay-badge" style="background-color: {{ config_visual.cor_pdv_botoes_pagamento }};">Dinheiro</span>
+                                                        <span class="badge prev-pay-badge" style="background-color: {{ config_visual.cor_pdv_botoes_pagamento }};">PIX</span>
+                                                        <span class="badge prev-pay-badge" style="background-color: {{ config_visual.cor_pdv_botoes_pagamento }};">Cartão</span>
+                                                    </div>
+                                                    <div class="d-grid gap-2">
+                                                        <button type="button" class="btn btn-sm text-white fw-bold" id="prev-finish-btn" style="background-color: {{ config_visual.cor_pdv_botao_finalizar }};">
+                                                            <i class="bi bi-check2-circle me-1"></i> FINALIZAR VENDA
+                                                        </button>
+                                                        <button type="button" class="btn btn-sm text-white fw-bold" id="prev-cancel-btn" style="background-color: {{ config_visual.cor_pdv_botao_cancelar }};">
+                                                            <i class="bi bi-x-circle me-1"></i> CANCELAR
+                                                        </button>
+                                                    </div>
+
+                                                    <!-- Pré-visualização dos Botões de Ação do PDV -->
+                                                    <div class="row g-1 mt-2">
+                                                        <div class="col-6">
+                                                            <button type="button" class="btn btn-sm w-100 fw-semibold text-truncate" id="prev-pausar-btn" style="background-color: {{ config_visual.cor_pdv_botao_pausar }}; color: #ffffff; font-size: 0.8rem; padding: 4px;">
+                                                                <i class="bi bi-pause-circle me-1"></i> Pausar Venda
+                                                            </button>
+                                                        </div>
+                                                        <div class="col-6">
+                                                            <button type="button" class="btn btn-sm w-100 fw-semibold text-truncate" id="prev-espera-btn" style="background-color: {{ config_visual.cor_pdv_botao_espera }}; color: #ffffff; font-size: 0.8rem; padding: 4px;">
+                                                                <i class="bi bi-inbox me-1"></i> Em Espera
+                                                            </button>
+                                                        </div>
+                                                        <div class="col-12 mt-1">
+                                                            <button type="button" class="btn btn-sm w-100 fw-semibold text-truncate" id="prev-divida-btn" style="background-color: {{ config_visual.cor_pdv_botao_divida }}; color: #ffffff; font-size: 0.8rem; padding: 4px;">
+                                                                <i class="bi bi-cash-stack me-1"></i> Receber Dívida
+                                                            </button>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="mt-4 pt-3 border-top">
+                                <button type="submit" class="btn btn-success fw-bold px-4">
+                                    <i class="bi bi-check2-circle me-1"></i> Salvar Configurações do PDV
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+
+                    <!-- ABA 3: IDENTIDADE VISUAL & LOGO -->
+                    <div class="tab-pane fade" id="tab-identidade" role="tabpanel">
+                        <form method="POST" action="{% url 'configuracoes' %}" enctype="multipart/form-data">
+                            {% csrf_token %}
+                            <input type="hidden" name="action" value="salvar_identidade_visual">
+
+                            <h5 class="fw-bold text-dark mb-3"><i class="bi bi-card-image text-primary me-2"></i>Logotipo e Informações do Cabeçalho</h5>
+                            
+                            <div class="row g-4">
+                                <div class="col-12 col-md-6">
+                                    <div class="mb-3">
+                                        <label class="form-label fw-semibold">Nome Fantasia Exibido no Topo:</label>
+                                        <input type="text" class="form-control" name="nome_fantasia_exibicao" value="{{ config_visual.nome_fantasia_exibicao|default:empresa.nome_fantasia }}" placeholder="Nome do seu negócio...">
+                                    </div>
+                                    <div class="mb-3">
+                                        <label class="form-label fw-semibold">Subtítulo / Descrição do Topo:</label>
+                                        <input type="text" class="form-control" name="subtitulo_cabecalho" value="{{ config_visual.subtitulo_cabecalho }}" placeholder="Ex: PDV Enterprise - Frente de Caixa">
+                                    </div>
+                                </div>
+
+                                <div class="col-12 col-md-6">
+                                    <div class="card p-3 bg-light border">
+                                        <label class="form-label fw-semibold">Logo da Empresa:</label>
+                                        {% if config_visual.logo %}
+                                        <div class="mb-2 text-center">
+                                            <img src="{{ config_visual.logo.url }}" alt="Logo" class="img-fluid rounded border shadow-sm" style="max-height: 100px;">
+                                        </div>
+                                        {% endif %}
+                                        <input type="file" class="form-control" name="logo" accept="image/png,image/jpeg,image/webp,image/svg+xml">
+                                        <div class="form-text small">Formatos aceitos: PNG, JPG, WEBP, SVG (Máximo 5MB).</div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="mt-4 pt-3 border-top">
+                                <button type="submit" class="btn btn-success fw-bold px-4">
+                                    <i class="bi bi-check2-circle me-1"></i> Salvar Identidade Visual
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+
+                    <!-- ABA 4: DADOS CADASTRAIS -->
+                    <div class="tab-pane fade" id="tab-dados" role="tabpanel">
+                        <form method="POST" action="{% url 'configuracoes' %}">
+                            {% csrf_token %}
+                            <input type="hidden" name="action" value="salvar_dados">
+
+                            <h5 class="fw-bold text-dark mb-3"><i class="bi bi-building text-primary me-2"></i>Dados Gerais do Negócio</h5>
+
+                            <div class="row g-3">
+                                <div class="col-12 col-md-6">
+                                    <label class="form-label fw-semibold">Razão Social:</label>
+                                    <input type="text" class="form-control" name="razao_social" value="{{ empresa.razao_social }}" required>
+                                </div>
+                                <div class="col-12 col-md-6">
+                                    <label class="form-label fw-semibold">Nome Fantasia:</label>
+                                    <input type="text" class="form-control" name="nome_fantasia" value="{{ empresa.nome_fantasia }}" required>
+                                </div>
+                                <div class="col-12 col-md-6">
+                                    <label class="form-label fw-semibold">CNPJ:</label>
+                                    <input type="text" class="form-control" name="cnpj" value="{{ empresa.cnpj }}" required>
+                                </div>
+                                <div class="col-12 col-md-6">
+                                    <label class="form-label fw-semibold">Inscrição Estadual:</label>
+                                    <input type="text" class="form-control" name="inscricao_estadual" value="{{ empresa.inscricao_estadual }}">
+                                </div>
+                                <div class="col-12 col-md-6">
+                                    <label class="form-label fw-semibold">Telefone / WhatsApp:</label>
+                                    <input type="text" class="form-control" name="telefone" value="{{ empresa.telefone }}">
+                                </div>
+                                <div class="col-12 col-md-6">
+                                    <label class="form-label fw-semibold">E-mail Comercial:</label>
+                                    <input type="email" class="form-control" name="email" value="{{ empresa.email }}">
+                                </div>
+                                <div class="col-12">
+                                    <label class="form-label fw-semibold">Endereço Completo:</label>
+                                    <input type="text" class="form-control" name="endereco" value="{{ empresa.endereco }}">
+                                </div>
+                            </div>
+
+                            <div class="mt-4 pt-3 border-top">
+                                <button type="submit" class="btn btn-success fw-bold px-4">
+                                    <i class="bi bi-check2-circle me-1"></i> Salvar Dados Cadastrais
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+
+                    <!-- ABA: ATALHOS DO PDV -->
+                    <div class="tab-pane fade" id="tab-atalhos" role="tabpanel">
+                        <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2 pb-2 border-bottom">
+                            <div>
+                                <h4 class="fw-bold text-dark mb-1"><i class="bi bi-keyboard text-primary me-2"></i>ATALHOS DO PDV</h4>
+                                <p class="text-muted mb-0">Configure as teclas utilizadas nas principais funções da Frente de Caixa do PDV.</p>
+                            </div>
+                            <div>
+                                <form method="POST" action="{% url 'configuracoes' %}" class="d-inline" onsubmit="return confirm('Tem certeza que deseja restaurar os atalhos originais de fábrica?');">
+                                    {% csrf_token %}
+                                    <input type="hidden" name="action" value="restaurar_padroes_atalhos">
+                                    <button type="submit" class="btn btn-outline-secondary fw-semibold">
+                                        <i class="bi bi-arrow-counterclockwise me-1"></i> RESTAURAR PADRÕES
+                                    </button>
+                                </form>
+                            </div>
+                        </div>
+
+                        <div id="atalhos-conflict-alert" class="alert alert-danger d-none mb-3 shadow-sm" role="alert">
+                            <i class="bi bi-exclamation-triangle-fill me-2"></i>
+                            <span id="atalhos-conflict-msg">Este atalho já está sendo utilizado por outra função.</span>
+                        </div>
+
+                        <form method="POST" action="{% url 'configuracoes' %}" id="formAtalhosPDV" onsubmit="return validarConflitosAtalhos(event)">
+                            {% csrf_token %}
+                            <input type="hidden" name="action" value="salvar_atalhos_pdv">
+
+                            <div class="card card-custom p-0 border shadow-sm rounded-3 overflow-hidden mb-4">
+                                <div class="table-responsive">
+                                    <table class="table table-hover align-middle mb-0">
+                                        <thead class="table-light">
+                                            <tr>
+                                                <th class="ps-4" style="width: 45%;">Função do PDV</th>
+                                                <th style="width: 20%;" class="text-center">Atalho Padrão</th>
+                                                <th style="width: 35%;" class="pe-4">Atalho Configurado</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {% for a in atalhos_pdv %}
+                                            <tr>
+                                                <td class="ps-4">
+                                                    <strong class="text-dark fs-6">{{ a.nome }}</strong>
+                                                    <small class="d-block text-muted font-monospace">{{ a.codigo }}</small>
+                                                </td>
+                                                <td class="text-center">
+                                                    <span class="badge bg-light text-secondary border font-monospace fs-6 px-3 py-2">
+                                                        {{ a.tecla_padrao }}
+                                                    </span>
+                                                </td>
+                                                <td class="pe-4">
+                                                    <div class="input-group">
+                                                        <span class="input-group-text bg-light"><i class="bi bi-command"></i></span>
+                                                        <select name="atalho_{{ a.codigo }}" id="select_atalho_{{ a.codigo }}" class="form-select form-select-lg fw-bold font-monospace select-atalho-pdv" onchange="checarConflitoAoMudar()">
+                                                            {% for cod_t, label_t in teclas_permitidas %}
+                                                            <option value="{{ cod_t }}" {% if a.tecla_atual == cod_t %}selected{% endif %}>
+                                                                {{ label_t }}
+                                                            </option>
+                                                            {% endfor %}
+                                                        </select>
+                                                    </div>
+                                                </td>
+                                            </tr>
+                                            {% endfor %}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+
+                            <div class="d-flex justify-content-end gap-2">
+                                <button type="submit" class="btn btn-primary btn-lg fw-bold px-4" id="btnSalvarAtalhos">
+                                    <i class="bi bi-check2-circle me-1"></i> SALVAR CONFIGURAÇÕES
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+function validarConflitosAtalhos(e) {
+    const selects = document.querySelectorAll('.select-atalho-pdv');
+    const valores = {};
+    let conflito = false;
+    let teclaConflito = '';
+
+    selects.forEach(sel => {
+        sel.classList.remove('is-invalid');
+        const val = sel.value;
+        if (valores[val]) {
+            conflito = true;
+            teclaConflito = val;
+            sel.classList.add('is-invalid');
+            valores[val].classList.add('is-invalid');
+        } else {
+            valores[val] = sel;
+        }
+    });
+
+    const alertBox = document.getElementById('atalhos-conflict-alert');
+    const alertMsg = document.getElementById('atalhos-conflict-msg');
+
+    if (conflito) {
+        if (e) e.preventDefault();
+        alertMsg.innerText = `Este atalho já está sendo utilizado por outra função. Não permita atalhos duplicados (tecla '${teclaConflito}').`;
+        alertBox.classList.remove('d-none');
+        return false;
+    } else {
+        alertBox.classList.add('d-none');
+        return true;
+    }
+}
+
+function checarConflitoAoMudar() {
+    validarConflitosAtalhos(null);
+}
+
+// Ativa aba baseada em URL hash caso presente
+window.addEventListener('DOMContentLoaded', () => {
+    const hash = window.location.hash;
+    if (hash === '#atalhos' || hash === '#tab-atalhos') {
+        const btn = document.getElementById('tab-atalhos-btn');
+        if (btn) {
+            const triggerEl = new bootstrap.Tab(btn);
+            triggerEl.show();
+        }
+    }
+});
+function syncColorInput(pickerEl, targetTextId) {
+    const textInput = document.getElementById(targetTextId);
+    if (textInput) {
+        textInput.value = pickerEl.value.toUpperCase();
+        atualizarLivePreviewSistema();
+        atualizarLivePreviewPDV();
+    }
+}
+
+function syncPickerInput(textEl, targetPickerId) {
+    const pickerInput = document.getElementById(targetPickerId);
+    let val = textEl.value.trim();
+    if (!val.startsWith('#')) val = '#' + val;
+    textEl.value = val.toUpperCase();
+    if (pickerInput && /^#[0-9A-F]{6}$/i.test(val)) {
+        pickerInput.value = val;
+    }
+    atualizarLivePreviewSistema();
+    atualizarLivePreviewPDV();
+}
+
+function atualizarLivePreviewSistema() {
+    const corPrincipal = document.getElementById('cor_principal')?.value || '#2563eb';
+    const corMenu = document.getElementById('cor_menu_sidebar')?.value || '#0f172a';
+    const corCards = document.getElementById('cor_cards')?.value || '#ffffff';
+    const corTexto = document.getElementById('cor_texto')?.value || '#1e293b';
+    const corTextoSec = document.getElementById('cor_texto_secundario')?.value || '#64748b';
+    const corBotoes = document.getElementById('cor_botoes')?.value || '#2563eb';
+    const corBotoesAcao = document.getElementById('cor_botoes_acao')?.value || '#10b981';
+
+    const prevNav = document.getElementById('prev-navbar');
+    if (prevNav) prevNav.style.background = corMenu;
+
+    const prevLogoIcon = document.getElementById('prev-logo-icon');
+    if (prevLogoIcon) prevLogoIcon.style.color = corPrincipal;
+
+    const prevNavBtn = document.getElementById('prev-nav-btn');
+    if (prevNavBtn) prevNavBtn.style.backgroundColor = corPrincipal;
+
+    const prevCard = document.getElementById('prev-card-demo');
+    if (prevCard) {
+        prevCard.style.backgroundColor = corCards;
+        prevCard.style.color = corTexto;
+    }
+
+    const prevCardDesc = document.getElementById('prev-card-desc');
+    if (prevCardDesc) prevCardDesc.style.color = corTextoSec;
+
+    const prevBtnDemo = document.getElementById('prev-btn-demo');
+    if (prevBtnDemo) prevBtnDemo.style.backgroundColor = corBotoes;
+
+    const prevBtnAction = document.getElementById('prev-btn-action-demo');
+    if (prevBtnAction) prevBtnAction.style.backgroundColor = corBotoesAcao;
+}
+
+function atualizarLivePreviewPDV() {
+    const corPdvFundo = document.getElementById('cor_pdv_fundo')?.value || '#0f172a';
+    const corPdvTexto = document.getElementById('cor_pdv_texto')?.value || '#ffffff';
+    const corPdvPreco = document.getElementById('cor_pdv_preco')?.value || '#22c55e';
+    const corPdvTotal = document.getElementById('cor_pdv_total')?.value || '#eab308';
+    const corBtnFinalizar = document.getElementById('cor_pdv_botao_finalizar')?.value || '#16a34a';
+    const corBtnCancelar = document.getElementById('cor_pdv_botao_cancelar')?.value || '#dc2626';
+    const corBtnPag = document.getElementById('cor_pdv_botoes_pagamento')?.value || '#3b82f6';
+    const corBtnPausar = document.getElementById('cor_pdv_botao_pausar')?.value || '#d97706';
+    const corBtnEspera = document.getElementById('cor_pdv_botao_espera')?.value || '#2563eb';
+    const corBtnDivida = document.getElementById('cor_pdv_botao_divida')?.value || '#7c3aed';
+    const fonteTotal = document.getElementById('tamanho_fonte_total')?.value || '2.0rem';
+    const fontePreco = document.getElementById('tamanho_fonte_preco')?.value || '1.25rem';
+    const fonteItens = document.getElementById('tamanho_fonte_itens')?.value || '1.0rem';
+
+    const prevPdv = document.getElementById('prev-pdv-box');
+    if (prevPdv) {
+        prevPdv.style.backgroundColor = corPdvFundo;
+        prevPdv.style.color = corPdvTexto;
+    }
+
+    const prevPrice = document.getElementById('prev-item-price');
+    if (prevPrice) {
+        prevPrice.style.color = corPdvPreco;
+        prevPrice.style.fontSize = fontePreco;
+    }
+
+    const prevSubtotal = document.getElementById('prev-item-subtotal');
+    if (prevSubtotal) {
+        prevSubtotal.style.color = corPdvPreco;
+        prevSubtotal.style.fontSize = fontePreco;
+    }
+
+    const prevItemName = document.getElementById('prev-item-name');
+    if (prevItemName) {
+        prevItemName.style.fontSize = fonteItens;
+    }
+
+    const prevTotal = document.getElementById('prev-total-display');
+    if (prevTotal) {
+        prevTotal.style.color = corPdvTotal;
+        prevTotal.style.fontSize = fonteTotal;
+    }
+
+    const prevFinish = document.getElementById('prev-finish-btn');
+    if (prevFinish) prevFinish.style.backgroundColor = corBtnFinalizar;
+
+    const prevCancel = document.getElementById('prev-cancel-btn');
+    if (prevCancel) prevCancel.style.backgroundColor = corBtnCancelar;
+
+    const prevPausar = document.getElementById('prev-pausar-btn');
+    if (prevPausar) prevPausar.style.backgroundColor = corBtnPausar;
+
+    const prevEspera = document.getElementById('prev-espera-btn');
+    if (prevEspera) prevEspera.style.backgroundColor = corBtnEspera;
+
+    const prevDivida = document.getElementById('prev-divida-btn');
+    if (prevDivida) prevDivida.style.backgroundColor = corBtnDivida;
+
+    document.querySelectorAll('.prev-pay-badge').forEach(b => {
+        b.style.backgroundColor = corBtnPag;
+    });
+}
+
+window.addEventListener('DOMContentLoaded', () => {
+    atualizarLivePreviewSistema();
+    atualizarLivePreviewPDV();
+
+    ['tamanho_fonte_total', 'tamanho_fonte_preco', 'tamanho_fonte_itens', 'modo_layout'].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.addEventListener('change', atualizarLivePreviewPDV);
+    });
+
+    document.querySelectorAll('input[type="color"]').forEach(input => {
+        input.addEventListener('input', () => {
+            const targetTextId = input.id.replace('picker_', '');
+            syncColorInput(input, targetTextId);
+        });
+    });
+});
+</script>
+{% endblock %}

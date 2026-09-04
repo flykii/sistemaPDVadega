@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <title>Fechamento de Caixa - Sessão #{{ sessao.id }}</title>
+    <style>
+        @page {
+            size: 80mm auto;
+            margin: 0;
+        }
+        body {
+            width: 78mm;
+            font-family: 'Courier New', Courier, monospace;
+            font-size: 11px;
+            margin: 0 auto;
+            padding: 5px;
+            color: #000;
+        }
+        .text-center { text-align: center; }
+        .text-right { text-align: right; }
+        .bold { font-weight: bold; }
+        .line { border-bottom: 1px dashed #000; margin: 4px 0; }
+        table { width: 100%; border-collapse: collapse; }
+        th, td { text-align: left; padding: 2px 0; }
+    </style>
+</head>
+<body onload="window.print()">
+    <div class="text-center bold">
+        <h3 style="margin: 0;">{{ empresa.nome_fantasia|default:"MINHA EMPRESA PDV" }}</h3>
+        <div>CNPJ: {{ empresa.cnpj|default:"00.000.000/0000-00" }}</div>
+        <div>{{ empresa.telefone|default:"" }}</div>
+    </div>
+    
+    <div class="line"></div>
+    <div class="text-center bold">FECHAMENTO DE SESSÃO DE CAIXA</div>
+    <div class="line"></div>
+
+    <div>Sessão: #{{ sessao.id }} - {{ sessao.caixa.nome }}</div>
+    <div>Operador: {{ sessao.nome_operador_exibicao }}</div>
+    <div>Abertura: {{ sessao.data_abertura|date:"d/m/Y H:i" }}</div>
+    <div>Fechamento: {{ sessao.data_fechamento|date:"d/m/Y H:i"|default:"EM ABERTO" }}</div>
+
+    <div class="line"></div>
+    <div class="bold">DINHEIRO FÍSICO NA GAVETA:</div>
+    <table>
+        <tr>
+            <td>(+) Saldo Inicial:</td>
+            <td class="text-right">R$ {{ sessao.saldo_inicial|floatformat:2 }}</td>
+        </tr>
+        <tr>
+            <td>(+) Vendas Dinheiro:</td>
+            <td class="text-right">R$ {{ sessao.total_vendas_dinheiro|floatformat:2 }}</td>
+        </tr>
+        <tr>
+            <td>(+) Suprimentos:</td>
+            <td class="text-right">R$ {{ sessao.total_suprimentos|floatformat:2 }}</td>
+        </tr>
+        <tr>
+            <td>(-) Sangrias:</td>
+            <td class="text-right">R$ {{ sessao.total_sangrias|floatformat:2 }}</td>
+        </tr>
+        <tr>
+            <td>(-) Despesas Caixa:</td>
+            <td class="text-right">R$ {{ sessao.total_despesas|floatformat:2 }}</td>
+        </tr>
+        <tr class="bold">
+            <td>(=) SALDO ESPERADO:</td>
+            <td class="text-right">R$ {{ sessao.saldo_esperado|floatformat:2 }}</td>
+        </tr>
+        <tr class="bold">
+            <td>Dinheiro Contado:</td>
+            <td class="text-right">R$ {{ sessao.saldo_final_informado|floatformat:2|default:"0.00" }}</td>
+        </tr>
+        <tr class="bold">
+            <td>Diferença:</td>
+            <td class="text-right">
+                {% if sessao.diferenca == 0 %}R$ 0,00 (OK){% elif sessao.diferenca > 0 %}+R$ {{ sessao.diferenca|floatformat:2 }} (SOBRA){% else %}-R$ {{ sessao.diferenca|floatformat:2 }} (FALTA){% endif %}
+            </td>
+        </tr>
+    </table>
+
+    <div class="line"></div>
+    <div class="bold">RESUMO TOTAL DE VENDAS:</div>
+    <table>
+        <tr>
+            <td>Dinheiro:</td>
+            <td class="text-right">R$ {{ sessao.total_vendas_dinheiro|floatformat:2 }}</td>
+        </tr>
+        <tr>
+            <td>PIX:</td>
+            <td class="text-right">R$ {{ sessao.total_vendas_pix|floatformat:2 }}</td>
+        </tr>
+        <tr>
+            <td>Cartão Débito:</td>
+            <td class="text-right">R$ {{ sessao.total_vendas_debito|floatformat:2 }}</td>
+        </tr>
+        <tr>
+            <td>Cartão Crédito:</td>
+            <td class="text-right">R$ {{ sessao.total_vendas_credito|floatformat:2 }}</td>
+        </tr>
+        <tr>
+            <td>Fiado / Crediário:</td>
+            <td class="text-right">R$ {{ sessao.total_vendas_crediario|floatformat:2 }}</td>
+        </tr>
+        <tr class="bold" style="font-size: 12px;">
+            <td>TOTAL ({{ sessao.qtd_vendas }} Vendas):</td>
+            <td class="text-right">R$ {{ sessao.total_vendas|floatformat:2 }}</td>
+        </tr>
+    </table>
+
+    {% if movimentacoes %}
+    <div class="line"></div>
+    <div class="bold">MOVIMENTAÇÕES:</div>
+    {% for m in movimentacoes %}
+    <div>{{ m.data_hora|date:"H:i" }} {{ m.tipo }}: R$ {{ m.valor }} ({{ m.motivo }})</div>
+    {% endfor %}
+    {% endif %}
+
+    {% if sessao.observacoes %}
+    <div class="line"></div>
+    <div><strong>Obs:</strong> {{ sessao.observacoes }}</div>
+    {% endif %}
+
+    <div class="line"></div>
+    <div class="text-center" style="margin-top: 15px;">
+        _______________________________<br>
+        Assinatura do Operador<br><br>
+        _______________________________<br>
+        Conferido por (Gerência)
+    </div>
+</body>
+</html>

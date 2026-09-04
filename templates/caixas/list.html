@@ -1,0 +1,294 @@
+{% extends 'base.html' %}
+
+{% block title %}Gestão e Histórico de Caixas - PDV Enterprise{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-3">
+    <!-- TITULO E BOTÕES SUPERIORES -->
+    <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
+        <div>
+            <h3 class="fw-bold text-dark mb-0">
+                <i class="bi bi-wallet2 text-primary me-2"></i>Gestão de Caixas e Sessões
+            </h3>
+            <p class="text-muted mb-0">Controle físico da gaveta de dinheiro, suprimentos, sangrias, despesas e conferência de fechamento.</p>
+        </div>
+        <div class="d-flex gap-2">
+            {% for c in caixas %}
+                {% if c.status == 'FECHADO' %}
+                    <a href="{% url 'abrir_caixa' c.id %}" class="btn btn-primary fw-bold">
+                        <i class="bi bi-unlock-fill me-1"></i> Abrir {{ c.nome }}
+                    </a>
+                {% endif %}
+            {% endfor %}
+        </div>
+    </div>
+
+    <!-- SEÇÃO: CAIXAS ABERTOS -->
+    <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
+        <h4 class="fw-bold text-dark mb-0">
+            <span class="text-success me-2">●</span>Caixas em Operação ({{ sessoes_abertas.count }})
+        </h4>
+        {% if sessoes_abertas %}
+            <span class="badge bg-success-subtle text-success border border-success px-3 py-2 rounded-pill">
+                <i class="bi bi-check-circle-fill me-1"></i> Caixa em Andamento
+            </span>
+        {% endif %}
+    </div>
+
+
+    {% for s in sessoes_abertas %}
+    <div class="row g-3 mb-4">
+        <!-- Cartão do Caixa em Operação (à esquerda) -->
+        <div class="col-12 col-xl-4 col-lg-5">
+            <div class="card card-custom p-4 shadow-sm border border-success border-2 rounded-4 h-100 d-flex flex-column justify-content-between">
+                <div>
+                    <!-- Header do Card -->
+                    <div class="d-flex justify-content-between align-items-center mb-2">
+                        <h5 class="fw-bold text-dark mb-0">{{ s.caixa.nome }}</h5>
+                        <span class="badge bg-success-subtle text-success border border-success px-3 py-1 rounded-pill">Sessão Aberta #{{ s.id }}</span>
+                    </div>
+
+                    <!-- Operador -->
+                    <div class="text-muted small mb-3">
+                        <i class="bi bi-person-fill text-primary me-1"></i> Operador: <strong>{{ s.nome_operador_exibicao }}</strong>
+                    </div>
+
+                    <!-- Métricas Financeiras -->
+                    <div class="row g-2 mb-3 bg-light p-3 rounded-3 border">
+                        <div class="col-6">
+                            <span class="text-muted small d-block">Saldo Inicial</span>
+                            <strong class="text-dark">R$ {{ s.saldo_inicial|floatformat:2 }}</strong>
+                        </div>
+                        <div class="col-6">
+                            <span class="text-muted small d-block">Vendas Dinheiro</span>
+                            <strong class="text-success">+ R$ {{ s.total_vendas_dinheiro|floatformat:2 }}</strong>
+                        </div>
+                        <div class="col-6">
+                            <span class="text-muted small d-block">Suprimentos</span>
+                            <strong class="text-info">+ R$ {{ s.total_suprimentos|floatformat:2 }}</strong>
+                        </div>
+                        <div class="col-6">
+                            <span class="text-muted small d-block">Sangrias</span>
+                            <strong class="text-danger">- R$ {{ s.total_sangrias|floatformat:2 }}</strong>
+                        </div>
+                        <div class="col-6">
+                            <span class="text-muted small d-block">Despesas Caixa</span>
+                            <strong class="text-danger">- R$ {{ s.total_despesas|floatformat:2 }}</strong>
+                        </div>
+                        <div class="col-6">
+                            <span class="text-muted small d-block">Faturamento Total</span>
+                            <strong class="text-dark">R$ {{ s.total_vendas|floatformat:2 }}</strong>
+                        </div>
+
+                        <div class="col-12 border-top pt-2 mt-2">
+                            <span class="text-primary fw-bold small d-block text-uppercase">Dinheiro Físico na Gaveta (Saldo Atual)</span>
+                            <h3 class="fw-bold text-success mb-0">R$ {{ s.saldo_atual|floatformat:2 }}</h3>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Footer do Card com Botões de Ação -->
+                <div>
+                    <small class="text-muted d-block mb-2"><i class="bi bi-clock me-1"></i> Aberto em: {{ s.data_abertura|date:"d/m/Y, H:i" }}</small>
+                    <div class="d-flex gap-2">
+                        <a href="{% url 'pdv_front' %}" class="btn btn-success fw-bold flex-grow-1 py-2 shadow-sm">
+                            <i class="bi bi-cart-fill me-1"></i> Ir ao PDV
+                        </a>
+                        <a href="{% url 'movimentacao_caixa' s.id %}" class="btn btn-warning text-dark fw-bold py-2 shadow-sm" title="Sangria / Suprimento / Despesa">
+                            <i class="bi bi-arrow-left-right me-1"></i> Movimentar
+                        </a>
+                        <a href="{% url 'fechar_caixa' s.id %}" class="btn btn-danger fw-bold py-2 shadow-sm">
+                            <i class="bi bi-lock-fill me-1"></i> Fechar
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Painel Resumo Financeiro da Sessão Atual (à direita) -->
+        <div class="col-12 col-xl-8 col-lg-7">
+            <div class="row g-3 h-100">
+                <!-- 1. Conferência de Dinheiro Físico (Gaveta) -->
+                <div class="col-12 col-md-6">
+                    <div class="card card-custom p-4 shadow-sm border-0 rounded-4 h-100 bg-white d-flex flex-column justify-content-between">
+                        <div>
+                            <h6 class="fw-bold text-primary mb-3">
+                                <i class="bi bi-cash-coin me-2"></i>Conferência de Dinheiro Físico (Gaveta)
+                            </h6>
+                            <ul class="list-group list-group-flush mb-0">
+                                <li class="list-group-item d-flex justify-content-between align-items-center px-0 py-2 border-light">
+                                    <span class="text-muted">(+) Saldo Inicial de Abertura</span>
+                                    <strong class="text-dark">R$ {{ s.saldo_inicial|floatformat:2 }}</strong>
+                                </li>
+                                <li class="list-group-item d-flex justify-content-between align-items-center px-0 py-2 border-light">
+                                    <span class="text-muted">(+) Vendas Líquidas em Dinheiro</span>
+                                    <strong class="text-success">+ R$ {{ s.total_vendas_dinheiro|floatformat:2 }}</strong>
+                                </li>
+                                <li class="list-group-item d-flex justify-content-between align-items-center px-0 py-2 border-light">
+                                    <span class="text-muted">(+) Suprimentos (Aportes)</span>
+                                    <strong class="text-info">+ R$ {{ s.total_suprimentos|floatformat:2 }}</strong>
+                                </li>
+                                <li class="list-group-item d-flex justify-content-between align-items-center px-0 py-2 border-light">
+                                    <span class="text-muted">(-) Sangrias (Retiradas)</span>
+                                    <strong class="text-danger">- R$ {{ s.total_sangrias|floatformat:2 }}</strong>
+                                </li>
+                                <li class="list-group-item d-flex justify-content-between align-items-center px-0 py-2 border-light">
+                                    <span class="text-muted">(-) Despesas Pagas pelo Caixa</span>
+                                    <strong class="text-danger">- R$ {{ s.total_despesas|floatformat:2 }}</strong>
+                                </li>
+                                <li class="list-group-item d-flex justify-content-between align-items-center px-2 py-2 bg-light rounded-2 mt-2">
+                                    <span class="fw-bold text-primary">(=) SALDO ESPERADO NA GAVETA</span>
+                                    <strong class="fs-6 text-primary">R$ {{ s.saldo_esperado|floatformat:2 }}</strong>
+                                </li>
+                                <li class="list-group-item d-flex justify-content-between align-items-center px-0 py-2 border-light">
+                                    <span class="fw-bold text-dark">Dinheiro Contado / Informado</span>
+                                    {% if s.saldo_final_informado is not None %}
+                                        <strong class="fs-6 text-dark">R$ {{ s.saldo_final_informado|floatformat:2 }}</strong>
+                                    {% else %}
+                                        <span class="text-muted fst-italic">Ainda não informado</span>
+                                    {% endif %}
+                                </li>
+                                <li class="list-group-item d-flex justify-content-between align-items-center px-0 py-2 border-light">
+                                    <span class="fw-bold text-dark">Diferença Final</span>
+                                    {% if s.diferenca is not None %}
+                                        <strong class="fs-6 {% if s.diferenca < 0 %}text-danger{% elif s.diferenca > 0 %}text-warning{% else %}text-success{% endif %}">
+                                            R$ {{ s.diferenca|floatformat:2 }}
+                                        </strong>
+                                    {% else %}
+                                        <span class="text-muted fst-italic">—</span>
+                                    {% endif %}
+                                </li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 2. Faturamento por Forma de Pagamento -->
+                <div class="col-12 col-md-6">
+                    <div class="card card-custom p-4 shadow-sm border-0 rounded-4 h-100 bg-white d-flex flex-column justify-content-between">
+                        <div>
+                            <h6 class="fw-bold text-dark mb-3">
+                                <i class="bi bi-pie-chart-fill text-warning me-2"></i>Faturamento por Forma de Pagamento
+                            </h6>
+                            <ul class="list-group list-group-flush mb-0">
+                                <li class="list-group-item d-flex justify-content-between align-items-center px-0 py-2 border-light">
+                                    <span><i class="bi bi-cash text-success me-2"></i>Dinheiro</span>
+                                    <strong class="text-dark">R$ {{ s.total_vendas_dinheiro|floatformat:2 }}</strong>
+                                </li>
+                                <li class="list-group-item d-flex justify-content-between align-items-center px-0 py-2 border-light">
+                                    <span><i class="bi bi-qr-code text-warning me-2"></i>PIX</span>
+                                    <strong class="text-dark">R$ {{ s.total_vendas_pix|floatformat:2 }}</strong>
+                                </li>
+                                <li class="list-group-item d-flex justify-content-between align-items-center px-0 py-2 border-light">
+                                    <span><i class="bi bi-credit-card-2-front text-info me-2"></i>Cartão Débito</span>
+                                    <strong class="text-dark">R$ {{ s.total_vendas_debito|floatformat:2 }}</strong>
+                                </li>
+                                <li class="list-group-item d-flex justify-content-between align-items-center px-0 py-2 border-light">
+                                    <span><i class="bi bi-credit-card text-primary me-2"></i>Cartão Crédito</span>
+                                    <strong class="text-dark">R$ {{ s.total_vendas_credito|floatformat:2 }}</strong>
+                                </li>
+                                <li class="list-group-item d-flex justify-content-between align-items-center px-0 py-2 border-light">
+                                    <span><i class="bi bi-journal-bookmark text-secondary me-2"></i>Fiado / Crediário</span>
+                                    <strong class="text-dark">R$ {{ s.total_vendas_crediario|floatformat:2 }}</strong>
+                                </li>
+                                <li class="list-group-item d-flex justify-content-between align-items-center px-2 py-2 bg-light rounded-2 mt-2">
+                                    <span class="fw-bold text-dark">TOTAL GERAL FATURADO ({{ s.qtd_vendas }} Vendas)</span>
+                                    <strong class="fs-5 text-success">R$ {{ s.total_vendas|floatformat:2 }}</strong>
+                                </li>
+                                <li class="list-group-item d-flex justify-content-between align-items-center px-0 py-2 border-light">
+                                    <span class="text-muted">Lucro Bruto Estimado da Sessão</span>
+                                    <span class="badge badge-profit p-2">R$ {{ s.total_lucro|floatformat:2 }}</span>
+                                </li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% empty %}
+    <div class="row g-3 mb-5">
+        <div class="col-12">
+            <div class="alert alert-secondary text-center py-5 rounded-4 shadow-sm mb-0">
+                <i class="bi bi-inbox fs-1 d-block mb-2 text-muted"></i>
+                <h5 class="fw-bold text-dark">Nenhum caixa está aberto no momento</h5>
+                <p class="text-muted mb-3">Abra um caixa para começar a registrar vendas e movimentações financeiras.</p>
+                <div>
+                    {% for c in caixas %}
+                        <a href="{% url 'abrir_caixa' c.id %}" class="btn btn-primary fw-bold px-4 me-2">
+                            <i class="bi bi-unlock me-1"></i> Abrir {{ c.nome }}
+                        </a>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endfor %}
+
+    <!-- SEÇÃO: HISTÓRICO DE CAIXAS FECHADOS -->
+    <div class="d-flex justify-content-between align-items-center mb-3 pt-3 border-top">
+        <h4 class="fw-bold text-dark mb-0">
+            <i class="bi bi-clock-history text-secondary me-2"></i>Histórico de Sessões Fechadas
+        </h4>
+    </div>
+
+    <div class="card card-custom p-0 border-0 shadow-sm rounded-4 overflow-hidden mb-4">
+        <div class="table-responsive">
+            <table class="table table-hover align-middle mb-0">
+                <thead class="table-light">
+                    <tr>
+                        <th class="ps-4">Sessão / Caixa</th>
+                        <th>Operador</th>
+                        <th>Abertura</th>
+                        <th>Fechamento</th>
+                        <th class="text-end">Total Vendido</th>
+                        <th class="text-end">Esperado Gaveta</th>
+                        <th class="text-end">Dinheiro Contado</th>
+                        <th class="text-center">Conferência / Diferença</th>
+                        <th class="text-end pe-4">Ações</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for s in sessoes_fechadas %}
+                    <tr>
+                        <td class="ps-4">
+                            <strong class="text-dark">Sessão #{{ s.id }}</strong>
+                            <small class="d-block text-muted">{{ s.caixa.nome }}</small>
+                        </td>
+                        <td>{{ s.nome_operador_exibicao }}</td>
+                        <td><small>{{ s.data_abertura|date:"d/m/Y H:i" }}</small></td>
+                        <td><small>{{ s.data_fechamento|date:"d/m/Y H:i" }}</small></td>
+                        <td class="text-end fw-bold text-success">R$ {{ s.total_vendas|floatformat:2 }}</td>
+                        <td class="text-end fw-bold text-primary">R$ {{ s.saldo_final_calculado|floatformat:2|default:"0,00" }}</td>
+                        <td class="text-end fw-bold text-dark">R$ {{ s.saldo_final_informado|floatformat:2|default:"0,00" }}</td>
+                        <td class="text-center">
+                            {% if s.diferenca == 0 %}
+                                <span class="badge bg-success-subtle text-success border border-success px-2 py-1">Sem Diferença</span>
+                            {% elif s.diferenca > 0 %}
+                                <span class="badge bg-warning-subtle text-dark border border-warning px-2 py-1">Sobra +R$ {{ s.diferenca|floatformat:2 }}</span>
+                            {% else %}
+                                <span class="badge bg-danger-subtle text-danger border border-danger px-2 py-1">Falta -R$ {{ s.diferenca|floatformat:2 }}</span>
+                            {% endif %}
+                        </td>
+                        <td class="text-end pe-4">
+                            <div class="d-flex justify-content-end gap-1">
+                                <a href="{% url 'relatorio_caixa' s.id %}" class="btn btn-outline-primary btn-sm fw-bold" title="Ver Relatório Completo">
+                                    <i class="bi bi-file-earmark-text"></i> Relatório
+                                </a>
+                                <a href="{% url 'relatorio_caixa_print' s.id %}" target="_blank" class="btn btn-outline-dark btn-sm fw-bold" title="Imprimir Cupom Térmico 80mm">
+                                    <i class="bi bi-printer"></i> 80mm
+                                </a>
+                            </div>
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="9" class="text-center text-muted py-4">Nenhuma sessão de caixa fechada registrada até o momento.</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}

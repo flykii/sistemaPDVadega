@@ -1,0 +1,276 @@
+{% extends 'base.html' %}
+
+{% block title %}Histórico de Vendas - PDV Enterprise{% endblock %}
+
+{% block content %}
+<div class="row mb-4">
+    <div class="col-12 d-flex justify-content-between align-items-center">
+        <div>
+            <h2 class="fw-bold text-dark mb-0"><i class="bi bi-clock-history text-primary me-2"></i>Histórico de Vendas</h2>
+            <p class="text-muted mb-0">Clique em uma venda para ver os produtos relacionados</p>
+        </div>
+    </div>
+</div>
+
+<div class="card card-custom p-3">
+    <div class="table-responsive">
+        <table class="table table-hover table-custom align-middle mb-0">
+            <thead>
+                <tr>
+                    <th>Cód. Venda</th>
+                    <th>Data / Hora</th>
+                    <th>Cliente</th>
+                    <th>Pagamento</th>
+                    <th>Total (R$)</th>
+                    <th>Lucro (R$)</th>
+                    <th>Status</th>
+                    <th class="text-end">Ações</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for v in vendas %}
+                <!-- Linha principal da venda (clicável) -->
+                <tr class="cursor-pointer" data-bs-toggle="collapse" data-bs-target="#detalhe-venda-{{ v.id }}" aria-expanded="false" style="cursor: pointer;">
+                    <td><code class="fw-bold text-dark fs-6">#{{ v.codigo_venda }}</code></td>
+                    <td>{{ v.data_venda|date:"d/m/Y H:i" }}</td>
+                    <td>{{ v.cliente.nome|default:"Consumidor" }}</td>
+                    <td>
+                        {% for pag in v.pagamentos.all %}
+                            {% if pag.forma_pagamento == 'DINHEIRO' %}
+                                <span class="badge bg-success"><i class="bi bi-cash me-1"></i>Dinheiro</span>
+                            {% elif pag.forma_pagamento == 'CARTAO_CREDITO' %}
+                                <span class="badge bg-primary"><i class="bi bi-credit-card me-1"></i>Crédito</span>
+                            {% elif pag.forma_pagamento == 'CARTAO_DEBITO' %}
+                                <span class="badge bg-info text-dark"><i class="bi bi-credit-card-2-front me-1"></i>Débito</span>
+                            {% elif pag.forma_pagamento == 'PIX' %}
+                                <span class="badge bg-warning text-dark"><i class="bi bi-qr-code me-1"></i>PIX</span>
+                            {% elif pag.forma_pagamento == 'CREDIARIO' %}
+                                <span class="badge bg-secondary"><i class="bi bi-person-check me-1"></i>Fiado</span>
+                            {% else %}
+                                <span class="badge bg-dark">{{ pag.get_forma_pagamento_display }}</span>
+                            {% endif %}
+                        {% empty %}
+                            <span class="text-muted">—</span>
+                        {% endfor %}
+                    </td>
+                    <td class="fw-bold fs-6 {% if v.status == 'CANCELADA' %}text-muted" style="text-decoration: line-through;{% else %}text-success{% endif %}">R$ {{ v.total }}</td>
+                    <td><span class="badge badge-profit p-2">R$ {{ v.lucro_total|floatformat:2 }}</span></td>
+                    <td>
+                        {% if v.status == 'CONCLUIDA' %}
+                            <span class="badge bg-success">Concluída</span>
+                        {% elif v.status == 'CANCELADA' %}
+                            <span class="badge bg-danger">Cancelada</span>
+                        {% else %}
+                            <span class="badge bg-secondary">{{ v.get_status_display }}</span>
+                        {% endif %}
+                    </td>
+                    <td class="text-end text-nowrap">
+                        <a href="{% url 'recibo_print' v.id %}" target="_blank" class="btn btn-sm btn-outline-dark" onclick="event.stopPropagation();">
+                            <i class="bi bi-printer me-1"></i> Recibo
+                        </a>
+                        {% if user.pode_cancelar_venda and v.status == 'CONCLUIDA' %}
+                        <button type="button" class="btn btn-sm btn-outline-danger ms-1" onclick="event.stopPropagation(); abrirModalCancelar('{{ v.id }}', '{{ v.codigo_venda }}');">
+                            <i class="bi bi-x-circle me-1"></i> Cancelar
+                        </button>
+                        {% endif %}
+                    </td>
+                </tr>
+
+                <!-- Linha expandível com produtos da venda e detalhes de cancelamento -->
+                <tr class="collapse" id="detalhe-venda-{{ v.id }}">
+                    <td colspan="8" class="p-0 border-0">
+                        <div class="bg-light p-3 m-0 rounded-bottom">
+                            {% if v.status == 'CANCELADA' %}
+                            <div class="alert alert-danger mb-3 border-danger shadow-sm">
+                                <div class="d-flex align-items-center mb-2">
+                                    <i class="bi bi-x-octagon-fill text-danger fs-5 me-2"></i>
+                                    <h6 class="fw-bold text-danger mb-0">Informações do Cancelamento</h6>
+                                </div>
+                                <div class="row g-2 small">
+                                    <div class="col-md-4">
+                                        <strong>Data do Cancelamento:</strong><br>
+                                        {{ v.data_cancelamento|date:"d/m/Y H:i"|default:"—" }}
+                                    </div>
+                                    <div class="col-md-4">
+                                        <strong>Cancelado por:</strong><br>
+                                        {{ v.cancelado_por.get_full_name|default:v.cancelado_por.username|default:"—" }}
+                                    </div>
+                                    <div class="col-md-4">
+                                        <strong>Motivo:</strong><br>
+                                        {{ v.motivo_cancelamento|default:"Não informado" }}
+                                    </div>
+                                </div>
+                            </div>
+                            {% endif %}
+
+                            <h6 class="fw-bold text-primary mb-2"><i class="bi bi-box-seam me-1"></i> Produtos da Venda #{{ v.codigo_venda }}</h6>
+                            <table class="table table-sm table-bordered align-middle mb-0 bg-white">
+                                <thead>
+                                    <tr class="table-light">
+                                        <th>Produto</th>
+                                        <th class="text-center">Qtd</th>
+                                        <th class="text-end">Preço Unit.</th>
+                                        <th class="text-end">Subtotal</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for item in v.itens.all %}
+                                    <tr>
+                                        <td><strong>{{ item.produto.nome }}</strong></td>
+                                        <td class="text-center">{{ item.quantidade }}</td>
+                                        <td class="text-end">R$ {{ item.preco_venda_unitario }}</td>
+                                        <td class="text-end fw-bold {% if v.status == 'CANCELADA' %}text-muted" style="text-decoration: line-through;{% else %}text-success{% endif %}">R$ {{ item.subtotal }}</td>
+                                    </tr>
+                                    {% empty %}
+                                    <tr><td colspan="4" class="text-center text-muted">Nenhum item registrado.</td></tr>
+                                    {% endfor %}
+                                </tbody>
+                                <tfoot>
+                                    <tr class="table-light">
+                                        <td colspan="3" class="text-end fw-bold">Desconto:</td>
+                                        <td class="text-end fw-bold text-danger">- R$ {{ v.desconto }}</td>
+                                    </tr>
+                                    <tr class="table-light">
+                                        <td colspan="3" class="text-end fw-bold">Total Final:</td>
+                                        <td class="text-end fw-bold {% if v.status == 'CANCELADA' %}text-muted fs-6" style="text-decoration: line-through;{% else %}text-success fs-6{% endif %}">R$ {{ v.total }}</td>
+                                    </tr>
+                                </tfoot>
+                            </table>
+                        </div>
+                    </td>
+                </tr>
+                {% empty %}
+                <tr>
+                    <td colspan="8" class="text-center text-muted py-4">Nenhuma venda realizada.</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<!-- Modal de Cancelamento de Venda -->
+<div class="modal fade" id="cancelarVendaModal" tabindex="-1" aria-labelledby="cancelarVendaModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header bg-danger text-white">
+                <h5 class="modal-title fw-bold" id="cancelarVendaModalLabel">
+                    <i class="bi bi-x-circle me-2"></i>Cancelar Venda <span id="modalCodigoVenda"></span>
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Fechar"></button>
+            </div>
+            <div class="modal-body">
+                <p class="text-muted small mb-3">
+                    Atenção: Ao cancelar esta venda, os itens retornarão ao estoque e as movimentações de caixa serão estornadas.
+                </p>
+                <form id="cancelarVendaForm" onsubmit="event.preventDefault(); confirmarCancelamento();">
+                    <div class="mb-3">
+                        <label for="motivoCancelamento" class="form-label fw-bold">Motivo do Cancelamento <span class="text-danger">*</span></label>
+                        <textarea class="form-control" id="motivoCancelamento" name="motivo" rows="3" placeholder="Informe o motivo detalhado do cancelamento..." required></textarea>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Fechar</button>
+                <button type="button" class="btn btn-danger" id="btnConfirmarCancelamento" onclick="confirmarCancelamento();">
+                    <i class="bi bi-check-circle me-1"></i>Confirmar Cancelamento
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    let currentVendaId = null;
+
+    function getCookie(name) {
+        let cookieValue = null;
+        if (document.cookie && document.cookie !== '') {
+            const cookies = document.cookie.split(';');
+            for (let i = 0; i < cookies.length; i++) {
+                const cookie = cookies[i].trim();
+                if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                    cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                    break;
+                }
+            }
+        }
+        return cookieValue;
+    }
+
+    function abrirModalCancelar(vendaId, codigoVenda) {
+        currentVendaId = vendaId;
+        const modalCodigoEl = document.getElementById('modalCodigoVenda');
+        if (modalCodigoEl) {
+            modalCodigoEl.textContent = '#' + codigoVenda;
+        }
+        const motivoEl = document.getElementById('motivoCancelamento');
+        if (motivoEl) {
+            motivoEl.value = '';
+        }
+        const modalEl = document.getElementById('cancelarVendaModal');
+        const modal = bootstrap.Modal.getOrCreateInstance(modalEl);
+        modal.show();
+        setTimeout(() => {
+            if (motivoEl) motivoEl.focus();
+        }, 500);
+    }
+
+    async function confirmarCancelamento() {
+        const motivoEl = document.getElementById('motivoCancelamento');
+        const motivo = motivoEl ? motivoEl.value.trim() : '';
+
+        if (!motivo) {
+            alert('Por favor, informe o motivo do cancelamento.');
+            if (motivoEl) motivoEl.focus();
+            return;
+        }
+
+        if (!currentVendaId) return;
+
+        const btnConfirmar = document.getElementById('btnConfirmarCancelamento');
+        if (btnConfirmar) {
+            btnConfirmar.disabled = true;
+            btnConfirmar.innerHTML = '<span class="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true"></span> Processando...';
+        }
+
+        const baseUrl = "{% url 'venda_cancelar' 0 %}";
+        const cancelUrl = baseUrl.replace('/0/', '/' + currentVendaId + '/');
+
+        const formData = new FormData();
+        formData.append('motivo', motivo);
+
+        const csrfToken = getCookie('csrftoken') || '{{ csrf_token }}';
+
+        try {
+            const response = await fetch(cancelUrl, {
+                method: 'POST',
+                headers: {
+                    'X-CSRFToken': csrfToken
+                },
+                body: formData
+            });
+
+            const data = await response.json();
+
+            if (response.ok && data.success) {
+                alert(data.message || 'Venda cancelada com sucesso!');
+                window.location.reload();
+            } else {
+                alert(data.error || 'Erro ao cancelar a venda.');
+                if (btnConfirmar) {
+                    btnConfirmar.disabled = false;
+                    btnConfirmar.innerHTML = '<i class="bi bi-check-circle me-1"></i>Confirmar Cancelamento';
+                }
+            }
+        } catch (error) {
+            console.error('Erro ao cancelar venda:', error);
+            alert('Ocorreu um erro ao processar a solicitação de cancelamento. Tente novamente.');
+            if (btnConfirmar) {
+                btnConfirmar.disabled = false;
+                btnConfirmar.innerHTML = '<i class="bi bi-check-circle me-1"></i>Confirmar Cancelamento';
+            }
+        }
+    }
+</script>
+{% endblock %}

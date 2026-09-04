@@ -1,0 +1,147 @@
+{% extends 'base.html' %}
+
+{% block title %}Gestão de Clientes & Crediário - PDV Enterprise{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-3">
+    <!-- Cabeçalho -->
+    <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
+        <div>
+            <h2 class="fw-bold text-dark mb-0"><i class="bi bi-people-fill text-primary me-2"></i>Gestão de Clientes & Crediário</h2>
+            <p class="text-muted mb-0">Controle de clientes, limite de crédito disponível, vendas fiadas e contas a receber.</p>
+        </div>
+        <div class="d-flex gap-2">
+            <a href="{% url 'contas_receber_list' %}" class="btn btn-outline-dark fw-bold">
+                <i class="bi bi-wallet2 me-1"></i> Contas a Receber
+            </a>
+            <a href="{% url 'cliente_novo' %}" class="btn btn-primary fw-bold shadow-sm">
+                <i class="bi bi-person-plus-fill me-1"></i> Novo Cliente
+            </a>
+        </div>
+    </div>
+
+    <!-- Cards de Métricas -->
+    <div class="row g-3 mb-4">
+        <div class="col-12 col-md-3">
+            <div class="card p-3 border-0 shadow-sm border-start border-primary border-4 bg-light">
+                <span class="text-muted small text-uppercase fw-bold">Total de Clientes</span>
+                <h3 class="fw-bold text-dark mb-0">{{ total_clientes }}</h3>
+            </div>
+        </div>
+        <div class="col-12 col-md-3">
+            <div class="card p-3 border-0 shadow-sm border-start border-danger border-4 bg-light">
+                <span class="text-danger small text-uppercase fw-bold">Total em Dívidas (Saldo Devedor)</span>
+                <h3 class="fw-bold text-danger mb-0">R$ {{ total_saldo_devedor|floatformat:2 }}</h3>
+            </div>
+        </div>
+        <div class="col-12 col-md-3">
+            <div class="card p-3 border-0 shadow-sm border-start border-info border-4 bg-light">
+                <span class="text-info small text-uppercase fw-bold">Limite Total Concedido</span>
+                <h3 class="fw-bold text-dark mb-0">R$ {{ total_limite_concedido|floatformat:2 }}</h3>
+            </div>
+        </div>
+        <div class="col-12 col-md-3">
+            <div class="card p-3 border-0 shadow-sm border-start border-warning border-4 bg-light">
+                <span class="text-warning small text-uppercase fw-bold">Clientes com Pendências</span>
+                <h3 class="fw-bold text-warning mb-0">{{ total_devedores }} clientes</h3>
+            </div>
+        </div>
+    </div>
+
+    <!-- Filtros de Busca -->
+    <div class="card card-custom p-3 border-0 shadow-sm mb-4">
+        <form method="get" class="row g-2 align-items-center">
+            <div class="col-12 col-md-6">
+                <div class="input-group">
+                    <span class="input-group-text bg-white"><i class="bi bi-search text-muted"></i></span>
+                    <input type="text" name="q" value="{{ query }}" class="form-control" placeholder="Buscar por Nome, CPF/CNPJ, Telefone ou E-mail...">
+                </div>
+            </div>
+            <div class="col-12 col-md-3">
+                <select name="filtro" class="form-select" onchange="this.form.submit()">
+                    <option value="">Status / Pendências (Todos)</option>
+                    <option value="devedores" {% if filtro == 'devedores' %}selected{% endif %}>⚠️ Com Dívida Pendente</option>
+                    <option value="ativos" {% if filtro == 'ativos' %}selected{% endif %}>✅ Apenas Ativos</option>
+                    <option value="inativos" {% if filtro == 'inativos' %}selected{% endif %}>⛔ Apenas Inativos</option>
+                </select>
+            </div>
+            <div class="col-12 col-md-3 d-flex gap-1">
+                <button type="submit" class="btn btn-primary w-100 fw-bold">Filtrar</button>
+                {% if query or filtro %}
+                    <a href="{% url 'clientes_list' %}" class="btn btn-outline-secondary" title="Limpar Filtros"><i class="bi bi-x-lg"></i></a>
+                {% endif %}
+            </div>
+        </form>
+    </div>
+
+    <!-- Tabela de Clientes -->
+    <div class="card card-custom p-0 border-0 shadow-sm rounded-4 overflow-hidden mb-4">
+        <div class="table-responsive">
+            <table class="table table-hover align-middle mb-0">
+                <thead class="table-light">
+                    <tr>
+                        <th class="ps-4">Nome do Cliente</th>
+                        <th>CPF / CNPJ</th>
+                        <th>Telefone / Celular</th>
+                        <th class="text-end">Limite de Crédito</th>
+                        <th class="text-end">Saldo Devedor</th>
+                        <th class="text-end">Crédito Disponível</th>
+                        <th class="text-center">Status</th>
+                        <th class="text-end pe-4">Ações</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for cli in clientes %}
+                    <tr class="{% if not cli.ativo %}table-secondary text-muted{% elif cli.saldo_devedor > 0 %}table-warning-subtle{% endif %}">
+                        <td class="ps-4">
+                            <a href="{% url 'cliente_ficha' cli.id %}" class="fw-bold text-decoration-none {% if cli.ativo %}text-primary{% else %}text-muted{% endif %} fs-6">
+                                {{ cli.nome }}
+                            </a>
+                            {% if cli.cidade %}
+                                <small class="d-block text-muted">{{ cli.cidade }} - {{ cli.estado }}</small>
+                            {% endif %}
+                        </td>
+                        <td><code>{{ cli.cpf_cnpj|default:"-" }}</code></td>
+                        <td>
+                            <div>{{ cli.telefone|default:cli.celular|default:"-" }}</div>
+                            {% if cli.email %}<small class="text-muted">{{ cli.email }}</small>{% endif %}
+                        </td>
+                        <td class="text-end">R$ {{ cli.limite_credito|floatformat:2 }}</td>
+                        <td class="text-end">
+                            {% if cli.saldo_devedor > 0 %}
+                                <span class="badge bg-danger p-2 fs-6">R$ {{ cli.saldo_devedor|floatformat:2 }}</span>
+                            {% else %}
+                                <span class="badge bg-success-subtle text-success border border-success p-2">R$ 0,00</span>
+                            {% endif %}
+                        </td>
+                        <td class="text-end fw-bold text-success">
+                            R$ {{ cli.credito_disponivel|floatformat:2 }}
+                        </td>
+                        <td class="text-center">
+                            {% if cli.ativo %}
+                                <span class="badge bg-success">Ativo</span>
+                            {% else %}
+                                <span class="badge bg-secondary">Inativo</span>
+                            {% endif %}
+                        </td>
+                        <td class="text-end pe-4">
+                            <div class="d-flex justify-content-end gap-1">
+                                <a href="{% url 'cliente_ficha' cli.id %}" class="btn btn-sm btn-outline-info fw-bold" title="Ver Ficha Financeira"><i class="bi bi-file-earmark-person me-1"></i> Ficha</a>
+                                <a href="{% url 'cliente_editar' cli.id %}" class="btn btn-sm btn-outline-primary" title="Editar Cadastro"><i class="bi bi-pencil"></i></a>
+                            </div>
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="8" class="text-center text-muted py-5">
+                            <i class="bi bi-people fs-1 d-block mb-2 text-muted"></i>
+                            Nenhum cliente encontrado com os filtros selecionados.
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}

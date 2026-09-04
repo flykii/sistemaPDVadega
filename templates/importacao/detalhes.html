@@ -1,0 +1,98 @@
+{% extends 'base.html' %}
+
+{% block title %}Detalhes da Importação #{{ historico.id }} - PDV Enterprise{% endblock %}
+
+{% block content %}
+<div class="row mb-4">
+    <div class="col-12 d-flex justify-content-between align-items-center flex-wrap gap-2">
+        <div>
+            <h2 class="fw-bold text-dark mb-0">
+                <i class="bi bi-file-earmark-check text-primary me-2"></i>Resultado da Importação #{{ historico.id }}
+            </h2>
+            <p class="text-muted mb-0">Arquivo: <strong>{{ historico.nome_arquivo }}</strong> | Data: {{ historico.data_hora|date:"d/m/Y H:i" }} | Usuário: {{ historico.usuario.get_full_name|default:historico.usuario.username }}</p>
+        </div>
+        <div>
+            <a href="{% url 'importacao_hub' %}" class="btn btn-outline-primary">
+                <i class="bi bi-arrow-left me-1"></i> Voltar à Central de Importações
+            </a>
+        </div>
+    </div>
+</div>
+
+<!-- Status e Cards de Métricas -->
+<div class="row g-3 mb-4">
+    <div class="col-12 col-sm-6 col-lg-3">
+        <div class="card card-custom p-3 border-0 shadow-sm text-center">
+            <small class="text-muted text-uppercase fw-bold">Total Processado</small>
+            <h3 class="fw-bold text-dark mb-0 mt-1">{{ historico.total_registros }}</h3>
+        </div>
+    </div>
+
+    <div class="col-12 col-sm-6 col-lg-3">
+        <div class="card card-custom p-3 border-0 shadow-sm text-center">
+            <small class="text-muted text-uppercase fw-bold">Registros Criados</small>
+            <h3 class="fw-bold text-success mb-0 mt-1">+ {{ historico.quantidade_criada }}</h3>
+        </div>
+    </div>
+
+    <div class="col-12 col-sm-6 col-lg-3">
+        <div class="card card-custom p-3 border-0 shadow-sm text-center">
+            <small class="text-muted text-uppercase fw-bold">Registros Atualizados</small>
+            <h3 class="fw-bold text-primary mb-0 mt-1"><i class="bi bi-arrow-repeat me-1"></i>{{ historico.quantidade_atualizada }}</h3>
+        </div>
+    </div>
+
+    <div class="col-12 col-sm-6 col-lg-3">
+        <div class="card card-custom p-3 border-0 shadow-sm text-center">
+            <small class="text-muted text-uppercase fw-bold">Registros Rejeitados</small>
+            <h3 class="fw-bold text-danger mb-0 mt-1">{{ historico.quantidade_rejeitada }}</h3>
+        </div>
+    </div>
+</div>
+
+<!-- Mensagem de Status -->
+<div class="alert {% if historico.status == 'PROCESSADO' %}alert-success{% elif historico.status == 'PROCESSADO_COM_ERROS' %}alert-warning{% else %}alert-danger{% endif %} shadow-sm mb-4">
+    <h5 class="fw-bold mb-1">
+        <i class="bi {% if historico.status == 'PROCESSADO' %}bi-check-circle-fill{% else %}bi-exclamation-triangle-fill{% endif %} me-2"></i>
+        Status: {{ historico.get_status_display }}
+    </h5>
+    <p class="mb-0">{{ historico.mensagem_status|default:"Processamento finalizado." }}</p>
+</div>
+
+<!-- Relatório Detalhado de Erros / Rejeições -->
+<div class="card card-custom p-4 shadow-sm border-0 mb-4">
+    <h5 class="fw-bold text-dark mb-3">
+        <i class="bi bi-exclamation-octagon text-danger me-2"></i>Relatório Detalhado de Erros ({{ historico.detalhes_erros|length }} falha(s))
+    </h5>
+
+    {% if historico.detalhes_erros %}
+    <div class="table-responsive">
+        <table class="table table-hover align-middle mb-0">
+            <thead class="table-light">
+                <tr>
+                    <th style="width: 100px;">Linha</th>
+                    <th>Campo</th>
+                    <th>Valor Recebido</th>
+                    <th>Motivo do Erro</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for err in historico.detalhes_erros %}
+                <tr>
+                    <td><span class="badge bg-secondary">Linha {{ err.linha }}</span></td>
+                    <td><code>{{ err.campo }}</code></td>
+                    <td><span class="text-muted font-monospace">{{ err.valor_recebido|truncatechars:80 }}</span></td>
+                    <td><strong class="text-danger">{{ err.erro }}</strong></td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% else %}
+    <div class="text-center py-4 text-muted">
+        <i class="bi bi-check-circle fs-1 text-success d-block mb-2"></i>
+        Nenhum erro foi encontrado durante esta importação. Todos os registros foram validados e gravados com sucesso!
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

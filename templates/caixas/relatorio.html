@@ -1,0 +1,234 @@
+{% extends 'base.html' %}
+
+{% block title %}Relatório da Sessão de Caixa #{{ sessao.id }} - PDV Enterprise{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center my-4">
+    <div class="col-12 col-xl-10">
+        <!-- Topo com Ações -->
+        <div class="d-flex justify-content-between align-items-center mb-3">
+            <div>
+                <a href="{% url 'caixas_list' %}" class="btn btn-outline-secondary btn-sm mb-2">
+                    <i class="bi bi-arrow-left me-1"></i> Voltar aos Caixas
+                </a>
+                <h2 class="fw-bold text-dark mb-0">
+                    <i class="bi bi-file-earmark-text-fill text-primary me-2"></i>Relatório da Sessão #{{ sessao.id }}
+                </h2>
+                <p class="text-muted mb-0">{{ sessao.caixa.nome }} — Operador: <strong>{{ sessao.nome_operador_exibicao }}</strong></p>
+            </div>
+            <div class="d-flex gap-2">
+                <a href="{% url 'relatorio_caixa_print' sessao.id %}" target="_blank" class="btn btn-dark fw-bold px-3">
+                    <i class="bi bi-printer-fill me-1"></i> Imprimir Térmica (80mm)
+                </a>
+                <button onclick="window.print()" class="btn btn-outline-primary fw-bold px-3">
+                    <i class="bi bi-printer me-1"></i> Imprimir A4
+                </button>
+            </div>
+        </div>
+
+        <!-- Card de Identificação e Fechamento -->
+        <div class="card card-custom p-4 shadow-sm border-0 mb-4">
+            <div class="row g-3">
+                <div class="col-12 col-md-3">
+                    <span class="text-muted small fw-bold text-uppercase d-block">Data de Abertura</span>
+                    <strong class="fs-6 text-dark">{{ sessao.data_abertura|date:"d/m/Y H:i:s" }}</strong>
+                </div>
+                <div class="col-12 col-md-3">
+                    <span class="text-muted small fw-bold text-uppercase d-block">Data de Fechamento</span>
+                    <strong class="fs-6 text-dark">{{ sessao.data_fechamento|date:"d/m/Y H:i:s"|default:"Em Aberto" }}</strong>
+                </div>
+                <div class="col-12 col-md-3">
+                    <span class="text-muted small fw-bold text-uppercase d-block">Status</span>
+                    {% if sessao.status == 'ABERTA' %}
+                        <span class="badge bg-success fs-6"><i class="bi bi-unlock-fill me-1"></i> ABERTO</span>
+                    {% else %}
+                        <span class="badge bg-danger fs-6"><i class="bi bi-lock-fill me-1"></i> FECHADO</span>
+                    {% endif %}
+                </div>
+                <div class="col-12 col-md-3">
+                    <span class="text-muted small fw-bold text-uppercase d-block">Conferência / Diferença</span>
+                    {% if sessao.diferenca == 0 %}
+                        <span class="badge bg-success fs-6">Correto (Sem Diferença)</span>
+                    {% elif sessao.diferenca > 0 %}
+                        <span class="badge bg-warning text-dark fs-6">Sobra: R$ {{ sessao.diferenca|floatformat:2 }}</span>
+                    {% else %}
+                        <span class="badge bg-danger fs-6">Falta: R$ {{ sessao.diferenca|floatformat:2 }}</span>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+
+        <!-- Painel de Fechamento Físico e Financeiro -->
+        <div class="row g-3 mb-4">
+            <!-- 1. Dinheiro Físico na Gaveta -->
+            <div class="col-12 col-lg-6">
+                <div class="card card-custom p-4 shadow-sm border-0 h-100">
+                    <h5 class="fw-bold text-primary mb-3"><i class="bi bi-cash-coin me-2"></i>Conferência de Dinheiro Físico (Gaveta)</h5>
+                    <ul class="list-group list-group-flush mb-3">
+                        <li class="list-group-item d-flex justify-content-between align-items-center px-0">
+                            <span>(+) Saldo Inicial de Abertura</span>
+                            <strong class="fs-6">R$ {{ sessao.saldo_inicial|floatformat:2 }}</strong>
+                        </li>
+                        <li class="list-group-item d-flex justify-content-between align-items-center px-0">
+                            <span>(+) Vendas Líquidas em Dinheiro</span>
+                            <strong class="fs-6 text-success">+ R$ {{ sessao.total_vendas_dinheiro|floatformat:2 }}</strong>
+                        </li>
+                        <li class="list-group-item d-flex justify-content-between align-items-center px-0">
+                            <span>(+) Suprimentos (Aportes)</span>
+                            <strong class="fs-6 text-info">+ R$ {{ sessao.total_suprimentos|floatformat:2 }}</strong>
+                        </li>
+                        <li class="list-group-item d-flex justify-content-between align-items-center px-0">
+                            <span>(-) Sangrias (Retiradas)</span>
+                            <strong class="fs-6 text-danger">- R$ {{ sessao.total_sangrias|floatformat:2 }}</strong>
+                        </li>
+                        <li class="list-group-item d-flex justify-content-between align-items-center px-0">
+                            <span>(-) Despesas Pagas pelo Caixa</span>
+                            <strong class="fs-6 text-danger">- R$ {{ sessao.total_despesas|floatformat:2 }}</strong>
+                        </li>
+                        <li class="list-group-item d-flex justify-content-between align-items-center px-0 bg-light p-2 rounded">
+                            <span class="fw-bold text-primary">(=) SALDO ESPERADO NA GAVETA</span>
+                            <strong class="fs-5 text-primary">R$ {{ sessao.saldo_esperado|floatformat:2 }}</strong>
+                        </li>
+                        <li class="list-group-item d-flex justify-content-between align-items-center px-0">
+                            <span class="fw-bold">Dinheiro Contado / Informado</span>
+                            <strong class="fs-5">R$ {{ sessao.saldo_final_informado|floatformat:2|default:"0,00" }}</strong>
+                        </li>
+                        <li class="list-group-item d-flex justify-content-between align-items-center px-0">
+                            <span class="fw-bold">Diferença Final</span>
+                            <strong class="fs-5 {% if sessao.diferenca < 0 %}text-danger{% elif sessao.diferenca > 0 %}text-warning{% else %}text-success{% endif %}">
+                                R$ {{ sessao.diferenca|floatformat:2|default:"0,00" }}
+                            </strong>
+                        </li>
+                    </ul>
+                    {% if sessao.observacoes %}
+                    <div class="alert alert-light border small mb-0">
+                        <strong>Observações:</strong> {{ sessao.observacoes }}
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+
+            <!-- 2. Faturamento Total por Forma de Pagamento -->
+            <div class="col-12 col-lg-6">
+                <div class="card card-custom p-4 shadow-sm border-0 h-100">
+                    <h5 class="fw-bold text-dark mb-3"><i class="bi bi-pie-chart-fill text-warning me-2"></i>Faturamento por Forma de Pagamento</h5>
+                    <ul class="list-group list-group-flush mb-3">
+                        <li class="list-group-item d-flex justify-content-between align-items-center px-0">
+                            <span><i class="bi bi-cash text-success me-2"></i>Dinheiro</span>
+                            <strong class="fs-6">R$ {{ sessao.total_vendas_dinheiro|floatformat:2 }}</strong>
+                        </li>
+                        <li class="list-group-item d-flex justify-content-between align-items-center px-0">
+                            <span><i class="bi bi-qr-code text-warning me-2"></i>PIX</span>
+                            <strong class="fs-6">R$ {{ sessao.total_vendas_pix|floatformat:2 }}</strong>
+                        </li>
+                        <li class="list-group-item d-flex justify-content-between align-items-center px-0">
+                            <span><i class="bi bi-credit-card-2-front text-info me-2"></i>Cartão Débito</span>
+                            <strong class="fs-6">R$ {{ sessao.total_vendas_debito|floatformat:2 }}</strong>
+                        </li>
+                        <li class="list-group-item d-flex justify-content-between align-items-center px-0">
+                            <span><i class="bi bi-credit-card text-purple me-2"></i>Cartão Crédito</span>
+                            <strong class="fs-6">R$ {{ sessao.total_vendas_credito|floatformat:2 }}</strong>
+                        </li>
+                        <li class="list-group-item d-flex justify-content-between align-items-center px-0">
+                            <span><i class="bi bi-journal-bookmark text-secondary me-2"></i>Fiado / Crediário</span>
+                            <strong class="fs-6">R$ {{ sessao.total_vendas_crediario|floatformat:2 }}</strong>
+                        </li>
+                        <li class="list-group-item d-flex justify-content-between align-items-center px-0 bg-light p-2 rounded">
+                            <span class="fw-bold text-dark">TOTAL GERAL FATURADO ({{ sessao.qtd_vendas }} Vendas)</span>
+                            <strong class="fs-4 text-success">R$ {{ sessao.total_vendas|floatformat:2 }}</strong>
+                        </li>
+                        <li class="list-group-item d-flex justify-content-between align-items-center px-0">
+                            <span class="text-muted">Lucro Bruto Estimado da Sessão</span>
+                            <span class="badge badge-profit p-2 fs-6">R$ {{ sessao.total_lucro|floatformat:2 }}</span>
+                        </li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+
+        <!-- Tabela de Movimentações Operacionais (Suprimentos / Sangrias / Despesas) -->
+        <div class="card card-custom p-4 shadow-sm border-0 mb-4">
+            <h5 class="fw-bold text-dark mb-3"><i class="bi bi-arrow-left-right text-primary me-2"></i>Movimentações Operacionais Realizadas</h5>
+            <div class="table-responsive">
+                <table class="table table-hover align-middle mb-0">
+                    <thead>
+                        <tr class="table-light">
+                            <th>Horário</th>
+                            <th>Tipo</th>
+                            <th>Motivo / Descrição</th>
+                            <th>Operador</th>
+                            <th class="text-end">Valor (R$)</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for m in movimentacoes %}
+                        <tr>
+                            <td>{{ m.data_hora|date:"H:i:s" }}</td>
+                            <td>
+                                {% if m.tipo == 'SUPRIMENTO' %}
+                                    <span class="badge bg-success"><i class="bi bi-plus-circle"></i> Suprimento</span>
+                                {% elif m.tipo == 'SANGRIA' %}
+                                    <span class="badge bg-warning text-dark"><i class="bi bi-dash-circle"></i> Sangria</span>
+                                {% elif m.tipo == 'DESPESA' %}
+                                    <span class="badge bg-danger"><i class="bi bi-cash-stack"></i> Despesa</span>
+                                {% else %}
+                                    <span class="badge bg-secondary">{{ m.get_tipo_display }}</span>
+                                {% endif %}
+                            </td>
+                            <td><strong>{{ m.motivo }}</strong></td>
+                            <td>{{ m.operador.get_full_name|default:m.operador.username }}</td>
+                            <td class="text-end fw-bold {% if m.tipo == 'SUPRIMENTO' %}text-success{% else %}text-danger{% endif %}">
+                                {% if m.tipo == 'SUPRIMENTO' %}+{% else %}-{% endif %} R$ {{ m.valor }}
+                            </td>
+                        </tr>
+                        {% empty %}
+                        <tr>
+                            <td colspan="5" class="text-center text-muted py-3">Nenhum suprimento, sangria ou despesa registrada nesta sessão.</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- Tabela de Vendas Concluídas na Sessão -->
+        <div class="card card-custom p-4 shadow-sm border-0 mb-4">
+            <h5 class="fw-bold text-dark mb-3"><i class="bi bi-cart-check text-success me-2"></i>Vendas Concluídas na Sessão ({{ vendas|length }})</h5>
+            <div class="table-responsive">
+                <table class="table table-hover align-middle mb-0">
+                    <thead>
+                        <tr class="table-light">
+                            <th>Código</th>
+                            <th>Horário</th>
+                            <th>Cliente</th>
+                            <th>Pagamento(s)</th>
+                            <th class="text-end">Total (R$)</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for v in vendas %}
+                        <tr>
+                            <td><code>#{{ v.codigo_venda }}</code></td>
+                            <td>{{ v.data_venda|date:"H:i:s" }}</td>
+                            <td>{{ v.cliente.nome|default:"Consumidor" }}</td>
+                            <td>
+                                {% for pag in v.pagamentos.all %}
+                                    <span class="badge bg-light text-dark border me-1">
+                                        {{ pag.get_forma_pagamento_display }}: R$ {{ pag.valor_efetivo }}
+                                    </span>
+                                {% endfor %}
+                            </td>
+                            <td class="text-end fw-bold text-success">R$ {{ v.total }}</td>
+                        </tr>
+                        {% empty %}
+                        <tr>
+                            <td colspan="5" class="text-center text-muted py-3">Nenhuma venda realizada nesta sessão.</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

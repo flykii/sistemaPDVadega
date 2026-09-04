@@ -1,0 +1,224 @@
+{% extends 'base.html' %}
+
+{% block title %}Despesas & Contas a Pagar - PDV Enterprise{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-3">
+    <!-- Cabeçalho -->
+    <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
+        <div>
+            <h2 class="fw-bold text-dark mb-0"><i class="bi bi-arrow-up-right-circle-fill text-danger me-2"></i>Despesas & Contas a Pagar</h2>
+            <p class="text-muted mb-0">Gestão de despesas avulsas, despesas fixas recorrentes, compras e saídas do caixa.</p>
+        </div>
+        <div class="d-flex gap-2 flex-wrap">
+            <a href="{% url 'fluxo_mensal' %}" class="btn btn-outline-info text-dark fw-bold">
+                <i class="bi bi-calendar-check me-1"></i> Fluxo Mensal
+            </a>
+            <a href="{% url 'despesas_recorrentes_list' %}" class="btn btn-outline-dark fw-bold">
+                <i class="bi bi-arrow-repeat me-1"></i> Despesas Fixas / Recorrentes
+            </a>
+            <a href="{% url 'categorias_despesa_list' %}" class="btn btn-outline-secondary fw-bold">
+                <i class="bi bi-tags me-1"></i> Categorias
+            </a>
+            <a href="{% url 'despesa_nova' %}" class="btn btn-danger fw-bold shadow-sm">
+                <i class="bi bi-plus-lg me-1"></i> Nova Despesa
+            </a>
+        </div>
+    </div>
+
+    <!-- Cards de Indicadores -->
+    <div class="row g-3 mb-4">
+        <div class="col-12 col-md-3">
+            <div class="card p-3 border-0 shadow-sm border-start border-primary border-4 bg-light">
+                <span class="text-muted small text-uppercase fw-bold">Total Previsto no Mês</span>
+                <h3 class="fw-bold text-dark mb-0">R$ {{ total_despesas_mes|floatformat:2 }}</h3>
+            </div>
+        </div>
+        <div class="col-12 col-md-3">
+            <div class="card p-3 border-0 shadow-sm border-start border-warning border-4 bg-light">
+                <span class="text-warning small text-uppercase fw-bold">Total a Pagar (Em Aberto)</span>
+                <h3 class="fw-bold text-dark mb-0">R$ {{ total_aberto|floatformat:2 }}</h3>
+            </div>
+        </div>
+        <div class="col-12 col-md-3">
+            <div class="card p-3 border-0 shadow-sm border-start border-danger border-4 bg-light">
+                <span class="text-danger small text-uppercase fw-bold">Total Vencido</span>
+                <h3 class="fw-bold text-danger mb-0">R$ {{ total_vencido|floatformat:2 }}</h3>
+            </div>
+        </div>
+        <div class="col-12 col-md-3">
+            <div class="card p-3 border-0 shadow-sm border-start border-success border-4 bg-light">
+                <span class="text-success small text-uppercase fw-bold">Pago no Mês</span>
+                <h3 class="fw-bold text-success mb-0">R$ {{ total_pago_mes|floatformat:2 }}</h3>
+            </div>
+        </div>
+    </div>
+
+    <!-- Filtros Rápidos & Busca -->
+    <div class="card card-custom p-3 border-0 shadow-sm mb-4">
+        <!-- Abas de Filtro Rápido de Status -->
+        <div class="d-flex flex-wrap gap-2 mb-3 pb-2 border-bottom">
+            <a href="?status=abertas&periodo={{ periodo }}" class="btn btn-sm {% if filtro_status == 'abertas' %}btn-primary{% else %}btn-outline-primary{% endif %} fw-bold">
+                <i class="bi bi-clock me-1"></i> Em Aberto
+            </a>
+            <a href="?status=vencidas&periodo={{ periodo }}" class="btn btn-sm {% if filtro_status == 'vencidas' %}btn-danger{% else %}btn-outline-danger{% endif %} fw-bold">
+                <i class="bi bi-exclamation-triangle me-1"></i> Vencidas
+            </a>
+            <a href="?status=hoje&periodo={{ periodo }}" class="btn btn-sm {% if filtro_status == 'hoje' %}btn-warning text-dark{% else %}btn-outline-warning text-dark{% endif %} fw-bold">
+                <i class="bi bi-calendar-event me-1"></i> Vencem Hoje
+            </a>
+            <a href="?status=7dias&periodo={{ periodo }}" class="btn btn-sm {% if filtro_status == '7dias' %}btn-info text-dark{% else %}btn-outline-info text-dark{% endif %} fw-bold">
+                <i class="bi bi-calendar-week me-1"></i> Próximos 7 Dias
+            </a>
+            <a href="?status=pagas&periodo={{ periodo }}" class="btn btn-sm {% if filtro_status == 'pagas' %}btn-success{% else %}btn-outline-success{% endif %} fw-bold">
+                <i class="bi bi-check2-all me-1"></i> Pagas / Baixadas
+            </a>
+            <a href="?status=todas&periodo={{ periodo }}" class="btn btn-sm {% if filtro_status == 'todas' %}btn-secondary{% else %}btn-outline-secondary{% endif %} fw-bold">
+                Todas
+            </a>
+        </div>
+
+        <form method="get" class="row g-2 align-items-center">
+            <input type="hidden" name="status" value="{{ filtro_status }}">
+            <div class="col-12 col-md-3">
+                <div class="input-group">
+                    <span class="input-group-text bg-white"><i class="bi bi-search text-muted"></i></span>
+                    <input type="text" name="q" value="{{ query }}" class="form-control" placeholder="Buscar por Descrição ou Fornecedor...">
+                </div>
+            </div>
+            <div class="col-12 col-md-2">
+                <select name="categoria" class="form-select" onchange="this.form.submit()">
+                    <option value="">Todas as Categorias</option>
+                    {% for cat in categorias %}
+                        <option value="{{ cat.id }}" {% if categoria_id|slugify == cat.id|slugify %}selected{% endif %}>{{ cat.nome }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-12 col-md-2">
+                <select name="fornecedor" class="form-select" onchange="this.form.submit()">
+                    <option value="">Todos os Fornecedores</option>
+                    {% for forn in fornecedores %}
+                        <option value="{{ forn.id }}" {% if fornecedor_id|slugify == forn.id|slugify %}selected{% endif %}>{{ forn.nome_fantasia|default:forn.razao_social }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-12 col-md-2">
+                <select name="periodo" class="form-select" onchange="this.form.submit()">
+                    <option value="mes_atual" {% if periodo == 'mes_atual' %}selected{% endif %}>Este Mês</option>
+                    <option value="hoje" {% if periodo == 'hoje' %}selected{% endif %}>Hoje</option>
+                    <option value="ontem" {% if periodo == 'ontem' %}selected{% endif %}>Ontem</option>
+                    <option value="7dias" {% if periodo == '7dias' %}selected{% endif %}>Últimos 7 dias</option>
+                    <option value="mes_anterior" {% if periodo == 'mes_anterior' %}selected{% endif %}>Mês Anterior</option>
+                    <option value="personalizado" {% if periodo == 'personalizado' %}selected{% endif %}>Personalizado</option>
+                </select>
+            </div>
+            <div class="col-12 col-md-2">
+                <input type="date" name="data_inicio" value="{{ data_inicio }}" class="form-control form-control-sm mb-1" title="Data Inicial">
+                <input type="date" name="data_fim" value="{{ data_fim }}" class="form-control form-control-sm" title="Data Final">
+            </div>
+            <div class="col-12 col-md-1 d-flex gap-1">
+                <button type="submit" class="btn btn-primary w-100 fw-bold"><i class="bi bi-funnel"></i></button>
+                {% if query or categoria_id or fornecedor_id or data_inicio or data_fim %}
+                    <a href="{% url 'contas_pagar_list' %}" class="btn btn-outline-secondary" title="Limpar"><i class="bi bi-x-lg"></i></a>
+                {% endif %}
+            </div>
+        </form>
+    </div>
+
+    <!-- Tabela de Despesas -->
+    <div class="card card-custom p-0 border-0 shadow-sm rounded-4 overflow-hidden mb-4">
+        <div class="table-responsive">
+            <table class="table table-hover align-middle mb-0">
+                <thead class="table-light">
+                    <tr>
+                        <th class="ps-4">Código / Despesa</th>
+                        <th>Categoria</th>
+                        <th>Fornecedor</th>
+                        <th>Vencimento</th>
+                        <th class="text-end">Valor Original</th>
+                        <th class="text-end">Valor Pago</th>
+                        <th class="text-end">Saldo a Pagar</th>
+                        <th class="text-center">Status</th>
+                        <th class="text-end pe-4">Ações</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for c in contas %}
+                    <tr class="{% if c.status == 'CANCELADA' %}table-secondary text-muted text-decoration-line-through{% elif c.is_vencida %}table-danger-subtle{% elif c.saldo == 0 %}table-light text-muted{% endif %}">
+                        <td class="ps-4">
+                            <strong class="text-dark">#{{ c.id }}</strong> — {{ c.descricao }}
+                            {% if c.despesa_recorrente %}
+                                <span class="badge bg-info-subtle text-dark border border-info ms-1"><i class="bi bi-arrow-repeat me-1"></i>Fixa</span>
+                            {% elif c.compra %}
+                                <span class="badge bg-secondary-subtle text-dark border ms-1"><i class="bi bi-truck me-1"></i>Compra NF</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            <span class="badge bg-light text-dark border">{{ c.categoria.nome|default:"Sem Categoria" }}</span>
+                        </td>
+                        <td>
+                            {% if c.fornecedor %}
+                                <strong>{{ c.fornecedor.nome_fantasia|default:c.fornecedor.razao_social }}</strong>
+                            {% else %}
+                                <span class="text-muted">-</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            <strong class="{% if c.is_vencida %}text-danger{% else %}text-dark{% endif %}">
+                                {{ c.data_vencimento|date:"d/m/Y" }}
+                            </strong>
+                            {% if c.is_vencida %}
+                                <small class="d-block text-danger fw-bold"><i class="bi bi-clock-history me-1"></i>VENCIDA</small>
+                            {% endif %}
+                        </td>
+                        <td class="text-end">R$ {{ c.valor_original|floatformat:2 }}</td>
+                        <td class="text-end text-success">R$ {{ c.valor_pago|floatformat:2 }}</td>
+                        <td class="text-end fw-bold {% if c.saldo > 0 %}text-danger fs-6{% else %}text-muted{% endif %}">
+                            R$ {{ c.saldo|floatformat:2 }}
+                        </td>
+                        <td class="text-center">
+                            {% if c.status == 'CANCELADA' %}
+                                <span class="badge bg-secondary">Cancelada</span>
+                            {% elif c.status == 'PAGA' or c.status == 'PAGO' or c.saldo == 0 %}
+                                <span class="badge bg-success">Paga</span>
+                            {% elif c.is_vencida %}
+                                <span class="badge bg-danger">Vencida</span>
+                            {% elif c.valor_pago > 0 %}
+                                <span class="badge bg-warning text-dark">Parcial</span>
+                            {% else %}
+                                <span class="badge bg-primary">Aberta</span>
+                            {% endif %}
+                        </td>
+                        <td class="text-end pe-4">
+                            <div class="d-flex justify-content-end gap-1">
+                                {% if c.status != 'CANCELADA' and c.saldo > 0 %}
+                                    <a href="{% url 'pagar_despesa' c.id %}" class="btn btn-sm btn-success fw-bold" title="Pagar Despesa">
+                                        <i class="bi bi-cash-coin me-1"></i> Pagar
+                                    </a>
+                                {% endif %}
+                                {% if c.status != 'PAGA' and c.status != 'PAGO' and c.status != 'CANCELADA' %}
+                                    <a href="{% url 'despesa_editar' c.id %}" class="btn btn-sm btn-outline-primary" title="Editar"><i class="bi bi-pencil"></i></a>
+                                    {% if c.valor_pago == 0 %}
+                                        <form method="post" action="{% url 'cancelar_despesa' c.id %}" class="d-inline" onsubmit="return confirm('Deseja realmente cancelar a despesa \'{{ c.descricao }}\'?');">
+                                            {% csrf_token %}
+                                            <button type="submit" class="btn btn-sm btn-outline-danger" title="Cancelar Despesa"><i class="bi bi-x-circle"></i></button>
+                                        </form>
+                                    {% endif %}
+                                {% endif %}
+                            </div>
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="9" class="text-center text-muted py-5">
+                            <i class="bi bi-arrow-up-right-circle fs-1 d-block mb-2 text-muted"></i>
+                            Nenhuma despesa encontrada com os filtros selecionados.
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}

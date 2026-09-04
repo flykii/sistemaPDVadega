@@ -1,0 +1,32 @@
+<!-- Componente Reutilizável de Filtro de Período -->
+<div class="card card-custom p-3 border-0 shadow-sm mb-4 d-print-none">
+    <div class="d-flex flex-wrap gap-2 mb-3 pb-2 border-bottom">
+        <a href="?periodo=hoje" class="btn btn-sm {% if p_info.periodo == 'hoje' %}btn-primary{% else %}btn-outline-primary{% endif %} fw-bold">Hoje</a>
+        <a href="?periodo=ontem" class="btn btn-sm {% if p_info.periodo == 'ontem' %}btn-primary{% else %}btn-outline-primary{% endif %} fw-bold">Ontem</a>
+        <a href="?periodo=7dias" class="btn btn-sm {% if p_info.periodo == '7dias' %}btn-primary{% else %}btn-outline-primary{% endif %} fw-bold">Últimos 7 dias</a>
+        <a href="?periodo=30dias" class="btn btn-sm {% if p_info.periodo == '30dias' %}btn-primary{% else %}btn-outline-primary{% endif %} fw-bold">Últimos 30 dias</a>
+        <a href="?periodo=mes_atual" class="btn btn-sm {% if p_info.periodo == 'mes_atual' %}btn-primary{% else %}btn-outline-primary{% endif %} fw-bold">Este Mês</a>
+        <a href="?periodo=mes_anterior" class="btn btn-sm {% if p_info.periodo == 'mes_anterior' %}btn-primary{% else %}btn-outline-primary{% endif %} fw-bold">Mês Anterior</a>
+        <a href="?periodo=ano_atual" class="btn btn-sm {% if p_info.periodo == 'ano_atual' %}btn-primary{% else %}btn-outline-primary{% endif %} fw-bold">Este Ano</a>
+    </div>
+
+    <form method="get" class="row g-2 align-items-center">
+        <input type="hidden" name="periodo" value="personalizado">
+        <div class="col-12 col-md-4">
+            <div class="input-group input-group-sm">
+                <span class="input-group-text fw-bold">De:</span>
+                <input type="date" name="data_inicio" value="{{ p_info.data_inicio_str }}" class="form-control" required>
+            </div>
+        </div>
+        <div class="col-12 col-md-4">
+            <div class="input-group input-group-sm">
+                <span class="input-group-text fw-bold">Até:</span>
+                <input type="date" name="data_fim" value="{{ p_info.data_fim_str }}" class="form-control" required>
+            </div>
+        </div>
+        <div class="col-12 col-md-4 d-flex gap-2">
+            <button type="submit" class="btn btn-primary btn-sm fw-bold w-100"><i class="bi bi-funnel me-1"></i> Filtrar Período</button>
+            <button type="button" onclick="window.print()" class="btn btn-outline-dark btn-sm fw-bold" title="Imprimir Relatório"><i class="bi bi-printer"></i></button>
+        </div>
+    </form>
+</div>

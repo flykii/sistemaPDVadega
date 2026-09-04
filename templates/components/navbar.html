@@ -1,0 +1,270 @@
+{% if request.resolver_match.url_name == 'pdv_front' %}
+<nav class="navbar navbar-expand navbar-dark navbar-custom sticky-top px-3">
+    <div class="container-fluid p-0 d-flex justify-content-between align-items-center">
+        <!-- Esquerda: Marca e Indicadores de Rede/Fila -->
+        <div class="d-flex align-items-center gap-2">
+            <a class="navbar-brand fw-bold text-white d-flex align-items-center gap-2 mb-0" href="{% url 'dashboard' %}">
+                <i class="bi bi-cart-check-fill text-primary fs-4"></i>
+                <span>PDV Enterprise</span>
+            </a>
+            
+            <span class="badge bg-secondary opacity-75 d-none d-md-inline-block">
+                <i class="bi bi-building"></i> {{ request.user.empresa.nome_fantasia|default:"Multiempresa" }}
+            </span>
+
+            <span id="network-status-badge" class="badge bg-success ms-1">
+                <i class="bi bi-wifi"></i> ONLINE
+            </span>
+
+            <button class="btn btn-sm btn-outline-light ms-1 d-flex align-items-center gap-1" type="button" onclick="abrirModalFilaOffline()" title="Ver Fila de Vendas Offline">
+                <i class="bi bi-cloud-arrow-up"></i> <span class="d-none d-sm-inline">Fila</span>
+                <span id="sync-status-badge" class="badge bg-warning text-dark" style="display:none;">0</span>
+            </button>
+        </div>
+
+        <!-- Direita: Somente 🏠 CASA e 💰 CAIXA + Operador -->
+        <div class="d-flex align-items-center gap-2">
+            <a href="{% url 'dashboard' %}" class="btn btn-outline-light btn-sm fw-bold d-flex align-items-center gap-1" title="Ir para o Dashboard / Tela Inicial">
+                <i class="bi bi-house-door-fill text-warning"></i> <span>Início</span>
+            </a>
+            <a href="{% url 'caixas_list' %}" class="btn btn-warning btn-sm fw-bold d-flex align-items-center gap-1 text-dark" title="Ir para o Módulo de Caixa">
+                <i class="bi bi-cash-stack"></i> <span>Caixa</span>
+            </a>
+
+            <div class="dropdown ms-2">
+                <a class="nav-link dropdown-toggle fw-semibold text-light py-1 px-2 border border-secondary rounded" href="#" data-bs-toggle="dropdown">
+                    <i class="bi bi-person-circle me-1"></i> {{ user.get_full_name|default:user.username }}
+                </a>
+                <ul class="dropdown-menu dropdown-menu-end shadow">
+                    <li><span class="dropdown-item-text text-muted small">Cargo: {{ user.get_cargo_display }}</span></li>
+                    <li><hr class="dropdown-divider"></li>
+                    <li><a class="dropdown-item text-danger" href="{% url 'logout' %}"><i class="bi bi-box-arrow-right me-2"></i>Sair</a></li>
+                </ul>
+            </div>
+        </div>
+    </div>
+</nav>
+{% else %}
+<nav class="navbar navbar-expand-lg navbar-dark navbar-custom sticky-top px-3">
+    <a class="navbar-brand fw-bold text-white d-flex align-items-center gap-2" href="{% url 'dashboard' %}">
+        <i class="bi bi-cart-check-fill text-primary fs-4"></i>
+        <span>PDV Enterprise</span>
+    </a>
+    
+    <span class="badge bg-secondary ms-2 opacity-75 d-none d-md-inline-block">
+        <i class="bi bi-building"></i> {{ request.user.empresa.nome_fantasia|default:"Multiempresa" }}
+    </span>
+
+    <span id="network-status-badge" class="badge bg-success ms-2">
+        <i class="bi bi-wifi"></i> ONLINE
+    </span>
+
+    <button class="btn btn-sm btn-outline-light ms-2 d-flex align-items-center gap-1" type="button" onclick="abrirModalFilaOffline()" title="Ver Fila de Vendas Offline">
+        <i class="bi bi-cloud-arrow-up"></i> <span class="d-none d-sm-inline">Fila</span>
+        <span id="sync-status-badge" class="badge bg-warning text-dark" style="display:none;">0</span>
+    </button>
+
+
+    <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+        <span class="navbar-toggler-icon"></span>
+    </button>
+
+    <div class="collapse navbar-collapse" id="navbarNav">
+        <ul class="navbar-nav ms-auto align-items-center gap-1">
+            <li class="nav-item">
+                <a class="nav-link btn btn-primary text-white fw-bold px-3 ms-2 me-3" href="{% url 'pdv_front' %}">
+                    <i class="bi bi-lightning-charge-fill me-1"></i> PDV Rápido (F2)
+                </a>
+            </li>
+            <li class="nav-item">
+                <a class="nav-link" href="{% url 'dashboard' %}"><i class="bi bi-speedometer2"></i> Dashboard</a>
+            </li>
+            <li class="nav-item">
+                <a class="nav-link" href="{% url 'caixas_list' %}"><i class="bi bi-cash-stack"></i> Caixas</a>
+            </li>
+            <li class="nav-item">
+                <a class="nav-link" href="{% url 'produtos_list' %}"><i class="bi bi-box-seam"></i> Produtos</a>
+            </li>
+            <li class="nav-item">
+                <a class="nav-link" href="{% url 'clientes_list' %}"><i class="bi bi-people"></i> Clientes</a>
+            </li>
+            <li class="nav-item">
+                <a class="nav-link" href="{% url 'compras_list' %}"><i class="bi bi-truck"></i> Compras</a>
+            </li>
+            <li class="nav-item dropdown">
+                <a class="nav-link dropdown-toggle" href="#" id="finDropdown" role="button" data-bs-toggle="dropdown">
+                    <i class="bi bi-bank"></i> Financeiro
+                </a>
+                <ul class="dropdown-menu dropdown-menu-end shadow">
+                    <li><a class="dropdown-item" href="{% url 'contas_receber_list' %}"><i class="bi bi-arrow-down-left-circle text-success me-2"></i>Contas a Receber (Crediário)</a></li>
+                    <li><a class="dropdown-item" href="{% url 'contas_pagar_list' %}"><i class="bi bi-arrow-up-right-circle text-danger me-2"></i>Despesas & Contas a Pagar</a></li>
+                    <li><a class="dropdown-item" href="{% url 'despesas_recorrentes_list' %}"><i class="bi bi-arrow-repeat text-primary me-2"></i>Despesas Fixas / Recorrentes</a></li>
+                    <li><a class="dropdown-item" href="{% url 'fluxo_mensal' %}"><i class="bi bi-calendar3 text-info me-2"></i>Fluxo Mensal</a></li>
+                    <li><a class="dropdown-item" href="{% url 'categorias_despesa_list' %}"><i class="bi bi-tags text-secondary me-2"></i>Categorias de Despesas</a></li>
+                    <li><hr class="dropdown-divider"></li>
+                    <li><a class="dropdown-item" href="{% url 'fluxo_caixa_list' %}"><i class="bi bi-graph-up-arrow text-dark me-2"></i>Fluxo de Caixa Geral</a></li>
+                    <li><a class="dropdown-item" href="{% url 'vendas_historico' %}"><i class="bi bi-clock-history me-2"></i>Histórico de Vendas</a></li>
+                </ul>
+            </li>
+            <li class="nav-item dropdown">
+                <a class="nav-link dropdown-toggle" href="#" id="relatDropdown" role="button" data-bs-toggle="dropdown">
+                    <i class="bi bi-file-earmark-bar-graph"></i> Relatórios
+                </a>
+                <ul class="dropdown-menu dropdown-menu-end shadow">
+                    <li><a class="dropdown-item fw-bold text-primary" href="{% url 'relatorios_hub' %}"><i class="bi bi-pie-chart-fill me-2"></i>Visão Geral Gerencial</a></li>
+                    <li><hr class="dropdown-divider"></li>
+                    <li><a class="dropdown-item" href="{% url 'relatorio_vendas' %}"><i class="bi bi-receipt me-2"></i>Relatório de Vendas</a></li>
+                    <li><a class="dropdown-item" href="{% url 'relatorio_formas_pagamento' %}"><i class="bi bi-credit-card me-2"></i>Formas de Pagamento</a></li>
+                    <li><a class="dropdown-item" href="{% url 'relatorio_produtos' %}"><i class="bi bi-trophy me-2"></i>Ranking de Produtos & Lucro</a></li>
+                    <li><a class="dropdown-item fw-semibold text-primary" href="{% url 'relatorio_reposicao' %}"><i class="bi bi-arrow-repeat me-2"></i>Relatório de Reposição</a></li>
+                    <li><a class="dropdown-item" href="{% url 'relatorio_categorias' %}"><i class="bi bi-tags me-2"></i>Vendas por Categoria</a></li>
+                    <li><a class="dropdown-item" href="{% url 'relatorio_operadores' %}"><i class="bi bi-person-badge me-2"></i>Vendas por Operador</a></li>
+                    <li><a class="dropdown-item" href="{% url 'relatorio_caixas' %}"><i class="bi bi-calculator me-2"></i>Vendas por Caixa</a></li>
+                    <li><hr class="dropdown-divider"></li>
+                    <li><a class="dropdown-item" href="{% url 'relatorio_estoque' %}"><i class="bi bi-boxes me-2"></i>Posição do Estoque</a></li>
+                    <li><a class="dropdown-item" href="{% url 'relatorio_movimentacoes' %}"><i class="bi bi-arrow-left-right me-2"></i>Movimentações de Estoque</a></li>
+                    <li><a class="dropdown-item" href="{% url 'relatorio_despesas' %}"><i class="bi bi-arrow-up-right-circle text-danger me-2"></i>Relatório de Despesas</a></li>
+                    <li><a class="dropdown-item" href="{% url 'relatorio_crediario' %}"><i class="bi bi-people-fill text-warning me-2"></i>Relatório de Crediário</a></li>
+                    {% if user.pode_visualizar_auditoria %}
+                    <li><hr class="dropdown-divider"></li>
+                    <li><a class="dropdown-item fw-semibold text-dark" href="{% url 'auditoria' %}"><i class="bi bi-shield-lock text-primary me-2"></i>Trilha de Auditoria</a></li>
+                    {% endif %}
+                </ul>
+            </li>
+            <li class="nav-item">
+                <a class="nav-link" href="{% url 'importacao_hub' %}" title="Importação de Dados JSON">
+                    <i class="bi bi-filetype-json"></i> <span class="d-lg-none d-xl-inline">Importação</span>
+                </a>
+            </li>
+            <li class="nav-item">
+                <a class="nav-link" href="{% url 'configuracoes' %}" title="Configurações do Sistema">
+                    <i class="bi bi-gear-fill"></i> <span class="d-lg-none d-xl-inline">Configurações</span>
+                </a>
+            </li>
+
+            <li class="nav-item dropdown ms-2">
+                <a class="nav-link dropdown-toggle fw-semibold text-light" href="#" data-bs-toggle="dropdown">
+                    <i class="bi bi-person-circle"></i> {{ user.get_full_name|default:user.username }}
+                </a>
+                <ul class="dropdown-menu dropdown-menu-end shadow">
+                    <li><span class="dropdown-item-text text-muted small">Cargo: {{ user.get_cargo_display }}</span></li>
+                    {% if user.is_administrador or user.is_gerente %}
+                    <li><a class="dropdown-item" href="{% url 'configuracoes' %}#atalhos"><i class="bi bi-keyboard me-2"></i>Atalhos do PDV</a></li>
+                    {% endif %}
+                    <li><hr class="dropdown-divider"></li>
+                    <li><a class="dropdown-item text-danger" href="{% url 'logout' %}"><i class="bi bi-box-arrow-right me-2"></i>Sair</a></li>
+                </ul>
+            </li>
+        </ul>
+    </div>
+</nav>
+{% endif %}
+
+<!-- Modal da Fila de Sincronização Offline -->
+<div class="modal fade" id="offlineQueueModal" tabindex="-1" aria-labelledby="offlineQueueModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-scrollable">
+        <div class="modal-content">
+            <div class="modal-header bg-dark text-white">
+                <h5 class="modal-title" id="offlineQueueModalLabel">
+                    <i class="bi bi-cloud-arrow-up text-warning me-2"></i>Fila de Operações Offline (IndexedDB)
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                    <div>
+                        <span class="badge bg-secondary p-2" id="queue-stat-total">Total: 0</span>
+                        <span class="badge bg-warning text-dark p-2" id="queue-stat-pendentes">Pendentes: 0</span>
+                        <span class="badge bg-success p-2" id="queue-stat-sincronizadas">Sincronizadas: 0</span>
+                        <span class="badge bg-danger p-2" id="queue-stat-erros">Erros: 0</span>
+                    </div>
+                    <button class="btn btn-primary btn-sm fw-bold" onclick="forcarSincronizacaoOffline()">
+                        <i class="bi bi-arrow-repeat me-1"></i> Sincronizar Agora
+                    </button>
+                </div>
+                <div class="table-responsive">
+                    <table class="table table-sm table-hover align-middle mb-0">
+                        <thead class="table-light">
+                            <tr>
+                                <th>UUID da Venda</th>
+                                <th>Data/Hora Local</th>
+                                <th>Valor Total</th>
+                                <th class="text-center">Tentativas</th>
+                                <th class="text-center">Status</th>
+                                <th class="text-end">Detalhes / Erro</th>
+                            </tr>
+                        </thead>
+                        <tbody id="offline-queue-table-body">
+                            <tr>
+                                <td colspan="6" class="text-center text-muted py-4">Nenhuma operação registrada na fila local.</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Fechar</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+async function abrirModalFilaOffline() {
+    const modalEl = document.getElementById('offlineQueueModal');
+    if (!modalEl) return;
+    const modal = bootstrap.Modal.getInstance(modalEl) || new bootstrap.Modal(modalEl);
+    await carregarFilaOfflineTabela();
+    modal.show();
+}
+
+async function carregarFilaOfflineTabela() {
+    if (!window.pdvOfflineDB) return;
+    const tbody = document.getElementById('offline-queue-table-body');
+    const todas = await window.pdvOfflineDB.getHistoricoFila();
+    const stats = await window.pdvOfflineDB.getEstatisticasFila();
+
+    document.getElementById('queue-stat-total').innerText = `Total: ${stats.total}`;
+    document.getElementById('queue-stat-pendentes').innerText = `Pendentes: ${stats.pendentes}`;
+    document.getElementById('queue-stat-sincronizadas').innerText = `Sincronizadas: ${stats.sincronizadas}`;
+    document.getElementById('queue-stat-erros').innerText = `Erros: ${stats.erros}`;
+
+    if (!tbody) return;
+    tbody.innerHTML = '';
+
+    if (todas.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="6" class="text-center text-muted py-4">Nenhuma operação registrada na fila local.</td></tr>';
+        return;
+    }
+
+    todas.forEach(v => {
+        const tr = document.createElement('tr');
+        let badge = '<span class="badge bg-warning text-dark">Pendente</span>';
+        if (v.status === 'SINCRONIZADA') badge = '<span class="badge bg-success">Sincronizada</span>';
+        else if (v.status === 'ERRO_PERMANENTE' || v.status === 'CONFLITO') badge = '<span class="badge bg-danger">Erro</span>';
+        else if (v.status === 'SINCRONIZANDO') badge = '<span class="badge bg-info text-dark">Sincronizando</span>';
+
+        const dataStr = new Date(v.data_hora_local).toLocaleString();
+        const totalStr = v.payload?.total ? `R$ ${Number(v.payload.total).toFixed(2)}` : '—';
+        const erroStr = v.mensagem_erro ? `<small class="text-danger">${v.mensagem_erro}</small>` : (v.status === 'SINCRONIZADA' ? '<small class="text-success">OK</small>' : '—');
+
+        tr.innerHTML = `
+            <td><code class="small text-dark">${v.offline_uuid.substring(0, 16)}...</code></td>
+            <td><small>${dataStr}</small></td>
+            <td><strong>${totalStr}</strong></td>
+            <td class="text-center">${v.tentativas || 0}</td>
+            <td class="text-center">${badge}</td>
+            <td class="text-end">${erroStr}</td>
+        `;
+        tbody.appendChild(tr);
+    });
+}
+
+async function forcarSincronizacaoOffline() {
+    if (window.pdvApp) {
+        await window.pdvApp.sincronizarVendasOffline();
+        await carregarFilaOfflineTabela();
+    }
+}
+</script>
+

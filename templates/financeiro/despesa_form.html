@@ -1,0 +1,137 @@
+{% extends 'base.html' %}
+
+{% block title %}{% if conta %}Editar Despesa{% else %}Lançar Nova Despesa{% endif %} - PDV Enterprise{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center my-4">
+    <div class="col-12 col-lg-7">
+        <div class="card card-custom p-4 shadow-sm border-0">
+            <div class="d-flex justify-content-between align-items-center mb-4 pb-2 border-bottom">
+                <div>
+                    <h3 class="fw-bold text-dark mb-0">
+                        <i class="bi bi-receipt text-danger me-2"></i>
+                        {% if conta %}Editar Despesa: {{ conta.descricao }}{% else %}Lançamento de Despesa Avulsa{% endif %}
+                    </h3>
+                    <p class="text-muted mb-0">Registre despesas operacionais, compras avulsas, suprimentos ou contas de consumo.</p>
+                </div>
+                <a href="{% url 'contas_pagar_list' %}" class="btn btn-outline-secondary btn-sm">
+                    <i class="bi bi-arrow-left me-1"></i> Voltar às Despesas
+                </a>
+            </div>
+
+            <form method="post">
+                {% csrf_token %}
+                <div class="mb-3">
+                    <label for="descricao" class="form-label fw-bold">Descrição da Despesa *</label>
+                    <input type="text" name="descricao" id="descricao" class="form-control form-control-lg" value="{{ conta.descricao|default:'' }}" placeholder="Ex: Compra de Gelo em Cubos, Sacolas Plásticas, Troca de Lâmpadas..." required autofocus>
+                </div>
+
+                <div class="row g-3 mb-3">
+                    <div class="col-12 col-md-6">
+                        <label for="categoria_id" class="form-label fw-bold">Categoria de Despesa</label>
+                        <select name="categoria_id" id="categoria_id" class="form-select">
+                            <option value="">-- Sem Categoria --</option>
+                            {% for cat in categorias %}
+                                <option value="{{ cat.id }}" {% if conta and conta.categoria_id == cat.id %}selected{% endif %}>{{ cat.nome }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+
+                    <div class="col-12 col-md-6">
+                        <label for="fornecedor_id" class="form-label fw-bold">Fornecedor / Favorecido (Opcional)</label>
+                        <select name="fornecedor_id" id="fornecedor_id" class="form-select">
+                            <option value="">-- Nenhum / Avulso --</option>
+                            {% for forn in fornecedores %}
+                                <option value="{{ forn.id }}" {% if conta and conta.fornecedor_id == forn.id %}selected{% endif %}>
+                                    {{ forn.nome_fantasia|default:forn.razao_social }}
+                                </option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                </div>
+
+                <div class="row g-3 mb-3">
+                    <div class="col-12 col-md-4">
+                        <label for="valor" class="form-label fw-bold">Valor da Despesa (R$) *</label>
+                        <input type="number" step="0.01" min="0.01" name="valor" id="valor" class="form-control form-control-lg fw-bold text-danger fs-4" value="{{ conta.valor|default:'' }}" placeholder="0,00" required>
+                    </div>
+
+                    <div class="col-12 col-md-4">
+                        <label for="data_competencia" class="form-label fw-bold">Data da Despesa</label>
+                        <input type="date" name="data_competencia" id="data_competencia" class="form-control form-control-lg" value="{% if conta %}{{ conta.data_competencia|date:'Y-m-d' }}{% else %}{% now 'Y-m-d' %}{% endif %}">
+                    </div>
+
+                    <div class="col-12 col-md-4">
+                        <label for="data_vencimento" class="form-label fw-bold">Data de Vencimento</label>
+                        <input type="date" name="data_vencimento" id="data_vencimento" class="form-control form-control-lg" value="{% if conta %}{{ conta.data_vencimento|date:'Y-m-d' }}{% else %}{% now 'Y-m-d' %}{% endif %}">
+                    </div>
+                </div>
+
+                {% if not conta %}
+                <!-- Opção de Pagamento Imediato no Lançamento -->
+                <div class="card p-3 bg-light border mb-3 rounded-3">
+                    <div class="form-check form-switch">
+                        <input class="form-check-input" type="checkbox" name="pago_imediatamente" id="pago_imediatamente" onchange="togglePagamentoImediato(this)">
+                        <label class="form-check-label fw-bold text-dark" for="pago_imediatamente">
+                            <i class="bi bi-cash-coin text-success me-1"></i> Despesa Já Paga Imediatamente (Dar Baixa no Ato)
+                        </label>
+                    </div>
+
+                    <div id="box-pagamento-imediato" class="mt-3 d-none">
+                        <div class="row g-2">
+                            <div class="col-12 col-md-6">
+                                <label for="forma_pagamento" class="form-label small fw-bold">Forma de Pagamento</label>
+                                <select name="forma_pagamento" id="forma_pagamento" class="form-select">
+                                    <option value="DINHEIRO">💵 Dinheiro (Saída da Gaveta do Caixa)</option>
+                                    <option value="PIX">📱 PIX (Conta Bancária)</option>
+                                    <option value="CARTAO_DEBITO">💳 Cartão Débito</option>
+                                    <option value="CARTAO_CREDITO">💳 Cartão Crédito</option>
+                                    <option value="BOLETO">📄 Boleto</option>
+                                    <option value="TRANSFERENCIA">🏦 Transferência</option>
+                                </select>
+                            </div>
+                            <div class="col-12 col-md-6">
+                                {% if sessao_aberta %}
+                                    <div class="alert alert-success py-2 mb-0 small">
+                                        <i class="bi bi-shop me-1"></i> Caixa Aberto: <strong>{{ sessao_aberta.caixa.nome }}</strong> (Saldo Gaveta: R$ {{ sessao_aberta.saldo_esperado|floatformat:2 }})
+                                    </div>
+                                {% else %}
+                                    <div class="alert alert-warning py-2 mb-0 small">
+                                        <i class="bi bi-exclamation-triangle me-1"></i> Sem caixa aberto. Saída em dinheiro não debitará gaveta.
+                                    </div>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                {% endif %}
+
+                <div class="mb-4">
+                    <label for="observacoes" class="form-label fw-bold">Observações / Comprovante</label>
+                    <textarea name="observacoes" id="observacoes" class="form-control" rows="2" placeholder="Número de cupom, justificativa ou detalhes adicionais...">{{ conta.observacoes|default:'' }}</textarea>
+                </div>
+
+                <div class="d-flex gap-2">
+                    <a href="{% url 'contas_pagar_list' %}" class="btn btn-secondary w-50 py-3 fw-bold">Cancelar</a>
+                    <button type="submit" class="btn btn-danger w-50 py-3 fw-bold fs-5 shadow">
+                        <i class="bi bi-save me-1"></i> Salvar Despesa
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    function togglePagamentoImediato(checkbox) {
+        const box = document.getElementById('box-pagamento-imediato');
+        if (checkbox.checked) {
+            box.classList.remove('d-none');
+        } else {
+            box.classList.add('d-none');
+        }
+    }
+</script>
+{% endblock %}

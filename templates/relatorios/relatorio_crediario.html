@@ -1,0 +1,103 @@
+{% extends 'base.html' %}
+
+{% block title %}Relatório de Crediário & Devedores - PDV Enterprise{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-3">
+    <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
+        <div>
+            <h2 class="fw-bold text-dark mb-0"><i class="bi bi-people-fill text-warning me-2"></i>Relatório de Crediário & Carteira de Devedores</h2>
+            <p class="text-muted mb-0">Visão global de crédito concedido, dívidas em aberto, inadimplência e títulos vencidos.</p>
+        </div>
+        <div class="d-flex gap-2 d-print-none">
+            <a href="{% url 'exportar_relatorio_csv' 'crediario' %}" class="btn btn-outline-success fw-bold">
+                <i class="bi bi-file-earmark-excel me-1"></i> Exportar CSV
+            </a>
+            <button onclick="window.print()" class="btn btn-outline-dark fw-bold">
+                <i class="bi bi-printer me-1"></i> Imprimir
+            </button>
+        </div>
+    </div>
+
+    <!-- Cards de Indicadores -->
+    <div class="row g-3 mb-4">
+        <div class="col-12 col-md-3">
+            <div class="card p-3 border-0 shadow-sm border-start border-primary border-4 bg-light">
+                <span class="text-primary small text-uppercase fw-bold">Total Vendido no Crediário</span>
+                <h3 class="fw-bold text-primary mb-0">R$ {{ crediario_data.total_vendido_fiado|floatformat:2 }}</h3>
+            </div>
+        </div>
+        <div class="col-12 col-md-3">
+            <div class="card p-3 border-0 shadow-sm border-start border-success border-4 bg-light">
+                <span class="text-success small text-uppercase fw-bold">Total Recebido / Quitado</span>
+                <h3 class="fw-bold text-success mb-0">R$ {{ crediario_data.total_recebido|floatformat:2 }}</h3>
+            </div>
+        </div>
+        <div class="col-12 col-md-3">
+            <div class="card p-3 border-0 shadow-sm border-start border-warning border-4 bg-light">
+                <span class="text-warning small text-uppercase fw-bold">Saldo Devedor em Aberto</span>
+                <h3 class="fw-bold text-dark mb-0">R$ {{ crediario_data.total_aberto|floatformat:2 }}</h3>
+            </div>
+        </div>
+        <div class="col-12 col-md-3">
+            <div class="card p-3 border-0 shadow-sm border-start border-danger border-4 bg-light">
+                <span class="text-danger small text-uppercase fw-bold">Dívidas Vencidas</span>
+                <h3 class="fw-bold text-danger mb-0">R$ {{ crediario_data.total_vencido|floatformat:2 }}</h3>
+                <small class="text-muted">{{ crediario_data.qtd_devedores }} clientes com saldo devedor</small>
+            </div>
+        </div>
+    </div>
+
+    <!-- Tabela de Clientes Devedores -->
+    <div class="card card-custom p-0 border-0 shadow-sm rounded-4 overflow-hidden">
+        <div class="card-header bg-white py-3 border-bottom">
+            <h5 class="fw-bold text-dark mb-0"><i class="bi bi-person-lines-fill me-2 text-primary"></i>Carteira de Clientes com Débitos</h5>
+        </div>
+        <div class="table-responsive">
+            <table class="table table-hover align-middle mb-0">
+                <thead class="table-light">
+                    <tr>
+                        <th class="ps-4">Cliente</th>
+                        <th>CPF / CNPJ</th>
+                        <th>Contato</th>
+                        <th class="text-end">Limite de Crédito</th>
+                        <th class="text-end">Crédito Disponível</th>
+                        <th class="text-end">Saldo Devedor Total</th>
+                        <th class="text-end">Valor Vencido</th>
+                        <th class="text-end pe-4 d-print-none">Ações</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for c in crediario_data.clientes_devedores %}
+                    <tr>
+                        <td class="ps-4">
+                            <a href="{% url 'cliente_ficha' c.cliente.id %}" class="fw-bold text-primary text-decoration-none">
+                                {{ c.cliente.nome }}
+                            </a>
+                        </td>
+                        <td>{{ c.cliente.cpf_cnpj|default:"-" }}</td>
+                        <td>{{ c.cliente.telefone|default:c.cliente.celular|default:"-" }}</td>
+                        <td class="text-end text-muted">R$ {{ c.limite_credito|floatformat:2 }}</td>
+                        <td class="text-end text-success fw-semibold">R$ {{ c.credito_disponivel|floatformat:2 }}</td>
+                        <td class="text-end fw-bold text-danger fs-6">R$ {{ c.saldo_devedor|floatformat:2 }}</td>
+                        <td class="text-end text-danger fw-bold">{% if c.saldo_vencido > 0 %}R$ {{ c.saldo_vencido|floatformat:2 }}{% else %}-{% endif %}</td>
+                        <td class="text-end pe-4 d-print-none">
+                            <a href="{% url 'cliente_ficha' c.cliente.id %}" class="btn btn-sm btn-outline-primary fw-bold">
+                                <i class="bi bi-folder2-open me-1"></i> Ficha Financeira
+                            </a>
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="8" class="text-center text-success py-5">
+                            <i class="bi bi-check-circle fs-1 d-block mb-2 text-success"></i>
+                            Nenhum cliente com saldo devedor pendente!
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}

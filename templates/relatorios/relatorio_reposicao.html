@@ -1,0 +1,228 @@
+{% extends 'base.html' %}
+
+{% block title %}Relatório de Reposição - PDV Enterprise{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-3">
+    <!-- Cabeçalho -->
+    <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
+        <div>
+            <h2 class="fw-bold text-dark mb-0">
+                <i class="bi bi-arrow-repeat text-primary me-2"></i>RELATÓRIO DE REPOSIÇÃO
+            </h2>
+            <p class="text-muted mb-0">Vendas semanais para apoio à reposição de estoque</p>
+        </div>
+        <div class="d-flex gap-2 d-print-none">
+            <a href="{% url 'exportar_relatorio_csv' 'reposicao' %}?semana={{ semana_selecionada.codigo }}" class="btn btn-outline-success fw-bold">
+                <i class="bi bi-file-earmark-excel me-1"></i> Exportar CSV
+            </a>
+            <button onclick="window.print()" class="btn btn-outline-dark fw-bold">
+                <i class="bi bi-printer me-1"></i> Imprimir
+            </button>
+        </div>
+    </div>
+
+    <!-- Seletor de Semana (Últimos 18 Meses) -->
+    <div class="card card-custom p-3 border-0 shadow-sm mb-4 d-print-none">
+        <form method="get" class="row g-2 align-items-center">
+            <div class="col-12 col-md-8 col-lg-6">
+                <label class="form-label small fw-bold text-uppercase text-muted mb-1">
+                    <i class="bi bi-calendar3 me-1"></i> Selecionar Semana:
+                </label>
+                <div class="input-group">
+                    <span class="input-group-text bg-light"><i class="bi bi-calendar-week"></i></span>
+                    <select name="semana" class="form-select form-select-lg fw-bold" onchange="this.form.submit()">
+                        {% for s in semanas %}
+                        <option value="{{ s.codigo }}" {% if s.codigo == semana_selecionada.codigo %}selected{% endif %}>
+                            {{ s.label }}
+                        </option>
+                        {% endfor %}
+                    </select>
+                </div>
+            </div>
+            <div class="col-12 col-md-4 col-lg-3 d-flex align-items-end">
+                <button type="submit" class="btn btn-primary btn-lg w-100 fw-bold mt-2 mt-md-0">
+                    <i class="bi bi-arrow-clockwise me-1"></i> Atualizar
+                </button>
+            </div>
+        </form>
+    </div>
+
+    <!-- Indicador da Semana Ativa (Imprimível) -->
+    <div class="alert alert-light border shadow-sm mb-4 d-flex justify-content-between align-items-center flex-wrap gap-2">
+        <div>
+            <span class="badge bg-primary fs-6 me-2">Semana {{ semana_selecionada.numero }}/{{ semana_selecionada.ano }}</span>
+            <span class="fw-bold text-dark fs-6">{{ semana_selecionada.data_inicio_str }} a {{ semana_selecionada.data_fim_str }}</span>
+        </div>
+        <div class="text-muted small">
+            <i class="bi bi-clock-history me-1"></i> Período operacional (corte às 02:00)
+        </div>
+    </div>
+
+    <!-- MINI DASHBOARD DA SEMANA -->
+    <div class="card card-custom p-3 border-0 shadow-sm mb-4">
+        <h5 class="fw-bold text-dark mb-3">
+            <i class="bi bi-speedometer2 text-primary me-2"></i>MINI DASHBOARD DE VENDAS — SEMANA
+        </h5>
+
+        <div class="row g-3">
+            <!-- 1. Total de Itens Vendidos -->
+            <div class="col-12 col-sm-6 col-xl">
+                <div class="card p-3 border-0 shadow-sm border-start border-primary border-4 bg-light h-100">
+                    <span class="text-primary small text-uppercase fw-bold">Total de Itens</span>
+                    <h3 class="fw-bold text-primary mb-0 mt-1">
+                        {{ dados.total_itens_vendidos|floatformat:0 }}
+                    </h3>
+                    <small class="text-muted">Unidades vendidas na semana</small>
+                </div>
+            </div>
+
+            <!-- 2. Total Vendido na Semana -->
+            <div class="col-12 col-sm-6 col-xl">
+                <div class="card p-3 border-0 shadow-sm border-start border-info border-4 bg-light h-100">
+                    <span class="text-info small text-uppercase fw-bold">Total Vendido</span>
+                    <h3 class="fw-bold text-dark mb-0 mt-1">
+                        R$ {{ dados.total_faturamento|floatformat:2 }}
+                    </h3>
+                    <small class="text-muted">Faturamento bruto líquido real</small>
+                </div>
+            </div>
+
+            <!-- 3. Produto Mais Vendido (Quantidade) -->
+            <div class="col-12 col-sm-6 col-xl">
+                <div class="card p-3 border-0 shadow-sm border-start border-warning border-4 bg-light h-100">
+                    <span class="text-warning small text-uppercase fw-bold">Produto Mais Vendido</span>
+                    {% if dados.produto_mais_vendido %}
+                    <h5 class="fw-bold text-dark mb-0 mt-1 text-truncate" title="{{ dados.produto_mais_vendido.nome }}">
+                        {{ dados.produto_mais_vendido.nome }}
+                    </h5>
+                    <span class="badge bg-warning text-dark fw-bold mt-1">
+                        {{ dados.produto_mais_vendido.quantidade|floatformat:0 }} unidades
+                    </span>
+                    {% else %}
+                    <h5 class="fw-bold text-muted mb-0 mt-1">Nenhum produto</h5>
+                    <small class="text-muted">Sem vendas nesta semana</small>
+                    {% endif %}
+                </div>
+            </div>
+
+            <!-- 4. Maior Faturamento -->
+            <div class="col-12 col-sm-6 col-xl">
+                <div class="card p-3 border-0 shadow-sm border-start border-secondary border-4 bg-light h-100">
+                    <span class="text-secondary small text-uppercase fw-bold">Maior Faturamento</span>
+                    {% if dados.produto_maior_faturamento %}
+                    <h5 class="fw-bold text-dark mb-0 mt-1 text-truncate" title="{{ dados.produto_maior_faturamento.nome }}">
+                        {{ dados.produto_maior_faturamento.nome }}
+                    </h5>
+                    <span class="badge bg-secondary text-white fw-bold mt-1">
+                        R$ {{ dados.produto_maior_faturamento.faturamento|floatformat:2 }}
+                    </span>
+                    {% else %}
+                    <h5 class="fw-bold text-muted mb-0 mt-1">Nenhum produto</h5>
+                    <small class="text-muted">Sem vendas nesta semana</small>
+                    {% endif %}
+                </div>
+            </div>
+
+            <!-- 5. Lucro Obtido -->
+            <div class="col-12 col-sm-6 col-xl">
+                <div class="card p-3 border-0 shadow-sm border-start border-success border-4 bg-light h-100">
+                    <span class="text-success small text-uppercase fw-bold">Lucro Obtido</span>
+                    <h3 class="fw-bold text-success mb-0 mt-1">
+                        R$ {{ dados.total_lucro_obtido|floatformat:2 }}
+                    </h3>
+                    <small class="text-muted">Resultado real histórico</small>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Tabela Principal de Reposição -->
+    <div class="card card-custom p-0 border-0 shadow-sm rounded-4 overflow-hidden mb-4">
+        <div class="card-header bg-white py-3 px-4 d-flex justify-content-between align-items-center">
+            <h5 class="fw-bold text-dark mb-0">
+                <i class="bi bi-box-seam text-primary me-2"></i>PRODUTOS VENDIDOS NA SEMANA
+            </h5>
+            <span class="text-muted small">
+                Ordenado por: <strong>Maior Quantidade Vendida</strong>
+            </span>
+        </div>
+
+        <div class="table-responsive">
+            <table class="table table-hover align-middle mb-0">
+                <thead class="table-light">
+                    <tr>
+                        <th class="ps-4" style="width: 50px;">#</th>
+                        <th>Produto</th>
+                        <th>Código</th>
+                        <th class="text-end">Custo Unit.</th>
+                        <th class="text-end">Venda Unit.</th>
+                        <th class="text-center fw-bold text-dark">Qtde. Vendida</th>
+                        <th class="text-end">Total Vendido</th>
+                        <th class="text-end">Lucro Obtido</th>
+                        <th class="text-center">Estoque Atual</th>
+                        <th class="text-center pe-4">Status Reposição</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for p in dados.produtos %}
+                    <tr>
+                        <td class="ps-4 fw-bold text-muted">{{ p.posicao }}º</td>
+                        <td>
+                            <strong class="text-dark">{{ p.nome }}</strong>
+                            <small class="d-block text-muted">{{ p.categoria }}</small>
+                        </td>
+                        <td>
+                            <code class="text-secondary">{{ p.codigo }}</code>
+                        </td>
+                        <td class="text-end text-muted">
+                            R$ {{ p.preco_custo_unitario|floatformat:2 }}
+                        </td>
+                        <td class="text-end">
+                            R$ {{ p.preco_venda_unitario|floatformat:2 }}
+                        </td>
+                        <td class="text-center fw-bold fs-5 text-primary">
+                            {{ p.quantidade|floatformat:0 }}
+                        </td>
+                        <td class="text-end fw-bold text-dark">
+                            R$ {{ p.total_vendido|floatformat:2 }}
+                        </td>
+                        <td class="text-end fw-bold {% if p.lucro_obtido >= 0 %}text-success{% else %}text-danger{% endif %}">
+                            R$ {{ p.lucro_obtido|floatformat:2 }}
+                        </td>
+                        <td class="text-center fw-semibold">
+                            {{ p.estoque_atual|floatformat:0 }}
+                            <small class="text-muted d-block">mín: {{ p.estoque_minimo|floatformat:0 }}</small>
+                        </td>
+                        <td class="text-center pe-4">
+                            <span class="badge {{ p.badge_reposicao }} py-2 px-2">
+                                {{ p.status_reposicao }}
+                            </span>
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="10" class="text-center text-muted py-5">
+                            <i class="bi bi-inbox fs-1 d-block mb-2 text-secondary"></i>
+                            <h6 class="fw-bold">Nenhuma venda encontrada nesta semana.</h6>
+                            <p class="small text-muted mb-0">Não foram registradas operações de vendas concluídas no período operacional selecionado.</p>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+                {% if dados.tem_vendas %}
+                <tfoot class="table-light border-top border-2">
+                    <tr class="fw-bold">
+                        <td colspan="5" class="ps-4 text-uppercase">Total da Semana:</td>
+                        <td class="text-center fs-6 text-primary">{{ dados.total_itens_vendidos|floatformat:0 }} itens</td>
+                        <td class="text-end fs-6 text-dark">R$ {{ dados.total_faturamento|floatformat:2 }}</td>
+                        <td class="text-end fs-6 text-success">R$ {{ dados.total_lucro_obtido|floatformat:2 }}</td>
+                        <td colspan="2" class="text-muted small text-center">Consolidado da semana selecionada</td>
+                    </tr>
+                </tfoot>
+                {% endif %}
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}

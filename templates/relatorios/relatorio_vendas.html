@@ -1,0 +1,148 @@
+{% extends 'base.html' %}
+
+{% block title %}Relatório de Vendas - PDV Enterprise{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-3">
+    <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
+        <div>
+            <h2 class="fw-bold text-dark mb-0"><i class="bi bi-receipt text-primary me-2"></i>Relatório Detalhado de Vendas</h2>
+            <p class="text-muted mb-0">Listagem de cupons fiscais/vendas concluídas, faturamento, itens e descontos.</p>
+        </div>
+        <div class="d-flex gap-2 d-print-none">
+            <a href="{% url 'exportar_relatorio_csv' 'vendas' %}?periodo={{ p_info.periodo }}&data_inicio={{ p_info.data_inicio_str }}&data_fim={{ p_info.data_fim_str }}" class="btn btn-outline-success fw-bold">
+                <i class="bi bi-file-earmark-excel me-1"></i> Exportar CSV
+            </a>
+            <button onclick="window.print()" class="btn btn-outline-dark fw-bold">
+                <i class="bi bi-printer me-1"></i> Imprimir
+            </button>
+        </div>
+    </div>
+
+    <!-- Filtro de Período -->
+    {% include 'relatorios/filtro_periodo.html' %}
+
+    <!-- Indicadores -->
+    <div class="row g-3 mb-4">
+        <div class="col-6 col-md-3">
+            <div class="card p-3 border-0 shadow-sm border-start border-primary border-4 bg-light">
+                <span class="text-primary small text-uppercase fw-bold">Faturamento Líquido</span>
+                <h3 class="fw-bold text-primary mb-0">R$ {{ vendas_data.faturamento_liquido|floatformat:2 }}</h3>
+            </div>
+        </div>
+        <div class="col-6 col-md-3">
+            <div class="card p-3 border-0 shadow-sm border-start border-danger border-4 bg-light">
+                <span class="text-danger small text-uppercase fw-bold">Descontos Totais</span>
+                <h3 class="fw-bold text-danger mb-0">R$ {{ vendas_data.descontos_total|floatformat:2 }}</h3>
+            </div>
+        </div>
+        <div class="col-6 col-md-3">
+            <div class="card p-3 border-0 shadow-sm border-start border-info border-4 bg-light">
+                <span class="text-info small text-uppercase fw-bold">Qtd. de Vendas</span>
+                <h3 class="fw-bold text-dark mb-0">{{ vendas_data.qtd_vendas }}</h3>
+            </div>
+        </div>
+        <div class="col-6 col-md-3">
+            <div class="card p-3 border-0 shadow-sm border-start border-success border-4 bg-light">
+                <span class="text-success small text-uppercase fw-bold">Ticket Médio</span>
+                <h3 class="fw-bold text-success mb-0">R$ {{ vendas_data.ticket_medio|floatformat:2 }}</h3>
+            </div>
+        </div>
+    </div>
+
+    <!-- Gráfico Diário -->
+    <div class="card card-custom p-4 border-0 shadow-sm mb-4">
+        <h5 class="fw-bold text-dark mb-3"><i class="bi bi-graph-up text-primary me-2"></i>Evolução de Vendas no Período</h5>
+        <canvas id="chartVendasPeriodo" height="80"></canvas>
+    </div>
+
+    <!-- Tabela de Vendas -->
+    <div class="card card-custom p-0 border-0 shadow-sm rounded-4 overflow-hidden">
+        <div class="table-responsive">
+            <table class="table table-hover align-middle mb-0">
+                <thead class="table-light">
+                    <tr>
+                        <th class="ps-4">Código</th>
+                        <th>Data / Hora</th>
+                        <th>Cliente</th>
+                        <th>Operador</th>
+                        <th>Caixa</th>
+                        <th class="text-end">Subtotal</th>
+                        <th class="text-end">Desconto</th>
+                        <th class="text-end">Total Líquido</th>
+                        <th class="text-end pe-4 d-print-none">Ações</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for v in vendas_data.vendas %}
+                    <tr>
+                        <td class="ps-4">
+                            <strong class="text-dark">{{ v.codigo_venda }}</strong>
+                        </td>
+                        <td>{{ v.data_venda|date:"d/m/Y H:i" }}</td>
+                        <td>
+                            {% if v.cliente %}
+                                <a href="{% url 'cliente_ficha' v.cliente.id %}" class="text-decoration-none fw-semibold">
+                                    {{ v.cliente.nome }}
+                                </a>
+                            {% else %}
+                                <span class="text-muted">Não Informado</span>
+                            {% endif %}
+                        </td>
+                        <td>{{ v.operador.username }}</td>
+                        <td><span class="badge bg-light text-dark border">{{ v.sessao_caixa.caixa.nome|default:"-" }}</span></td>
+                        <td class="text-end">R$ {{ v.subtotal|floatformat:2 }}</td>
+                        <td class="text-end text-danger">{% if v.desconto > 0 %}- R$ {{ v.desconto|floatformat:2 }}{% else %}-{% endif %}</td>
+                        <td class="text-end fw-bold text-success fs-6">R$ {{ v.total|floatformat:2 }}</td>
+                        <td class="text-end pe-4 d-print-none">
+                            <a href="{% url 'recibo_print' v.id %}" target="_blank" class="btn btn-sm btn-outline-secondary" title="Imprimir Recibo">
+                                <i class="bi bi-printer"></i>
+                            </a>
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="9" class="text-center text-muted py-5">Nenhuma venda concluída no período selecionado.</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    document.addEventListener("DOMContentLoaded", function () {
+        const diasLabels = {{ chart_dias_labels|safe }};
+        const diasValores = {{ chart_dias_valores|safe }};
+
+        const ctx = document.getElementById('chartVendasPeriodo');
+        if (ctx) {
+            new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: diasLabels,
+                    datasets: [{
+                        label: 'Faturamento (R$)',
+                        data: diasValores,
+                        backgroundColor: '#3b82f6',
+                        borderRadius: 6
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    plugins: { legend: { display: false } },
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            ticks: { callback: v => 'R$ ' + v.toFixed(2).replace('.', ',') }
+                        }
+                    }
+                }
+            });
+        }
+    });
+</script>
+{% endblock %}

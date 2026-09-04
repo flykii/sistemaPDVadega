@@ -1,0 +1,293 @@
+{% extends 'base.html' %}
+
+{% block title %}Trilha de Auditoria - PDV Enterprise{% endblock %}
+
+{% block extra_css %}
+<style>
+    tr[aria-expanded="true"] .bi-chevron-down {
+        transform: rotate(180deg);
+        transition: transform 0.2s ease-in-out;
+    }
+    .bi-chevron-down {
+        transition: transform 0.2s ease-in-out;
+    }
+    .audit-data-box {
+        max-height: 280px;
+        overflow-y: auto;
+        font-family: SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+        font-size: 0.85rem;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-3">
+    <!-- Cabeçalho -->
+    <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
+        <div>
+            <div class="d-flex align-items-center gap-2 mb-1 flex-wrap">
+                <h2 class="fw-bold text-dark mb-0">
+                    <i class="bi bi-shield-lock text-primary me-2"></i>Trilha de Auditoria
+                </h2>
+                <span class="badge bg-primary-subtle text-primary border border-primary-subtle rounded-pill px-3 py-2 fs-6">
+                    <i class="bi bi-list-check me-1"></i>{{ logs|length }} registro{{ logs|length|pluralize }}
+                </span>
+            </div>
+            <p class="text-muted mb-0">Registro e rastreabilidade detalhada de todas as operações e alterações críticas no sistema.</p>
+        </div>
+        <div class="d-flex gap-2 d-print-none">
+            <a href="{% url 'relatorios_hub' %}" class="btn btn-outline-secondary fw-bold">
+                <i class="bi bi-arrow-left me-1"></i> Central de Relatórios
+            </a>
+            <button onclick="window.print()" class="btn btn-outline-dark fw-bold">
+                <i class="bi bi-printer me-1"></i> Imprimir
+            </button>
+        </div>
+    </div>
+
+    <!-- Barra de Filtros -->
+    <div class="card card-custom p-3 border-0 shadow-sm mb-4 d-print-none">
+        <form method="get" action="{% url 'auditoria' %}" class="row g-3 align-items-end">
+            <!-- Ação -->
+            <div class="col-12 col-sm-6 col-lg-3">
+                <label class="form-label small fw-bold text-muted mb-1">
+                    <i class="bi bi-lightning-charge me-1"></i>Ação
+                </label>
+                <select name="acao" class="form-select">
+                    <option value="">Todas as Ações</option>
+                    {% for codigo, nome in acoes %}
+                        <option value="{{ codigo }}" {% if filtros.acao == codigo %}selected{% endif %}>{{ nome }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <!-- Usuário -->
+            <div class="col-12 col-sm-6 col-lg-2">
+                <label class="form-label small fw-bold text-muted mb-1">
+                    <i class="bi bi-person me-1"></i>Usuário
+                </label>
+                <select name="usuario" class="form-select">
+                    <option value="">Todos os Usuários</option>
+                    {% for u in usuarios_list %}
+                        <option value="{{ u.id }}" {% if filtros.usuario|slugify == u.id|slugify %}selected{% endif %}>
+                            {{ u.get_full_name|default:u.username }}
+                        </option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <!-- Entidade -->
+            <div class="col-12 col-sm-6 col-lg-2">
+                <label class="form-label small fw-bold text-muted mb-1">
+                    <i class="bi bi-box-seam me-1"></i>Entidade
+                </label>
+                <input type="text" name="entidade" class="form-control" placeholder="Ex: Venda, Produto" value="{{ filtros.entidade|default:'' }}">
+            </div>
+
+            <!-- Data Início -->
+            <div class="col-12 col-sm-6 col-lg-2">
+                <label class="form-label small fw-bold text-muted mb-1">
+                    <i class="bi bi-calendar-event me-1"></i>Data Início
+                </label>
+                <input type="date" name="data_inicio" class="form-control" value="{{ filtros.data_inicio|default:'' }}">
+            </div>
+
+            <!-- Data Fim -->
+            <div class="col-12 col-sm-6 col-lg-2">
+                <label class="form-label small fw-bold text-muted mb-1">
+                    <i class="bi bi-calendar-check me-1"></i>Data Fim
+                </label>
+                <input type="date" name="data_fim" class="form-control" value="{{ filtros.data_fim|default:'' }}">
+            </div>
+
+            <!-- Botões de Ação -->
+            <div class="col-12 col-sm-6 col-lg-1 d-flex gap-2">
+                <button type="submit" class="btn btn-primary w-100 fw-bold" title="Aplicar Filtros">
+                    <i class="bi bi-funnel-fill"></i>
+                </button>
+                <a href="{% url 'auditoria' %}" class="btn btn-outline-secondary" title="Limpar Filtros">
+                    <i class="bi bi-arrow-counterclockwise"></i>
+                </a>
+            </div>
+        </form>
+    </div>
+
+    <!-- Tabela de Auditoria -->
+    <div class="card card-custom p-0 border-0 shadow-sm rounded-4 overflow-hidden">
+        <div class="card-header bg-white py-3 px-4 border-bottom d-flex justify-content-between align-items-center flex-wrap gap-2">
+            <div class="d-flex align-items-center gap-2">
+                <h5 class="fw-bold text-dark mb-0">
+                    <i class="bi bi-journal-text text-primary me-2"></i>Registros de Atividades
+                </h5>
+                <span class="badge bg-light text-secondary border">{{ logs|length }} resultado{{ logs|length|pluralize }}</span>
+            </div>
+            <small class="text-muted d-none d-md-inline">
+                <i class="bi bi-info-circle me-1"></i>Clique na linha para expandir e inspecionar os dados anteriores e posteriores.
+            </small>
+        </div>
+
+        <div class="table-responsive">
+            <table class="table table-custom table-hover align-middle mb-0">
+                <thead class="table-light">
+                    <tr>
+                        <th class="ps-4" style="min-width: 150px;">Data / Hora</th>
+                        <th style="min-width: 170px;">Ação</th>
+                        <th style="min-width: 140px;">Usuário</th>
+                        <th style="min-width: 130px;">Entidade</th>
+                        <th class="text-center" style="min-width: 80px;">ID</th>
+                        <th style="min-width: 220px;">Descrição</th>
+                        <th style="min-width: 160px;">Motivo</th>
+                        <th class="text-center pe-3" style="width: 50px;"><span class="visually-hidden">Detalhes</span></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for log in logs %}
+                    <tr class="align-middle" role="button" data-bs-toggle="collapse" data-bs-target="#log-detail-{{ log.id }}" aria-expanded="false" aria-controls="log-detail-{{ log.id }}" style="cursor: pointer;">
+                        <td class="ps-4 text-nowrap">
+                            <span class="fw-semibold text-dark">{{ log.data_hora|date:"d/m/Y" }}</span>
+                            <small class="d-block text-muted">{{ log.data_hora|date:"H:i:s" }}</small>
+                        </td>
+                        <td>
+                            {% if log.acao == 'VENDA_CRIADA' %}
+                                <span class="badge bg-success">{{ log.get_acao_display }}</span>
+                            {% elif log.acao == 'VENDA_CANCELADA' %}
+                                <span class="badge bg-danger">{{ log.get_acao_display }}</span>
+                            {% elif log.acao == 'DESCONTO_APLICADO' %}
+                                <span class="badge bg-warning text-dark">{{ log.get_acao_display }}</span>
+                            {% elif log.acao == 'CAIXA_ABERTO' or log.acao == 'CAIXA_FECHADO' %}
+                                <span class="badge bg-info text-dark">{{ log.get_acao_display }}</span>
+                            {% elif log.acao == 'SUPRIMENTO' or log.acao == 'SANGRIA' %}
+                                <span class="badge bg-secondary">{{ log.get_acao_display }}</span>
+                            {% elif log.acao == 'AJUSTE_ESTOQUE' %}
+                                <span class="badge bg-primary">{{ log.get_acao_display }}</span>
+                            {% else %}
+                                <span class="badge bg-dark">{{ log.get_acao_display }}</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            <div class="d-flex align-items-center gap-1 text-truncate" style="max-width: 160px;">
+                                <i class="bi bi-person text-muted"></i>
+                                <span class="fw-medium text-dark">{{ log.usuario.get_full_name|default:log.usuario.username|default:"Sistema" }}</span>
+                            </div>
+                        </td>
+                        <td>
+                            <span class="badge bg-light text-dark border">{{ log.entidade }}</span>
+                        </td>
+                        <td class="text-center font-monospace small">
+                            {{ log.entidade_id|default:"-" }}
+                        </td>
+                        <td>
+                            <span class="text-dark">{{ log.descricao }}</span>
+                        </td>
+                        <td>
+                            <small class="text-muted">{{ log.motivo|default:"-" }}</small>
+                        </td>
+                        <td class="text-center pe-3">
+                            <button type="button" class="btn btn-sm btn-light border p-1 rounded-circle" title="Ver detalhes" data-bs-toggle="collapse" data-bs-target="#log-detail-{{ log.id }}" aria-expanded="false">
+                                <i class="bi bi-chevron-down text-muted"></i>
+                            </button>
+                        </td>
+                    </tr>
+                    <!-- Linha Expansível com Detalhes (JSON / Alterações) -->
+                    <tr class="p-0">
+                        <td colspan="8" class="p-0 border-0">
+                            <div class="collapse" id="log-detail-{{ log.id }}">
+                                <div class="bg-light border-top border-bottom px-4 py-3">
+                                    <div class="row g-3">
+                                        <!-- Dados Anteriores -->
+                                        <div class="col-12 col-md-6">
+                                            <div class="card border bg-white h-100 shadow-sm">
+                                                <div class="card-header bg-danger-subtle py-2 px-3 border-bottom d-flex align-items-center gap-2">
+                                                    <i class="bi bi-arrow-left-circle-fill text-danger"></i>
+                                                    <strong class="text-danger-emphasis small">Dados Anteriores</strong>
+                                                </div>
+                                                <div class="card-body p-3">
+                                                    {% if log.dados_anteriores %}
+                                                        <div class="audit-data-box bg-light p-2 rounded border">
+                                                            {% for key, val in log.dados_anteriores.items %}
+                                                                <div class="py-1 border-bottom border-light text-break">
+                                                                    <strong class="text-secondary">{{ key }}:</strong>
+                                                                    <span class="text-dark">{{ val }}</span>
+                                                                </div>
+                                                            {% endfor %}
+                                                        </div>
+                                                    {% else %}
+                                                        <p class="text-muted small mb-0 fst-italic">
+                                                            <i class="bi bi-dash-circle me-1"></i>Nenhum dado anterior registrado.
+                                                        </p>
+                                                    {% endif %}
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        <!-- Dados Posteriores -->
+                                        <div class="col-12 col-md-6">
+                                            <div class="card border bg-white h-100 shadow-sm">
+                                                <div class="card-header bg-success-subtle py-2 px-3 border-bottom d-flex align-items-center gap-2">
+                                                    <i class="bi bi-arrow-right-circle-fill text-success"></i>
+                                                    <strong class="text-success-emphasis small">Dados Posteriores (Novos)</strong>
+                                                </div>
+                                                <div class="card-body p-3">
+                                                    {% if log.dados_posteriores %}
+                                                        <div class="audit-data-box bg-light p-2 rounded border">
+                                                            {% for key, val in log.dados_posteriores.items %}
+                                                                <div class="py-1 border-bottom border-light text-break">
+                                                                    <strong class="text-secondary">{{ key }}:</strong>
+                                                                    <span class="text-dark">{{ val }}</span>
+                                                                </div>
+                                                            {% endfor %}
+                                                        </div>
+                                                    {% else %}
+                                                        <p class="text-muted small mb-0 fst-italic">
+                                                            <i class="bi bi-dash-circle me-1"></i>Nenhum dado posterior registrado.
+                                                        </p>
+                                                    {% endif %}
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <!-- Rodapé do Log / Metadados -->
+                                    <div class="mt-3 pt-2 border-top d-flex flex-wrap gap-4 small text-muted">
+                                        <div>
+                                            <i class="bi bi-clock-history me-1 text-primary"></i>
+                                            <strong>Data/Hora Completa:</strong> {{ log.data_hora|date:"d/m/Y H:i:s" }}
+                                        </div>
+                                        {% if log.ip_address %}
+                                            <div>
+                                                <i class="bi bi-globe me-1 text-primary"></i>
+                                                <strong>Endereço IP:</strong> {{ log.ip_address }}
+                                            </div>
+                                        {% endif %}
+                                        {% if log.motivo %}
+                                            <div>
+                                                <i class="bi bi-chat-left-quote me-1 text-primary"></i>
+                                                <strong>Motivo Registrado:</strong> {{ log.motivo }}
+                                            </div>
+                                        {% endif %}
+                                    </div>
+                                </div>
+                            </div>
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <!-- Estado Vazio -->
+                    <tr>
+                        <td colspan="8" class="text-center py-5">
+                            <div class="text-muted">
+                                <i class="bi bi-shield-x display-4 d-block mb-3 text-secondary"></i>
+                                <h5 class="fw-bold text-dark">Nenhum registro de auditoria encontrado</h5>
+                                <p class="small mb-3">Não foram encontrados eventos para os filtros selecionados ou ainda não há logs cadastrados.</p>
+                                <a href="{% url 'auditoria' %}" class="btn btn-sm btn-outline-primary fw-semibold">
+                                    <i class="bi bi-arrow-counterclockwise me-1"></i>Limpar Filtros
+                                </a>
+                            </div>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}

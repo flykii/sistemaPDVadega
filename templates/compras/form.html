@@ -1,0 +1,186 @@
+{% extends 'base.html' %}
+
+{% block title %}Nova Compra / Entrada de Mercadoria - PDV Enterprise{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-3">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h2 class="fw-bold text-dark mb-0"><i class="bi bi-cart-plus-fill text-primary me-2"></i>Lançamento de Compra / Entrada</h2>
+            <p class="text-muted mb-0">Adicione os produtos recebidos. O estoque e os custos serão atualizados automaticamente.</p>
+        </div>
+        <a href="{% url 'compras_list' %}" class="btn btn-outline-secondary fw-bold">
+            <i class="bi bi-arrow-left me-1"></i> Voltar às Compras
+        </a>
+    </div>
+
+    <form method="post" id="form-compra">
+        {% csrf_token %}
+        <div class="row g-4">
+            <!-- Cabeçalho da Compra -->
+            <div class="col-12 col-lg-4">
+                <div class="card card-custom p-4 shadow-sm border-0 h-100">
+                    <h5 class="fw-bold text-dark mb-3"><i class="bi bi-file-earmark-text text-primary me-2"></i>Dados da Nota / Fornecedor</h5>
+
+                    <div class="mb-3">
+                        <label for="fornecedor_id" class="form-label fw-bold">Fornecedor</label>
+                        <select name="fornecedor_id" id="fornecedor_id" class="form-select form-select-lg">
+                            <option value="">-- Selecione o Fornecedor --</option>
+                            {% for f in fornecedores %}
+                                <option value="{{ f.id }}">{{ f.nome_fantasia|default:f.razao_social }}</option>
+                            {% endfor %}
+                        </select>
+                        <div class="mt-1 text-end">
+                            <a href="{% url 'fornecedor_novo' %}" target="_blank" class="small text-primary fw-bold text-decoration-none">+ Cadastrar Novo Fornecedor</a>
+                        </div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="numero_nota" class="form-label fw-bold">Número da Nota Fiscal / Pedido</label>
+                        <input type="text" name="numero_nota" id="numero_nota" class="form-control" placeholder="Ex: NF-e 12345">
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="observacoes" class="form-label fw-bold">Observações / Condições</label>
+                        <textarea name="observacoes" id="observacoes" class="form-control" rows="3" placeholder="Informações de pagamento, vencimento, entrega..."></textarea>
+                    </div>
+
+                    <div class="card bg-light p-3 border mt-auto">
+                        <span class="text-muted small text-uppercase fw-bold">Valor Total da Compra</span>
+                        <h2 class="fw-bold text-success mb-0" id="display-total-compra">R$ 0,00</h2>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Itens da Compra -->
+            <div class="col-12 col-lg-8">
+                <div class="card card-custom p-4 shadow-sm border-0">
+                    <div class="d-flex justify-content-between align-items-center mb-3">
+                        <h5 class="fw-bold text-dark mb-0"><i class="bi bi-box-seam text-primary me-2"></i>Itens da Compra</h5>
+                        <button type="button" class="btn btn-success btn-sm fw-bold" onclick="adicionarLinhaItem()">
+                            <i class="bi bi-plus-circle me-1"></i> Adicionar Item
+                        </button>
+                    </div>
+
+                    <div class="table-responsive">
+                        <table class="table table-bordered align-middle" id="tabela-itens">
+                            <thead class="table-light">
+                                <tr>
+                                    <th style="width: 45%;">Produto</th>
+                                    <th style="width: 20%;">Quantidade</th>
+                                    <th style="width: 20%;">Custo Unit. (R$)</th>
+                                    <th style="width: 15%;" class="text-end">Subtotal (R$)</th>
+                                    <th style="width: 50px;"></th>
+                                </tr>
+                            </thead>
+                            <tbody id="tbody-itens">
+                                <!-- Linhas dinâmicas -->
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <div class="mt-4 d-flex justify-content-end gap-2">
+                        <a href="{% url 'compras_list' %}" class="btn btn-secondary px-4 py-2 fw-bold">Cancelar</a>
+                        <button type="submit" class="btn btn-primary px-4 py-2 fw-bold fs-5 shadow">
+                            <i class="bi bi-check2-circle me-1"></i> Concluir e Dar Entrada no Estoque
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </form>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    const produtosDisponiveis = [
+        {% for p in produtos %}
+        {
+            id: {{ p.id }},
+            nome: "{{ p.nome|escapejs }}",
+            codigo_barras: "{{ p.codigo_barras|escapejs }}",
+            custo: {{ p.preco_custo|stringformat:".2f" }},
+            unidade: "{{ p.unidade_medida }}"
+        },
+        {% endfor %}
+    ];
+
+    function adicionarLinhaItem(prodId = null, qtd = 1, custo = null) {
+        const tbody = document.getElementById('tbody-itens');
+        const row = document.createElement('tr');
+
+        let options = '<option value="">-- Selecione o Produto --</option>';
+        produtosDisponiveis.forEach(p => {
+            const sel = (prodId && p.id === prodId) ? 'selected' : '';
+            options += `<option value="${p.id}" data-custo="${p.custo}" ${sel}>${p.nome} [${p.codigo_barras}]</option>`;
+        });
+
+        row.innerHTML = `
+            <td>
+                <select name="produto_id[]" class="form-select item-prod" required onchange="aoSelecionarProduto(this)">
+                    ${options}
+                </select>
+            </td>
+            <td>
+                <input type="number" step="0.001" min="0.001" name="quantidade[]" class="form-control item-qtd text-center" value="${qtd}" required oninput="recalcularTotais()">
+            </td>
+            <td>
+                <input type="number" step="0.01" min="0" name="preco_custo[]" class="form-control item-custo text-end" value="${custo !== null ? custo : '0.00'}" required oninput="recalcularTotais()">
+            </td>
+            <td class="text-end fw-bold item-subtotal text-success">
+                R$ 0,00
+            </td>
+            <td class="text-center">
+                <button type="button" class="btn btn-outline-danger btn-sm py-1 px-2" onclick="removerLinha(this)">
+                    <i class="bi bi-trash"></i>
+                </button>
+            </td>
+        `;
+
+        tbody.appendChild(row);
+        recalcularTotais();
+    }
+
+    function removerLinha(btn) {
+        const tbody = document.getElementById('tbody-itens');
+        if (tbody.children.length > 1) {
+            btn.closest('tr').remove();
+            recalcularTotais();
+        } else {
+            alert('A compra precisa ter pelo menos um item.');
+        }
+    }
+
+    function aoSelecionarProduto(select) {
+        const selectedOpt = select.options[select.selectedIndex];
+        const custo = selectedOpt.getAttribute('data-custo') || '0.00';
+        const tr = select.closest('tr');
+        const inputCusto = tr.querySelector('.item-custo');
+        if (inputCusto && (!inputCusto.value || parseFloat(inputCusto.value) === 0)) {
+            inputCusto.value = parseFloat(custo).toFixed(2);
+        }
+        recalcularTotais();
+    }
+
+    function recalcularTotais() {
+        let total = 0;
+        const rows = document.querySelectorAll('#tbody-itens tr');
+
+        rows.forEach(tr => {
+            const qtd = parseFloat(tr.querySelector('.item-qtd').value) || 0;
+            const custo = parseFloat(tr.querySelector('.item-custo').value) || 0;
+            const subtotal = qtd * custo;
+            total += subtotal;
+
+            tr.querySelector('.item-subtotal').innerText = `R$ ${subtotal.toFixed(2).replace('.', ',')}`;
+        });
+
+        document.getElementById('display-total-compra').innerText = `R$ ${total.toFixed(2).replace('.', ',')}`;
+    }
+
+    document.addEventListener("DOMContentLoaded", function() {
+        adicionarLinhaItem();
+    });
+</script>
+{% endblock %}

@@ -1,0 +1,63 @@
+{% extends 'base.html' %}
+
+{% block title %}Vendas por Caixa - PDV Enterprise{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-3">
+    <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
+        <div>
+            <h2 class="fw-bold text-dark mb-0"><i class="bi bi-calculator-fill text-primary me-2"></i>Desempenho por Ponto de Venda / Caixa</h2>
+            <p class="text-muted mb-0">Total de vendas e faturamento detalhado por terminal de caixa físico.</p>
+        </div>
+        <div class="d-flex gap-2 d-print-none">
+            <button onclick="window.print()" class="btn btn-outline-dark fw-bold">
+                <i class="bi bi-printer me-1"></i> Imprimir
+            </button>
+        </div>
+    </div>
+
+    <!-- Filtro de Período -->
+    {% include 'relatorios/filtro_periodo.html' %}
+
+    <!-- Tabela -->
+    <div class="card card-custom p-0 border-0 shadow-sm rounded-4 overflow-hidden">
+        <div class="table-responsive">
+            <table class="table table-hover align-middle mb-0">
+                <thead class="table-light">
+                    <tr>
+                        <th class="ps-4">Caixa / Terminal</th>
+                        <th class="text-center">Vendas</th>
+                        <th class="text-end">Dinheiro</th>
+                        <th class="text-end">PIX</th>
+                        <th class="text-end">Débito</th>
+                        <th class="text-end">Crédito</th>
+                        <th class="text-end">Crediário</th>
+                        <th class="text-end pe-4">Total Faturado</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for c in caixas %}
+                    <tr>
+                        <td class="ps-4">
+                            <strong class="text-dark">{{ c.caixa.nome }}</strong>
+                            <small class="d-block text-muted">Cód: {{ c.caixa.codigo_identificador }}</small>
+                        </td>
+                        <td class="text-center fw-bold">{{ c.qtd_vendas }}</td>
+                        <td class="text-end text-success">R$ {{ c.dinheiro|floatformat:2 }}</td>
+                        <td class="text-end text-primary">R$ {{ c.pix|floatformat:2 }}</td>
+                        <td class="text-end">R$ {{ c.debito|floatformat:2 }}</td>
+                        <td class="text-end">R$ {{ c.credito|floatformat:2 }}</td>
+                        <td class="text-end text-warning">R$ {{ c.crediario|floatformat:2 }}</td>
+                        <td class="text-end pe-4 fw-bold text-dark fs-6">R$ {{ c.faturamento|floatformat:2 }}</td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="8" class="text-center text-muted py-5">Nenhum caixa com movimentação no período.</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}

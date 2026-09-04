@@ -1,0 +1,53 @@
+{% extends 'base.html' %}
+
+{% block title %}Fornecedores - PDV Enterprise{% endblock %}
+
+{% block content %}
+<div class="row mb-4">
+    <div class="col-12 d-flex justify-content-between align-items-center">
+        <div>
+            <h2 class="fw-bold text-dark mb-0"><i class="bi bi-truck text-primary me-2"></i>Gestão de Fornecedores</h2>
+            <p class="text-muted mb-0">Cadastro e contatos de fornecedores parceiros</p>
+        </div>
+        <a href="{% url 'fornecedor_novo' %}" class="btn btn-primary fw-bold shadow-sm">
+            <i class="bi bi-plus-lg me-1"></i> Novo Fornecedor
+        </a>
+    </div>
+</div>
+
+<div class="card card-custom p-3">
+    <div class="table-responsive">
+        <table class="table table-hover table-custom align-middle mb-0">
+            <thead>
+                <tr>
+                    <th>Razão Social / Fantasia</th>
+                    <th>CNPJ</th>
+                    <th>Telefone</th>
+                    <th>E-mail</th>
+                    <th class="text-end">Ações</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for forn in fornecedores %}
+                <tr>
+                    <td>
+                        <strong class="text-dark d-block">{{ forn.nome_fantasia|default:forn.razao_social }}</strong>
+                        <small class="text-muted">{{ forn.razao_social }}</small>
+                    </td>
+                    <td>{{ forn.cnpj|default:"-" }}</td>
+                    <td>{{ forn.telefone|default:"-" }}</td>
+                    <td>{{ forn.email|default:"-" }}</td>
+                    <td class="text-end">
+                        <a href="{% url 'fornecedor_editar' forn.id %}" class="btn btn-sm btn-outline-primary"><i class="bi bi-pencil"></i></a>
+                    </td>
+                </tr>
+                {% empty %}
+                <tr>
+                    <td colspan="5" class="text-center text-muted py-4">Nenhum fornecedor cadastrado.</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}

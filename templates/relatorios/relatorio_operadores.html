@@ -1,0 +1,56 @@
+{% extends 'base.html' %}
+
+{% block title %}Vendas por Operador - PDV Enterprise{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-3">
+    <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
+        <div>
+            <h2 class="fw-bold text-dark mb-0"><i class="bi bi-person-badge-fill text-primary me-2"></i>Desempenho por Operador</h2>
+            <p class="text-muted mb-0">Volume de vendas, ticket médio e descontos concedidos por cada operador de caixa.</p>
+        </div>
+        <div class="d-flex gap-2 d-print-none">
+            <button onclick="window.print()" class="btn btn-outline-dark fw-bold">
+                <i class="bi bi-printer me-1"></i> Imprimir
+            </button>
+        </div>
+    </div>
+
+    <!-- Filtro de Período -->
+    {% include 'relatorios/filtro_periodo.html' %}
+
+    <!-- Tabela -->
+    <div class="card card-custom p-0 border-0 shadow-sm rounded-4 overflow-hidden">
+        <div class="table-responsive">
+            <table class="table table-hover align-middle mb-0">
+                <thead class="table-light">
+                    <tr>
+                        <th class="ps-4">Operador</th>
+                        <th class="text-center">Quantidade de Vendas</th>
+                        <th class="text-end">Ticket Médio</th>
+                        <th class="text-end">Descontos Concedidos</th>
+                        <th class="text-end pe-4">Faturamento Total</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for op in operadores %}
+                    <tr>
+                        <td class="ps-4">
+                            <strong class="text-dark">{{ op.nome }}</strong>
+                        </td>
+                        <td class="text-center fw-bold">{{ op.qtd_vendas }}</td>
+                        <td class="text-end">R$ {{ op.ticket_medio|floatformat:2 }}</td>
+                        <td class="text-end text-danger">{% if op.descontos > 0 %}R$ {{ op.descontos|floatformat:2 }}{% else %}-{% endif %}</td>
+                        <td class="text-end pe-4 fw-bold text-success fs-6">R$ {{ op.faturamento|floatformat:2 }}</td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="5" class="text-center text-muted py-5">Nenhum operador com vendas no período selecionado.</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}

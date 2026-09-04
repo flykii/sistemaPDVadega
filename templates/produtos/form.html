@@ -1,0 +1,202 @@
+{% extends 'base.html' %}
+
+{% block title %}{% if produto %}Editar Produto{% else %}Novo Produto{% endif %} - PDV Enterprise{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center my-3">
+    <div class="col-12 col-xl-9">
+        <div class="card card-custom p-4 shadow-sm border-0">
+            <div class="d-flex justify-content-between align-items-center mb-4 pb-2 border-bottom">
+                <div>
+                    <h3 class="fw-bold text-dark mb-0">
+                        <i class="bi bi-box-seam text-primary me-2"></i>
+                        {% if produto %}Editar Produto: {{ produto.nome }}{% else %}Cadastrar Novo Produto{% endif %}
+                    </h3>
+                    <p class="text-muted mb-0">Preencha os dados cadastrais, fiscais e estoque do produto.</p>
+                </div>
+                <a href="{% url 'produtos_list' %}" class="btn btn-outline-secondary btn-sm">
+                    <i class="bi bi-arrow-left me-1"></i> Voltar à Lista
+                </a>
+            </div>
+
+            <form method="post" enctype="multipart/form-data">
+                {% csrf_token %}
+
+                <!-- Dados Básicos -->
+                <div class="row g-3 mb-3">
+                    <div class="col-12 col-md-8">
+                        <label for="nome" class="form-label fw-bold">Nome do Produto *</label>
+                        <input type="text" name="nome" id="nome" class="form-control form-control-lg" value="{{ produto.nome|default:'' }}" placeholder="Ex: Cerveja Heineken 350ml Lata" required autofocus>
+                    </div>
+
+                    <div class="col-12 col-md-4">
+                        <label for="codigo_barras" class="form-label fw-bold">Código de Barras (EAN) *</label>
+                        <div class="input-group input-group-lg">
+                            <span class="input-group-text"><i class="bi bi-barcode"></i></span>
+                            <input type="text" name="codigo_barras" id="codigo_barras" class="form-control" value="{{ produto.codigo_barras|default:'' }}" placeholder="Bipe ou digite" required>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="row g-3 mb-3">
+                    <div class="col-12 col-md-4">
+                        <label for="sku" class="form-label fw-bold">SKU / Código Interno</label>
+                        <input type="text" name="sku" id="sku" class="form-control" value="{{ produto.sku|default:'' }}" placeholder="Ex: BEB-001">
+                    </div>
+
+                    <div class="col-12 col-md-4">
+                        <label for="categoria_id" class="form-label fw-bold">Categoria</label>
+                        <select name="categoria_id" id="categoria_id" class="form-select">
+                            <option value="">-- Sem Categoria --</option>
+                            {% for cat in categorias %}
+                                <option value="{{ cat.id }}" {% if produto and produto.categoria_id == cat.id %}selected{% endif %}>{{ cat.nome }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+
+                    <div class="col-12 col-md-4">
+                        <label for="fornecedor_id" class="form-label fw-bold">Fornecedor Principal</label>
+                        <select name="fornecedor_id" id="fornecedor_id" class="form-select">
+                            <option value="">-- Selecione um Fornecedor --</option>
+                            {% for forn in fornecedores %}
+                                <option value="{{ forn.id }}" {% if produto and produto.fornecedor_principal_id == forn.id %}selected{% endif %}>
+                                    {{ forn.nome_fantasia|default:forn.razao_social }}
+                                </option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                </div>
+
+                <div class="row g-3 mb-4">
+                    <div class="col-12 col-md-4">
+                        <label for="unidade_medida" class="form-label fw-bold">Unidade de Medida</label>
+                        <select name="unidade_medida" id="unidade_medida" class="form-select">
+                            <option value="UN" {% if produto and produto.unidade_medida == 'UN' %}selected{% endif %}>UN (Unidade)</option>
+                            <option value="KG" {% if produto and produto.unidade_medida == 'KG' %}selected{% endif %}>KG (Quilograma)</option>
+                            <option value="G" {% if produto and produto.unidade_medida == 'G' %}selected{% endif %}>G (Grama)</option>
+                            <option value="L" {% if produto and produto.unidade_medida == 'L' %}selected{% endif %}>L (Litro)</option>
+                            <option value="ML" {% if produto and produto.unidade_medida == 'ML' %}selected{% endif %}>ML (Mililitro)</option>
+                            <option value="LT" {% if produto and produto.unidade_medida == 'LT' %}selected{% endif %}>LT (Lata)</option>
+                            <option value="CX" {% if produto and produto.unidade_medida == 'CX' %}selected{% endif %}>CX (Caixa)</option>
+                            <option value="PCT" {% if produto and produto.unidade_medida == 'PCT' %}selected{% endif %}>PCT (Pacote)</option>
+                            <option value="FD" {% if produto and produto.unidade_medida == 'FD' %}selected{% endif %}>FD (Fardo)</option>
+                            <option value="M2" {% if produto and produto.unidade_medida == 'M2' %}selected{% endif %}>M² (Metro Quadrado)</option>
+                        </select>
+                    </div>
+
+                    <div class="col-12 col-md-8">
+                        <label for="descricao" class="form-label fw-bold">Descrição / Detalhes Adicionais</label>
+                        <input type="text" name="descricao" id="descricao" class="form-control" value="{{ produto.descricao|default:'' }}" placeholder="Informações de sabor, embalagem, marca...">
+                    </div>
+                </div>
+
+                <!-- Painel de Precificação & Margem de Lucro -->
+                <div class="card p-3 bg-light border mb-4 rounded-3">
+                    <h5 class="fw-bold text-primary mb-3"><i class="bi bi-calculator me-2"></i>Precificação & Margem de Lucro</h5>
+                    
+                    <div class="row g-3">
+                        <div class="col-12 col-md-4">
+                            <label for="preco_custo" class="form-label fw-bold">Preço de Custo (R$)</label>
+                            <input type="number" step="0.01" min="0" name="preco_custo" id="preco_custo" class="form-control form-control-lg fw-bold" value="{{ produto.preco_custo|default:'0.00' }}" oninput="calcularPrecoVenda()">
+                        </div>
+
+                        <div class="col-12 col-md-4">
+                            <label for="margem_lucro" class="form-label fw-bold">Margem Lucro (%)</label>
+                            <input type="number" step="0.01" min="0" max="99.99" name="margem_lucro" id="margem_lucro" class="form-control form-control-lg fw-bold text-info" value="{{ produto.margem_lucro|default:'30.00' }}" oninput="calcularPrecoVenda()">
+                        </div>
+
+                        <div class="col-12 col-md-4">
+                            <label for="preco_venda" class="form-label fw-bold">Preço de Venda (R$) *</label>
+                            <input type="number" step="0.01" min="0" name="preco_venda" id="preco_venda" class="form-control form-control-lg fw-bold text-success fs-4" value="{{ produto.preco_venda|default:'0.00' }}" oninput="calcularMargem()">
+                        </div>
+                    </div>
+
+                    <div class="alert alert-success mt-3 mb-0 d-flex justify-content-between align-items-center">
+                        <span>Fórmula Aplicada: <strong>Custo / (1 - (Margem/100))</strong></span>
+                        <span class="fs-6">Lucro Bruto Unitário: <strong id="display-lucro-real" class="fs-5 text-success">R$ 0,00</strong></span>
+                    </div>
+                </div>
+
+                <!-- Controle de Estoque -->
+                <div class="card p-3 border mb-4 rounded-3">
+                    <h5 class="fw-bold text-dark mb-3"><i class="bi bi-boxes me-2"></i>Controle de Estoque</h5>
+
+                    <div class="row g-3 mb-3">
+                        <div class="col-12 col-md-4">
+                            <label for="estoque_atual" class="form-label fw-bold">Estoque Inicial / Atual</label>
+                            <input type="number" step="0.001" min="0" name="estoque_atual" id="estoque_atual" class="form-control fw-bold fs-5 text-primary" value="{{ produto.estoque_atual|default:'0.000' }}">
+                        </div>
+
+                        <div class="col-12 col-md-4">
+                            <label for="estoque_minimo" class="form-label fw-bold">Estoque Mínimo (Alerta)</label>
+                            <input type="number" step="0.001" min="0" name="estoque_minimo" id="estoque_minimo" class="form-control" value="{{ produto.estoque_minimo|default:'5.000' }}">
+                        </div>
+
+                        <div class="col-12 col-md-4">
+                            <label for="estoque_maximo" class="form-label fw-bold">Estoque Máximo (Capacidade)</label>
+                            <input type="number" step="0.001" min="0" name="estoque_maximo" id="estoque_maximo" class="form-control" value="{{ produto.estoque_maximo|default:'1000.000' }}">
+                        </div>
+                    </div>
+
+                    <div class="row g-3">
+                        <div class="col-12 col-md-6">
+                            <div class="form-check form-switch pt-2">
+                                <input class="form-check-input" type="checkbox" name="controle_estoque" id="controle_estoque" {% if not produto or produto.controle_estoque %}checked{% endif %}>
+                                <label class="form-check-label fw-bold" for="controle_estoque">Ativar Controle Rígido de Estoque (Impede Venda sem Saldo)</label>
+                            </div>
+                        </div>
+                        <div class="col-12 col-md-6">
+                            <div class="form-check form-switch pt-2">
+                                <input class="form-check-input" type="checkbox" name="ativo" id="ativo" {% if not produto or produto.ativo %}checked{% endif %}>
+                                <label class="form-check-label fw-bold" for="ativo">Produto Ativo (Disponível no PDV)</label>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="d-flex gap-2">
+                    <a href="{% url 'produtos_list' %}" class="btn btn-secondary w-50 py-3 fw-bold">Cancelar</a>
+                    <button type="submit" class="btn btn-primary w-50 py-3 fw-bold fs-5 shadow">
+                        <i class="bi bi-check-circle-fill me-1"></i> Salvar Produto
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    function calcularPrecoVenda() {
+        const custo = parseFloat(document.getElementById('preco_custo').value) || 0;
+        const margem = parseFloat(document.getElementById('margem_lucro').value) || 0;
+
+        if (custo > 0 && margem >= 0 && margem < 100) {
+            const fator = 1 - (margem / 100);
+            const venda = custo / fator;
+            document.getElementById('preco_venda').value = venda.toFixed(2);
+            
+            const lucro = venda - custo;
+            document.getElementById('display-lucro-real').innerText = `R$ ${lucro.toFixed(2).replace('.', ',')}`;
+        }
+    }
+
+    function calcularMargem() {
+        const custo = parseFloat(document.getElementById('preco_custo').value) || 0;
+        const venda = parseFloat(document.getElementById('preco_venda').value) || 0;
+
+        if (custo > 0 && venda > custo) {
+            const margem = ((venda - custo) / venda) * 100;
+            document.getElementById('margem_lucro').value = margem.toFixed(2);
+
+            const lucro = venda - custo;
+            document.getElementById('display-lucro-real').innerText = `R$ ${lucro.toFixed(2).replace('.', ',')}`;
+        }
+    }
+
+    document.addEventListener("DOMContentLoaded", function() {
+        calcularPrecoVenda();
+    });
+</script>
+{% endblock %}

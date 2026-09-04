@@ -1,0 +1,75 @@
+{% extends 'base.html' %}
+
+{% block title %}Fornecedores - PDV Enterprise{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-3">
+    <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
+        <div>
+            <h2 class="fw-bold text-dark mb-0"><i class="bi bi-truck text-primary me-2"></i>Cadastro de Fornecedores</h2>
+            <p class="text-muted mb-0">Gestão de parceiros comerciais, contatos e distribuidores.</p>
+        </div>
+        <div class="d-flex gap-2">
+            <a href="{% url 'compras_list' %}" class="btn btn-outline-secondary fw-bold">
+                <i class="bi bi-arrow-left me-1"></i> Compras
+            </a>
+            <a href="{% url 'fornecedor_novo' %}" class="btn btn-primary fw-bold shadow-sm">
+                <i class="bi bi-plus-lg me-1"></i> Novo Fornecedor
+            </a>
+        </div>
+    </div>
+
+    <div class="card card-custom p-0 border-0 shadow-sm rounded-4 overflow-hidden mb-4">
+        <div class="table-responsive">
+            <table class="table table-hover align-middle mb-0">
+                <thead class="table-light">
+                    <tr>
+                        <th class="ps-4">Nome Fantasia / Razão Social</th>
+                        <th>CNPJ</th>
+                        <th>Telefone</th>
+                        <th>E-mail</th>
+                        <th>Contato</th>
+                        <th class="text-center">Status</th>
+                        <th class="text-end pe-4">Ações</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for f in fornecedores %}
+                    <tr>
+                        <td class="ps-4">
+                            <strong class="text-dark fs-6">{{ f.nome_fantasia|default:f.razao_social }}</strong>
+                            {% if f.razao_social and f.nome_fantasia != f.razao_social %}
+                                <small class="d-block text-muted">{{ f.razao_social }}</small>
+                            {% endif %}
+                        </td>
+                        <td>{{ f.cnpj|default:"-" }}</td>
+                        <td>{{ f.telefone|default:"-" }}</td>
+                        <td>{{ f.email|default:"-" }}</td>
+                        <td>{{ f.contato_nome|default:"-" }}</td>
+                        <td class="text-center">
+                            {% if f.ativo %}
+                                <span class="badge bg-success">Ativo</span>
+                            {% else %}
+                                <span class="badge bg-secondary">Inativo</span>
+                            {% endif %}
+                        </td>
+                        <td class="text-end pe-4">
+                            <a href="{% url 'fornecedor_editar' f.id %}" class="btn btn-sm btn-outline-primary fw-bold">
+                                <i class="bi bi-pencil me-1"></i> Editar
+                            </a>
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="7" class="text-center text-muted py-5">
+                            <i class="bi bi-truck fs-1 d-block mb-2 text-muted"></i>
+                            Nenhum fornecedor cadastrado.
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}

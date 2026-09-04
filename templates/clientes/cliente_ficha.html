@@ -1,0 +1,243 @@
+{% extends 'base.html' %}
+
+{% block title %}Ficha Financeira: {{ cliente.nome }} - PDV Enterprise{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-3">
+    <!-- Cabeçalho -->
+    <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
+        <div>
+            <a href="{% url 'clientes_list' %}" class="btn btn-outline-secondary btn-sm mb-2">
+                <i class="bi bi-arrow-left me-1"></i> Voltar à Lista de Clientes
+            </a>
+            <h2 class="fw-bold text-dark mb-0">
+                <i class="bi bi-person-circle text-primary me-2"></i>Ficha Financeira: {{ cliente.nome }}
+            </h2>
+            <p class="text-muted mb-0">Extrato detalhado de crediário, histórico de compras e pagamentos recebidos.</p>
+        </div>
+        <div class="d-flex gap-2">
+            <a href="{% url 'cliente_editar' cliente.id %}" class="btn btn-outline-primary fw-bold">
+                <i class="bi bi-pencil me-1"></i> Editar Dados
+            </a>
+            <button onclick="window.print()" class="btn btn-outline-dark fw-bold">
+                <i class="bi bi-printer me-1"></i> Imprimir Extrato
+            </button>
+        </div>
+    </div>
+
+    <!-- Cards de Limite & Saldo Devedor -->
+    <div class="row g-3 mb-4">
+        <div class="col-12 col-md-3">
+            <div class="card p-3 border-0 shadow-sm border-start border-info border-4 bg-light">
+                <span class="text-info small text-uppercase fw-bold">Limite de Crédito Total</span>
+                <h3 class="fw-bold text-dark mb-0">R$ {{ cliente.limite_credito|floatformat:2 }}</h3>
+            </div>
+        </div>
+        <div class="col-12 col-md-3">
+            <div class="card p-3 border-0 shadow-sm border-start border-danger border-4 bg-light">
+                <span class="text-danger small text-uppercase fw-bold">Saldo Devedor Atual</span>
+                <h3 class="fw-bold text-danger mb-0">R$ {{ cliente.saldo_devedor|floatformat:2 }}</h3>
+            </div>
+        </div>
+        <div class="col-12 col-md-3">
+            <div class="card p-3 border-0 shadow-sm border-start border-success border-4 bg-light">
+                <span class="text-success small text-uppercase fw-bold">Crédito Disponível</span>
+                <h3 class="fw-bold text-success mb-0">R$ {{ cliente.credito_disponivel|floatformat:2 }}</h3>
+            </div>
+        </div>
+        <div class="col-12 col-md-3">
+            <div class="card p-3 border-0 shadow-sm border-start border-primary border-4 bg-light">
+                <span class="text-primary small text-uppercase fw-bold">Utilização do Limite</span>
+                <div class="d-flex align-items-center justify-content-between mt-1">
+                    <h3 class="fw-bold text-dark mb-0">{{ cliente.percentual_utilizado|floatformat:1 }}%</h3>
+                    <div class="progress w-50" style="height: 10px;">
+                        <div class="progress-bar {% if cliente.percentual_utilizado > 85 %}bg-danger{% elif cliente.percentual_utilizado > 50 %}bg-warning{% else %}bg-success{% endif %}" style="width: {{ cliente.percentual_utilizado }}%;"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Navegação por Abas -->
+    <ul class="nav nav-tabs mb-4" id="clienteTab" role="tablist">
+        <li class="nav-item">
+            <button class="nav-link active fw-bold" id="contas-tab" data-bs-toggle="tab" data-bs-target="#contas" type="button" role="tab">
+                <i class="bi bi-wallet2 me-1"></i> Contas a Receber (Dívidas)
+            </button>
+        </li>
+        <li class="nav-item">
+            <button class="nav-link fw-bold" id="pagamentos-tab" data-bs-toggle="tab" data-bs-target="#pagamentos" type="button" role="tab">
+                <i class="bi bi-check2-all me-1"></i> Histórico de Pagamentos
+            </button>
+        </li>
+        <li class="nav-item">
+            <button class="nav-link fw-bold" id="vendas-tab" data-bs-toggle="tab" data-bs-target="#vendas" type="button" role="tab">
+                <i class="bi bi-bag-check me-1"></i> Todas as Compras do Cliente
+            </button>
+        </li>
+    </ul>
+
+    <div class="tab-content" id="clienteTabContent">
+        <!-- ABA 1: CONTAS A RECEBER -->
+        <div class="tab-pane fade show active" id="contas" role="tabpanel">
+            <div class="card card-custom p-0 border-0 shadow-sm rounded-4 overflow-hidden mb-4">
+                <div class="table-responsive">
+                    <table class="table table-hover align-middle mb-0">
+                        <thead class="table-light">
+                            <tr>
+                                <th class="ps-4">Código / Vencimento</th>
+                                <th>Venda de Origem</th>
+                                <th>Descrição</th>
+                                <th class="text-end">Valor Original</th>
+                                <th class="text-end">Valor Pago</th>
+                                <th class="text-end">Saldo Devedor</th>
+                                <th class="text-center">Status</th>
+                                <th class="text-end pe-4">Ação</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for c in contas %}
+                            <tr class="{% if c.is_vencida %}table-danger-subtle{% elif c.saldo == 0 %}table-light text-muted{% endif %}">
+                                <td class="ps-4">
+                                    <strong class="text-dark">#{{ c.id }}</strong>
+                                    <small class="d-block {% if c.is_vencida %}text-danger fw-bold{% else %}text-muted{% endif %}">
+                                        Venc: {{ c.data_vencimento|date:"d/m/Y" }}
+                                    </small>
+                                </td>
+                                <td>
+                                    {% if c.venda %}
+                                        <a href="{% url 'venda_detalhe' c.venda.id %}" class="fw-bold text-decoration-none">
+                                            {{ c.venda.codigo_venda }}
+                                        </a>
+                                    {% else %}
+                                        <span class="text-muted">-</span>
+                                    {% endif %}
+                                </td>
+                                <td>{{ c.descricao }}</td>
+                                <td class="text-end">R$ {{ c.valor_original|floatformat:2 }}</td>
+                                <td class="text-end text-success">R$ {{ c.valor_pago|floatformat:2 }}</td>
+                                <td class="text-end fw-bold {% if c.saldo > 0 %}text-danger fs-6{% else %}text-muted{% endif %}">
+                                    R$ {{ c.saldo|floatformat:2 }}
+                                </td>
+                                <td class="text-center">
+                                    {% if c.status == 'QUITADA' or c.saldo == 0 %}
+                                        <span class="badge bg-success">Quitada</span>
+                                    {% elif c.is_vencida %}
+                                        <span class="badge bg-danger">Vencida</span>
+                                    {% elif c.valor_pago > 0 %}
+                                        <span class="badge bg-warning text-dark">Parcial</span>
+                                    {% else %}
+                                        <span class="badge bg-primary">Aberta</span>
+                                    {% endif %}
+                                </td>
+                                <td class="text-end pe-4">
+                                    {% if c.saldo > 0 %}
+                                        <a href="{% url 'receber_conta_pagar' c.id %}" class="btn btn-sm btn-success fw-bold">
+                                            <i class="bi bi-cash me-1"></i> Receber
+                                        </a>
+                                    {% else %}
+                                        <span class="text-success small fw-bold"><i class="bi bi-check-circle-fill me-1"></i>Liquidada</span>
+                                    {% endif %}
+                                </td>
+                            </tr>
+                            {% empty %}
+                            <tr>
+                                <td colspan="8" class="text-center text-muted py-5">Nenhuma conta a receber vinculada a este cliente.</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- ABA 2: HISTÓRICO DE PAGAMENTOS -->
+        <div class="tab-pane fade" id="pagamentos" role="tabpanel">
+            <div class="card card-custom p-0 border-0 shadow-sm rounded-4 overflow-hidden mb-4">
+                <div class="table-responsive">
+                    <table class="table table-hover align-middle mb-0">
+                        <thead class="table-light">
+                            <tr>
+                                <th class="ps-4">Data / Hora</th>
+                                <th>Conta Vinculada</th>
+                                <th>Forma de Pagamento</th>
+                                <th class="text-end">Valor Pago</th>
+                                <th class="text-end">Troco</th>
+                                <th class="text-end">Valor Efetivo</th>
+                                <th>Recebido por</th>
+                                <th class="pe-4">Observação</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for p in pagamentos_recebidos %}
+                            <tr>
+                                <td class="ps-4"><small class="fw-bold">{{ p.data_hora|date:"d/m/Y H:i" }}</small></td>
+                                <td><a href="{% url 'contas_receber_list' %}?q={{ p.conta_receber_id }}" class="fw-bold">Conta #{{ p.conta_receber_id }}</a></td>
+                                <td><span class="badge bg-light text-dark border">{{ p.get_forma_pagamento_display }}</span></td>
+                                <td class="text-end">R$ {{ p.valor|floatformat:2 }}</td>
+                                <td class="text-end text-muted">R$ {{ p.troco|floatformat:2 }}</td>
+                                <td class="text-end fw-bold text-success fs-6">R$ {{ p.valor_efetivo|floatformat:2 }}</td>
+                                <td><small>{{ p.usuario.get_full_name|default:p.usuario.username }}</small></td>
+                                <td class="pe-4"><small class="text-muted">{{ p.observacao|default:"-" }}</small></td>
+                            </tr>
+                            {% empty %}
+                            <tr>
+                                <td colspan="8" class="text-center text-muted py-5">Nenhum pagamento registrado até o momento.</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- ABA 3: VENDAS DO CLIENTE -->
+        <div class="tab-pane fade" id="vendas" role="tabpanel">
+            <div class="card card-custom p-0 border-0 shadow-sm rounded-4 overflow-hidden mb-4">
+                <div class="table-responsive">
+                    <table class="table table-hover align-middle mb-0">
+                        <thead class="table-light">
+                            <tr>
+                                <th class="ps-4">Código da Venda</th>
+                                <th>Data / Hora</th>
+                                <th class="text-center">Qtd Itens</th>
+                                <th class="text-end">Total da Venda</th>
+                                <th>Formas de Pagamento</th>
+                                <th class="text-center">Status</th>
+                                <th class="text-end pe-4">Ação</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for v in vendas %}
+                            <tr>
+                                <td class="ps-4"><strong class="text-primary">{{ v.codigo_venda }}</strong></td>
+                                <td>{{ v.data_hora|date:"d/m/Y H:i" }}</td>
+                                <td class="text-center"><span class="badge bg-light text-dark border">{{ v.itens.count }} itens</span></td>
+                                <td class="text-end fw-bold text-dark fs-6">R$ {{ v.total|floatformat:2 }}</td>
+                                <td>
+                                    {% for pag in v.pagamentos.all %}
+                                        <span class="badge {% if pag.forma_pagamento == 'CREDIARIO' %}bg-warning text-dark{% else %}bg-info text-dark{% endif %} me-1">
+                                            {{ pag.get_forma_pagamento_display }} (R$ {{ pag.valor_utilizado|floatformat:2 }})
+                                        </span>
+                                    {% endfor %}
+                                </td>
+                                <td class="text-center"><span class="badge bg-success">Concluída</span></td>
+                                <td class="text-end pe-4">
+                                    <a href="{% url 'venda_detalhe' v.id %}" class="btn btn-sm btn-outline-primary fw-bold">
+                                        <i class="bi bi-eye me-1"></i> Detalhes
+                                    </a>
+                                </td>
+                            </tr>
+                            {% empty %}
+                            <tr>
+                                <td colspan="7" class="text-center text-muted py-5">Nenhuma compra registrada para este cliente.</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

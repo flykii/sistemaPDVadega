@@ -1,0 +1,162 @@
+{% extends 'base.html' %}
+
+{% block title %}Fechamento de Caixa - PDV Enterprise{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center my-4">
+    <div class="col-12 col-lg-8">
+        <div class="card card-custom p-4 shadow-lg border-0">
+            <div class="d-flex justify-content-between align-items-center mb-3 pb-2 border-bottom">
+                <div>
+                    <h3 class="fw-bold text-dark mb-0"><i class="bi bi-lock-fill text-danger me-2"></i>Fechamento de Caixa</h3>
+                    <p class="text-muted mb-0">Conferência física dos valores da sessão #{{ sessao.id }} — <strong>{{ sessao.caixa.nome }}</strong></p>
+                </div>
+                <span class="badge bg-danger fs-6"><i class="bi bi-person-fill me-1"></i> {{ sessao.nome_operador_exibicao }}</span>
+            </div>
+
+            <!-- Resumo Financeiro da Gaveta (Dinheiro Físico) -->
+            <div class="card bg-light border p-3 mb-4">
+                <h6 class="fw-bold text-dark text-uppercase small mb-3"><i class="bi bi-cash-stack text-success me-1"></i> Composição do Dinheiro Físico na Gaveta</h6>
+                <div class="row g-3 text-center">
+                    <div class="col-6 col-md-2">
+                        <span class="text-muted small d-block">Saldo Inicial</span>
+                        <strong class="text-dark fs-6">+ R$ {{ sessao.saldo_inicial|floatformat:2 }}</strong>
+                    </div>
+                    <div class="col-6 col-md-2">
+                        <span class="text-muted small d-block">Vendas Dinheiro</span>
+                        <strong class="text-success fs-6">+ R$ {{ sessao.total_vendas_dinheiro|floatformat:2 }}</strong>
+                    </div>
+                    <div class="col-6 col-md-2">
+                        <span class="text-muted small d-block">Suprimentos</span>
+                        <strong class="text-info fs-6">+ R$ {{ sessao.total_suprimentos|floatformat:2 }}</strong>
+                    </div>
+                    <div class="col-6 col-md-2">
+                        <span class="text-muted small d-block">Sangrias</span>
+                        <strong class="text-danger fs-6">- R$ {{ sessao.total_sangrias|floatformat:2 }}</strong>
+                    </div>
+                    <div class="col-6 col-md-2">
+                        <span class="text-muted small d-block">Despesas Caixa</span>
+                        <strong class="text-danger fs-6">- R$ {{ sessao.total_despesas|floatformat:2 }}</strong>
+                    </div>
+                    <div class="col-12 col-md-2 bg-white rounded p-2 border border-2 border-primary">
+                        <span class="text-primary fw-bold small d-block">SALDO ESPERADO</span>
+                        <strong class="text-primary fs-5" id="display-saldo-esperado">R$ {{ sessao.saldo_esperado|floatformat:2 }}</strong>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Resumo de Todas as Formas de Pagamento -->
+            <div class="card p-3 border mb-4">
+                <h6 class="fw-bold text-muted text-uppercase small mb-2"><i class="bi bi-pie-chart-fill me-1"></i> Vendas por Forma de Pagamento (Faturamento Total)</h6>
+                <div class="row g-2 text-center">
+                    <div class="col-6 col-md-2">
+                        <span class="badge bg-success-subtle text-success border border-success d-block py-2">
+                            Dinheiro: R$ {{ sessao.total_vendas_dinheiro|floatformat:2 }}
+                        </span>
+                    </div>
+                    <div class="col-6 col-md-2">
+                        <span class="badge bg-warning-subtle text-dark border border-warning d-block py-2">
+                            PIX: R$ {{ sessao.total_vendas_pix|floatformat:2 }}
+                        </span>
+                    </div>
+                    <div class="col-6 col-md-2">
+                        <span class="badge bg-info-subtle text-dark border border-info d-block py-2">
+                            Débito: R$ {{ sessao.total_vendas_debito|floatformat:2 }}
+                        </span>
+                    </div>
+                    <div class="col-6 col-md-2">
+                        <span class="badge bg-primary-subtle text-primary border border-primary d-block py-2">
+                            Crédito: R$ {{ sessao.total_vendas_credito|floatformat:2 }}
+                        </span>
+                    </div>
+                    <div class="col-6 col-md-2">
+                        <span class="badge bg-secondary-subtle text-dark border border-secondary d-block py-2">
+                            Fiado: R$ {{ sessao.total_vendas_crediario|floatformat:2 }}
+                        </span>
+                    </div>
+                    <div class="col-6 col-md-2">
+                        <span class="badge bg-dark text-white d-block py-2 fw-bold">
+                            Total: R$ {{ sessao.total_vendas|floatformat:2 }}
+                        </span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Formulário de Fechamento -->
+            <form method="post" id="form-fechamento">
+                {% csrf_token %}
+                <div class="row g-3 mb-4">
+                    <div class="col-12 col-md-6">
+                        <label for="saldo_final_informado" class="form-label fw-bold fs-6">
+                            Valor em Dinheiro Contado na Gaveta (R$) *
+                        </label>
+                        <div class="input-group input-group-lg">
+                            <span class="input-group-text fw-bold">R$</span>
+                            <input type="number" step="0.01" min="0" name="saldo_final_informado" id="saldo_final_informado"
+                                   class="form-control fw-bold fs-4 text-primary" placeholder="0,00" required autofocus
+                                   oninput="calcularDiferenca()">
+                        </div>
+                        <small class="text-muted">Conte as cédulas e moedas físicas presentes na gaveta.</small>
+                    </div>
+
+                    <div class="col-12 col-md-6">
+                        <label class="form-label fw-bold fs-6">Conferência / Diferença</label>
+                        <div id="box-diferenca" class="alert alert-secondary p-3 mb-0 d-flex justify-content-between align-items-center" style="min-height: 48px;">
+                            <span class="fw-bold" id="label-diferenca">Informe o valor contado</span>
+                            <strong class="fs-5" id="display-diferenca">R$ 0,00</strong>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="mb-4">
+                    <label for="observacoes" class="form-label fw-bold">Observações de Fechamento</label>
+                    <textarea name="observacoes" id="observacoes" class="form-control" rows="2" placeholder="Justificativa para eventuais sobras, faltas ou observações operacionais..."></textarea>
+                </div>
+
+                <div class="d-flex gap-2">
+                    <a href="{% url 'caixas_list' %}" class="btn btn-secondary w-50 py-3 fw-bold">Cancelar</a>
+                    <button type="submit" class="btn btn-danger w-50 py-3 fw-bold fs-5 shadow" onclick="return confirm('Confirmar o fechamento definitivo desta sessão de caixa?');">
+                        <i class="bi bi-lock-fill me-1"></i> Fechar Caixa
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    const saldoEsperado = parseFloat("{{ sessao.saldo_esperado|stringformat:'.2f' }}") || 0.00;
+
+    function calcularDiferenca() {
+        const inputVal = document.getElementById('saldo_final_informado').value.replace(',', '.');
+        const box = document.getElementById('box-diferenca');
+        const label = document.getElementById('label-diferenca');
+        const display = document.getElementById('display-diferenca');
+
+        if (!inputVal || isNaN(parseFloat(inputVal))) {
+            box.className = 'alert alert-secondary p-3 mb-0 d-flex justify-content-between align-items-center';
+            label.innerText = 'Informe o valor contado';
+            display.innerText = 'R$ 0,00';
+            return;
+        }
+
+        const informado = parseFloat(inputVal);
+        const diferenca = informado - saldoEsperado;
+
+        display.innerText = `R$ ${Math.abs(diferenca).toFixed(2).replace('.', ',')}`;
+
+        if (Math.abs(diferenca) < 0.001) {
+            box.className = 'alert alert-success p-3 mb-0 d-flex justify-content-between align-items-center';
+            label.innerText = 'Caixa 100% Correto (Sem Diferença)';
+        } else if (diferenca > 0) {
+            box.className = 'alert alert-warning p-3 mb-0 d-flex justify-content-between align-items-center';
+            label.innerText = 'SOBRA DE CAIXA (+)';
+        } else {
+            box.className = 'alert alert-danger p-3 mb-0 d-flex justify-content-between align-items-center';
+            label.innerText = 'FALTA DE CAIXA (-)';
+        }
+    }
+</script>
+{% endblock %}

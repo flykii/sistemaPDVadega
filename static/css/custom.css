@@ -1,0 +1,91 @@
+:root {
+    --primary-color: var(--cor-principal, #2563eb);
+    --secondary-color: var(--cor-secundaria, #475569);
+    --bg-main: var(--cor-fundo, #f8fafc);
+    --card-bg: var(--cor-cards, #ffffff);
+    --border-color: #e2e8f0;
+}
+
+body {
+    background-color: var(--cor-fundo, var(--bg-main, #f8fafc)) !important;
+    font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+    color: var(--cor-texto, #1e293b);
+}
+
+.navbar-custom {
+    background: var(--cor-menu-sidebar, linear-gradient(135deg, #0f172a 0%, #1e293b 100%)) !important;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+}
+
+.card-custom {
+    background-color: var(--cor-cards, var(--card-bg, #ffffff)) !important;
+    border: 1px solid var(--border-color);
+    border-radius: 12px;
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
+    transition: transform 0.2s, box-shadow 0.2s;
+}
+
+.card-custom:hover {
+    box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+}
+
+.metric-card {
+    border-left: 4px solid var(--cor-destaque, var(--primary-color)) !important;
+}
+
+/* Botões do Sistema vinculados às cores configuradas */
+.btn-primary, .btn-primary:hover, .btn-primary:active, .btn-primary:focus {
+    background-color: var(--cor-botoes, var(--cor-principal, #2563eb)) !important;
+    border-color: var(--cor-botoes, var(--cor-principal, #2563eb)) !important;
+}
+
+.btn-success, .btn-success:hover, .btn-success:active, .btn-success:focus {
+    background-color: var(--cor-sucesso, #16a34a) !important;
+    border-color: var(--cor-sucesso, #16a34a) !important;
+}
+
+.btn-danger, .btn-danger:hover, .btn-danger:active, .btn-danger:focus {
+    background-color: var(--cor-erro, #dc2626) !important;
+    border-color: var(--cor-erro, #dc2626) !important;
+}
+
+.btn-warning, .btn-warning:hover, .btn-warning:active, .btn-warning:focus {
+    background-color: var(--cor-alerta, #f59e0b) !important;
+    border-color: var(--cor-alerta, #f59e0b) !important;
+}
+
+.text-primary {
+    color: var(--cor-principal, #2563eb) !important;
+}
+
+.text-muted {
+    color: var(--cor-texto-secundario, #64748b) !important;
+}
+
+.bg-primary:not([class*="bg-opacity"]) {
+    background-color: var(--cor-principal, #2563eb) !important;
+}
+
+a {
+    color: var(--cor-links, var(--cor-principal, #2563eb));
+}
+
+.table-custom {
+    border-collapse: separate;
+    border-spacing: 0;
+}
+
+.table-custom th {
+    background-color: #f1f5f9;
+    color: #475569;
+    font-weight: 600;
+    text-transform: uppercase;
+    font-size: 0.75rem;
+    letter-spacing: 0.05em;
+}
+
+.badge-profit {
+    background-color: #dcfce7;
+    color: #15803d;
+    font-weight: 600;
+}

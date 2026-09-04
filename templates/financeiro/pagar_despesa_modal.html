@@ -1,0 +1,113 @@
+{% extends 'base.html' %}
+
+{% block title %}Pagar Despesa #{{ conta.id }} - PDV Enterprise{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center my-4">
+    <div class="col-12 col-lg-6">
+        <div class="card card-custom p-4 shadow-lg border-0">
+            <div class="d-flex justify-content-between align-items-center mb-3 pb-2 border-bottom">
+                <div>
+                    <h4 class="fw-bold text-dark mb-0"><i class="bi bi-cash-stack text-success me-2"></i>Pagamento de Despesa</h4>
+                    <small class="text-muted">Despesa #{{ conta.id }} — {{ conta.descricao }}</small>
+                </div>
+                <a href="{% url 'contas_pagar_list' %}" class="btn btn-outline-secondary btn-sm">Voltar</a>
+            </div>
+
+            <!-- Detalhes da Conta a Pagar -->
+            <div class="alert alert-light border p-3 mb-4 rounded-3">
+                <div class="row g-2">
+                    <div class="col-6">
+                        <small class="text-muted text-uppercase d-block fw-bold">Categoria</small>
+                        <span class="badge bg-secondary">{{ conta.categoria.nome|default:"Geral" }}</span>
+                    </div>
+                    <div class="col-6">
+                        <small class="text-muted text-uppercase d-block fw-bold">Vencimento</small>
+                        <strong class="{% if conta.is_vencida %}text-danger{% else %}text-dark{% endif %}">
+                            {{ conta.data_vencimento|date:"d/m/Y" }}
+                        </strong>
+                    </div>
+                    <div class="col-4 mt-2">
+                        <small class="text-muted text-uppercase d-block fw-bold">Valor Original</small>
+                        <strong>R$ {{ conta.valor_original|floatformat:2 }}</strong>
+                    </div>
+                    <div class="col-4 mt-2">
+                        <small class="text-muted text-uppercase d-block fw-bold">Já Pago</small>
+                        <span class="text-success fw-bold">R$ {{ conta.valor_pago|floatformat:2 }}</span>
+                    </div>
+                    <div class="col-4 mt-2">
+                        <small class="text-muted text-uppercase d-block fw-bold">Saldo a Pagar</small>
+                        <h5 class="text-danger fw-bold mb-0">R$ {{ conta.saldo|floatformat:2 }}</h5>
+                    </div>
+                </div>
+            </div>
+
+            <form method="post">
+                {% csrf_token %}
+                <div class="mb-3">
+                    <label for="valor_pago" class="form-label fw-bold">Valor do Pagamento / Amortização (R$) *</label>
+                    <input type="number" step="0.01" min="0.01" max="{{ conta.saldo }}" name="valor_pago" id="valor_pago" class="form-control form-control-lg fw-bold text-success fs-3 text-center" value="{{ conta.saldo|stringformat:'.2f' }}" required autofocus>
+                    <div class="form-text">Você pode pagar o valor integral ou realizar um pagamento parcial.</div>
+                </div>
+
+                <div class="mb-3">
+                    <label for="forma_pagamento" class="form-label fw-bold">Forma de Pagamento *</label>
+                    <select name="forma_pagamento" id="forma_pagamento" class="form-select form-select-lg fw-bold" onchange="verificarForma(this)">
+                        <option value="DINHEIRO">💵 Dinheiro (Reduz Caixa Físico da Gaveta)</option>
+                        <option value="PIX">📱 PIX (Conta Bancária - Não altera Gaveta)</option>
+                        <option value="CARTAO_DEBITO">💳 Cartão Débito</option>
+                        <option value="CARTAO_CREDITO">💳 Cartão Crédito</option>
+                        <option value="BOLETO">📄 Boleto Bancário</option>
+                        <option value="TRANSFERENCIA">🏦 Transferência Bancária</option>
+                    </select>
+                </div>
+
+                <!-- Info do Caixa Físico -->
+                <div id="info-caixa-box" class="card p-3 bg-light border mb-3">
+                    {% if sessao_caixa %}
+                        <div class="d-flex align-items-center justify-content-between">
+                            <div>
+                                <strong class="text-dark"><i class="bi bi-shop me-1"></i> Caixa Operacional:</strong> {{ sessao_caixa.caixa.nome }}
+                                <small class="d-block text-muted">Operador: {{ sessao_caixa.nome_operador_exibicao }}</small>
+                            </div>
+                            <div class="text-end">
+                                <span class="text-muted small d-block">Saldo Físico na Gaveta:</span>
+                                <strong class="text-success fs-5">R$ {{ sessao_caixa.saldo_esperado|floatformat:2 }}</strong>
+                            </div>
+                        </div>
+                    {% else %}
+                        <div class="text-danger small">
+                            <i class="bi bi-exclamation-triangle me-1"></i> <strong>Atenção:</strong> Nenhuma sessão de caixa aberta para seu usuário. O pagamento em dinheiro não debitará caixa físico.
+                        </div>
+                    {% endif %}
+                </div>
+
+                <div class="mb-4">
+                    <label for="observacao" class="form-label fw-bold">Observações / Comprovante (Opcional)</label>
+                    <input type="text" name="observacao" id="observacao" class="form-control" placeholder="Ex: Pago via app do banco, recibo assinado...">
+                </div>
+
+                <div class="d-flex gap-2">
+                    <a href="{% url 'contas_pagar_list' %}" class="btn btn-secondary w-50 py-3 fw-bold">Cancelar</a>
+                    <button type="submit" class="btn btn-success w-50 py-3 fw-bold fs-5 shadow">
+                        <i class="bi bi-check-circle me-1"></i> Confirmar Pagamento
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    function verificarForma(select) {
+        const box = document.getElementById('info-caixa-box');
+        if (select.value === 'DINHEIRO') {
+            box.classList.remove('d-none');
+        } else {
+            box.classList.add('d-none');
+        }
+    }
+</script>
+{% endblock %}

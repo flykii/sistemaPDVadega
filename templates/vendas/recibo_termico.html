@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <title>Cupom Não Fiscal - Venda #{{ venda.codigo_venda }}</title>
+    <style>
+        @page {
+            size: 80mm auto;
+            margin: 0;
+        }
+        body {
+            width: 78mm;
+            font-family: 'Courier New', Courier, monospace;
+            font-size: 12px;
+            margin: 0 auto;
+            padding: 5px;
+            color: #000;
+        }
+        .text-center { text-align: center; }
+        .text-right { text-align: right; }
+        .bold { font-weight: bold; }
+        .line { border-bottom: 1px dashed #000; margin: 5px 0; }
+        table { width: 100%; border-collapse: collapse; }
+        th, td { text-align: left; padding: 2px 0; }
+    </style>
+</head>
+<body onload="window.print()">
+    <div class="text-center bold">
+        <h3 style="margin: 0;">{{ empresa.nome_fantasia|default:empresa.razao_social|default:"MINHA LOJA PDV" }}</h3>
+        {% if empresa.razao_social and empresa.nome_fantasia != empresa.razao_social %}<div>{{ empresa.razao_social }}</div>{% endif %}
+        {% if empresa.cnpj %}<div>CNPJ: {{ empresa.cnpj }}</div>{% endif %}
+        <div>Tel: {{ empresa.telefone|default:"(00) 0000-0000" }}</div>
+    </div>
+    
+    <div class="line"></div>
+    <div class="text-center bold">CUPOM NÃO FISCAL DE VENDA</div>
+    <div class="line"></div>
+
+    <div>Venda: #{{ venda.codigo_venda }}</div>
+    <div>Data: {{ venda.data_venda|date:"d/m/Y H:i:s" }}</div>
+    <div>Operador: {{ venda.operador.username }}</div>
+    <div>Cliente: {{ venda.cliente.nome|default:"CONSUMIDOR NÃO IDENTIFICADO" }}</div>
+
+    <div class="line"></div>
+    <table>
+        <thead>
+            <tr>
+                <th>QTD x PRODUTO</th>
+                <th class="text-right">TOTAL</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for item in venda.itens.all %}
+            <tr>
+                <td colspan="2" class="bold">{{ item.produto.nome }}</td>
+            </tr>
+            <tr>
+                <td>{{ item.quantidade }} UN x R$ {{ item.preco_venda_unitario }}</td>
+                <td class="text-right bold">R$ {{ item.subtotal }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+
+    <div class="line"></div>
+    <table>
+        <tr>
+            <td>Subtotal:</td>
+            <td class="text-right">R$ {{ venda.subtotal }}</td>
+        </tr>
+        {% if venda.desconto > 0 %}
+        <tr>
+            <td>Desconto:</td>
+            <td class="text-right">- R$ {{ venda.desconto }}</td>
+        </tr>
+        {% endif %}
+        <tr class="bold" style="font-size: 14px;">
+            <td>TOTAL PAGO:</td>
+            <td class="text-right">R$ {{ venda.total }}</td>
+        </tr>
+    </table>
+
+    <div class="line"></div>
+    <div class="bold">FORMA(S) DE PAGAMENTO:</div>
+    {% for pag in venda.pagamentos.all %}
+    <div>- {{ pag.get_forma_pagamento_display }}: R$ {{ pag.valor }} {% if pag.troco > 0 %}(Troco: R$ {{ pag.troco }}){% endif %}</div>
+    {% endfor %}
+
+    <div class="line"></div>
+    <div class="text-center" style="margin-top: 15px;">
+        Obrigado pela preferência!<br>
+        Volte Sempre!
+    </div>
+</body>
+</html>

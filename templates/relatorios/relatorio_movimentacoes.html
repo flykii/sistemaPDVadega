@@ -1,0 +1,107 @@
+{% extends 'base.html' %}
+
+{% block title %}Relatório de Movimentações de Estoque - PDV Enterprise{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-3">
+    <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
+        <div>
+            <h2 class="fw-bold text-dark mb-0"><i class="bi bi-arrow-left-right text-primary me-2"></i>Histórico & Auditoria de Movimentações</h2>
+            <p class="text-muted mb-0">Rastreamento de entradas por compras, saídas por vendas, ajustes manuais e estornos.</p>
+        </div>
+        <div class="d-flex gap-2 d-print-none">
+            <button onclick="window.print()" class="btn btn-outline-dark fw-bold">
+                <i class="bi bi-printer me-1"></i> Imprimir
+            </button>
+        </div>
+    </div>
+
+    <!-- Filtro de Período -->
+    {% include 'relatorios/filtro_periodo.html' %}
+
+    <!-- Filtros de Produto e Tipo -->
+    <div class="card card-custom p-3 border-0 shadow-sm mb-4 d-print-none">
+        <form method="get" class="row g-2 align-items-center">
+            <input type="hidden" name="periodo" value="{{ p_info.periodo }}">
+            <input type="hidden" name="data_inicio" value="{{ p_info.data_inicio_str }}">
+            <input type="hidden" name="data_fim" value="{{ p_info.data_fim_str }}">
+
+            <div class="col-12 col-md-5">
+                <select name="produto" class="form-select" onchange="this.form.submit()">
+                    <option value="">Todos os Produtos</option>
+                    {% for p in produtos %}
+                        <option value="{{ p.id }}" {% if produto_id|slugify == p.id|slugify %}selected{% endif %}>{{ p.nome }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <div class="col-12 col-md-4">
+                <select name="tipo" class="form-select" onchange="this.form.submit()">
+                    <option value="">Todos os Tipos de Movimentação</option>
+                    <option value="ENTRADA" {% if tipo == 'ENTRADA' %}selected{% endif %}>🟢 Entrada (Compra / Aporte)</option>
+                    <option value="SAIDA" {% if tipo == 'SAIDA' %}selected{% endif %}>🔴 Saída (Venda / Perda)</option>
+                    <option value="AJUSTE" {% if tipo == 'AJUSTE' %}selected{% endif %}>🟡 Ajuste Manual / Inventário</option>
+                    <option value="ESTORNO" {% if tipo == 'ESTORNO' %}selected{% endif %}>🔵 Estorno</option>
+                </select>
+            </div>
+
+            <div class="col-12 col-md-3">
+                <button type="submit" class="btn btn-primary w-100 fw-bold"><i class="bi bi-funnel me-1"></i> Filtrar</button>
+            </div>
+        </form>
+    </div>
+
+    <!-- Tabela -->
+    <div class="card card-custom p-0 border-0 shadow-sm rounded-4 overflow-hidden">
+        <div class="table-responsive">
+            <table class="table table-hover align-middle mb-0">
+                <thead class="table-light">
+                    <tr>
+                        <th class="ps-4">Data / Hora</th>
+                        <th>Produto</th>
+                        <th class="text-center">Tipo</th>
+                        <th class="text-center">Qtd. Movimentada</th>
+                        <th class="text-center">Estoque Anterior</th>
+                        <th class="text-center">Estoque Posterior</th>
+                        <th>Motivo / Histórico</th>
+                        <th class="text-end pe-4">Usuário</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for m in movimentacoes %}
+                    <tr>
+                        <td class="ps-4"><small class="text-muted">{{ m.data_hora|date:"d/m/Y H:i:s" }}</small></td>
+                        <td>
+                            <strong class="text-dark">{{ m.produto.nome }}</strong>
+                            <small class="d-block text-muted">Cód: {{ m.produto.codigo_barras|default:"-" }}</small>
+                        </td>
+                        <td class="text-center">
+                            {% if m.tipo_movimentacao == 'ENTRADA' %}
+                                <span class="badge bg-success">Entrada</span>
+                            {% elif m.tipo_movimentacao == 'SAIDA' %}
+                                <span class="badge bg-danger">Saída</span>
+                            {% elif m.tipo_movimentacao == 'AJUSTE' %}
+                                <span class="badge bg-warning text-dark">Ajuste</span>
+                            {% else %}
+                                <span class="badge bg-info">Estorno</span>
+                            {% endif %}
+                        </td>
+                        <td class="text-center fw-bold fs-6 {% if m.tipo_movimentacao == 'ENTRADA' %}text-success{% else %}text-danger{% endif %}">
+                            {% if m.tipo_movimentacao == 'ENTRADA' %}+{% else %}-{% endif %} {{ m.quantidade|floatformat:0 }}
+                        </td>
+                        <td class="text-center text-muted">{{ m.estoque_anterior|floatformat:0 }}</td>
+                        <td class="text-center fw-bold text-dark">{{ m.estoque_posterior|floatformat:0 }}</td>
+                        <td>{{ m.motivo|default:"-" }}</td>
+                        <td class="text-end pe-4"><small class="text-muted">{{ m.usuario.username|default:"Sistema" }}</small></td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="8" class="text-center text-muted py-5">Nenhuma movimentação de estoque registrada no período.</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,114 @@
+{% extends 'base.html' %}
+
+{% block title %}Vendas por Categoria - PDV Enterprise{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-3">
+    <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
+        <div>
+            <h2 class="fw-bold text-dark mb-0"><i class="bi bi-tags-fill text-primary me-2"></i>Vendas por Categoria</h2>
+            <p class="text-muted mb-0">Participação das categorias de produto no faturamento e lucro da empresa.</p>
+        </div>
+        <div class="d-flex gap-2 d-print-none">
+            <button onclick="window.print()" class="btn btn-outline-dark fw-bold">
+                <i class="bi bi-printer me-1"></i> Imprimir
+            </button>
+        </div>
+    </div>
+
+    <!-- Filtro de Período -->
+    {% include 'relatorios/filtro_periodo.html' %}
+
+    <div class="row g-3 mb-4">
+        <!-- Tabela -->
+        <div class="col-12 col-lg-7">
+            <div class="card card-custom p-0 border-0 shadow-sm rounded-4 overflow-hidden h-100">
+                <div class="card-header bg-white py-3 border-bottom">
+                    <h5 class="fw-bold text-dark mb-0"><i class="bi bi-list-stars me-2 text-primary"></i>Desempenho por Categoria</h5>
+                </div>
+                <div class="table-responsive">
+                    <table class="table table-hover align-middle mb-0">
+                        <thead class="table-light">
+                            <tr>
+                                <th class="ps-4">Categoria</th>
+                                <th class="text-center">Itens Vendidos</th>
+                                <th class="text-end">Faturamento</th>
+                                <th class="text-end">Lucro Bruto</th>
+                                <th class="text-end pe-4">Part. %</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for c in categorias_data.categorias %}
+                            <tr>
+                                <td class="ps-4">
+                                    <strong class="text-dark">{{ c.nome }}</strong>
+                                </td>
+                                <td class="text-center fw-bold">{{ c.qtd_itens|floatformat:0 }}</td>
+                                <td class="text-end text-primary fw-bold">R$ {{ c.faturamento|floatformat:2 }}</td>
+                                <td class="text-end text-success fw-bold">R$ {{ c.lucro|floatformat:2 }}</td>
+                                <td class="text-end pe-4 fw-bold">{{ c.participacao_pct|floatformat:1 }}%</td>
+                            </tr>
+                            {% empty %}
+                            <tr>
+                                <td colspan="5" class="text-center text-muted py-5">Nenhuma venda registrada por categoria no período.</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                        <tfoot class="table-light fw-bold">
+                            <tr>
+                                <td class="ps-4">TOTAL:</td>
+                                <td class="text-center">-</td>
+                                <td class="text-end text-primary fs-5">R$ {{ categorias_data.total_faturamento|floatformat:2 }}</td>
+                                <td class="text-end text-success">-</td>
+                                <td class="text-end pe-4">100.0%</td>
+                            </tr>
+                        </tfoot>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- Gráfico -->
+        <div class="col-12 col-lg-5">
+            <div class="card card-custom p-4 border-0 shadow-sm h-100">
+                <h5 class="fw-bold text-dark mb-3 text-center"><i class="bi bi-pie-chart me-2 text-primary"></i>Participação no Faturamento</h5>
+                <canvas id="chartCategorias" height="230"></canvas>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    document.addEventListener("DOMContentLoaded", function () {
+        const labels = {{ chart_labels|safe }};
+        const valores = {{ chart_valores|safe }};
+
+        const ctx = document.getElementById('chartCategorias');
+        if (ctx && labels.length > 0) {
+            new Chart(ctx, {
+                type: 'doughnut',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        data: valores,
+                        backgroundColor: ['#3b82f6', '#10b981', '#f59e0b', '#8b5cf6', '#ec4899', '#6366f1', '#64748b']
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    plugins: {
+                        legend: { position: 'bottom' },
+                        tooltip: {
+                            callbacks: {
+                                label: ctx => ' ' + ctx.label + ': R$ ' + ctx.raw.toFixed(2).replace('.', ',')
+                            }
+                        }
+                    }
+                }
+            });
+        }
+    });
+</script>
+{% endblock %}
