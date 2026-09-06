@@ -147,14 +147,14 @@ class Etapa10HardeningTestCase(TestCase):
     # 3. OPERADOR TENTANDO CANCELAR VENDA (403)
     # =========================================================================
     def test_03_operador_tentando_cancelar_venda_bloqueado(self):
-        """Operador não tem permissão para cancelar venda (retorna 403)."""
+        """Operador não tem permissão para cancelar venda de outro operador (retorna 403)."""
         venda = SaleService.processar_venda(
             empresa=self.empresa_a, sessao_caixa=self.sessao_a,
             operador=self.operador_a1,
             itens_data=[{'produto_id': self.produto_a.id, 'quantidade': 1}],
             pagamentos_data=[{'forma': 'DINHEIRO', 'valor': Decimal('25.00'), 'troco': Decimal('0.00')}]
         )
-        self.client.login(username='operador_a1', password='password123')
+        self.client.login(username='operador_a2', password='password123')
         resp = self.client.post(f'/vendas/{venda.id}/cancelar/', {'motivo': 'Tentativa sem permissão'})
         self.assertEqual(resp.status_code, 403)
 

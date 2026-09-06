@@ -6,6 +6,7 @@ from django.contrib import messages
 from django.core.exceptions import ValidationError
 
 from apps.usuarios.permissions import cargo_required
+from apps.usuarios.models import Usuario
 from apps.core.models import AuditService
 from .models import Empresa, ConfiguracaoVisual, ConfiguracaoAtalhoPDV, HEX_COLOR_REGEX
 
@@ -234,5 +235,6 @@ def configuracoes_view(request):
         'config_visual': config_visual,
         'atalhos_pdv': ConfiguracaoAtalhoPDV.get_atalhos_detalhados(empresa),
         'teclas_permitidas': ConfiguracaoAtalhoPDV.TECLAS_PERMITIDAS,
+        'usuarios': Usuario.objects.filter(empresa=empresa).order_by('-is_active', 'cargo', 'username') if empresa else [],
     }
     return render(request, 'empresas/configuracoes.html', context)

@@ -10,8 +10,8 @@ def validar_hex_color(value):
 
 
 class Empresa(models.Model):
-    razao_social = models.CharField('Razão Social', max_length=200)
-    nome_fantasia = models.CharField('Nome Fantasia', max_length=200)
+    razao_social = models.CharField('Razão Social', max_length=200, blank=True, default='')
+    nome_fantasia = models.CharField('Nome Fantasia', max_length=200, blank=True, default='')
     cnpj = models.CharField('CNPJ', max_length=20, unique=True)
     inscricao_estadual = models.CharField('Inscrição Estadual', max_length=50, blank=True)
     telefone = models.CharField('Telefone', max_length=20, blank=True)
@@ -38,7 +38,8 @@ class Empresa(models.Model):
         verbose_name_plural = 'Empresas'
 
     def __str__(self):
-        return f"{self.nome_fantasia} ({self.cnpj})"
+        nome = self.nome_fantasia or self.razao_social or f"Empresa #{self.id}"
+        return f"{nome} ({self.cnpj})" if self.cnpj else nome
 
     def get_configuracao_visual(self):
         """Retorna ou cria a configuração visual associada com os padrões."""

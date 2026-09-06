@@ -341,6 +341,16 @@ class SaleService:
         except Venda.DoesNotExist:
             raise ValueError("Venda não encontrada nesta empresa.")
 
+        # Validação de permissão específica por cargo:
+        # Administrador e Gerente podem cancelar qualquer venda do tenant.
+        # Operador pode cancelar SOMENTE as vendas que ele próprio realizou.
+        if not (usuario.is_admin or usuario.is_gerente or usuario.is_superuser):
+            if usuario.cargo == 'OPERADOR':
+                if venda.operador_id != usuario.id:
+                    raise PermissionError("Operador só tem permissão para cancelar suas próprias vendas.")
+            else:
+                raise PermissionError("Usuário sem permissão para cancelar vendas.")
+
         # 2. Bloquear duplo cancelamento
         if venda.status == 'CANCELADA':
             raise ValueError("Esta venda já foi cancelada anteriormente.")

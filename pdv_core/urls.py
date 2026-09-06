@@ -28,9 +28,11 @@ urlpatterns = [
     path('', dashboard_view, name='dashboard'),
     path('login/', login_view, name='login'),
     path('logout/', logout_view, name='logout'),
+    path('cadastro/', include('apps.usuarios.urls')),
     path('sw.js', service_worker_view, name='service-worker'),
     path('manifest.json', manifest_view, name='pwa-manifest'),
 
+    path('usuarios/', include('apps.usuarios.urls')),
     path('caixas/', include('apps.caixas.urls')),
     path('produtos/', include('apps.produtos.urls')),
     path('clientes/', include('apps.clientes.urls')),
@@ -39,6 +41,7 @@ urlpatterns = [
     path('financeiro/', include('apps.financeiro.urls')),
     path('relatorios/', include('apps.relatorios.urls')),
     path('configuracoes/', include('apps.empresas.urls')),
+    path('configuracoes/usuarios/', include('apps.usuarios.urls')),
     path('importacao/', include('apps.importacao.urls')),
 
     path('api/v1/', include('apps.api.urls')),

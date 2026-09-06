@@ -1,0 +1,110 @@
+﻿{% extends 'base.html' %}
+
+{% block title %}Gestão de Usuários - PDV Enterprise{% endblock %}
+
+{% block content %}
+<div class="row mb-4">
+    <div class="col-12 d-flex justify-content-between align-items-center flex-wrap gap-2">
+        <div>
+            <h2 class="fw-bold text-dark mb-0"><i class="bi bi-people-fill text-primary me-2"></i>Gestão de Usuários da Empresa</h2>
+            <p class="text-muted mb-0">Controle de acessos, perfis operacionais e senhas para o estabelecimento <strong>{{ empresa.nome_fantasia|default:empresa.razao_social }}</strong>.</p>
+        </div>
+        <div class="d-flex gap-2">
+            <a href="{% url 'configuracoes' %}" class="btn btn-outline-secondary fw-bold">
+                <i class="bi bi-arrow-left me-1"></i> Configurações
+            </a>
+            <a href="{% url 'usuario_novo' %}" class="btn btn-primary fw-bold shadow-sm">
+                <i class="bi bi-person-plus-fill me-1"></i> Novo Usuário
+            </a>
+        </div>
+    </div>
+</div>
+
+<div class="card card-custom p-0 border-0 shadow-sm rounded-4 overflow-hidden mb-4">
+    <div class="table-responsive">
+        <table class="table table-hover align-middle mb-0">
+            <thead class="table-light">
+                <tr>
+                    <th class="ps-3">Usuário / Nome</th>
+                    <th>Login</th>
+                    <th>Perfil / Cargo</th>
+                    <th>Contato</th>
+                    <th>Limite Desconto</th>
+                    <th class="text-center">Status</th>
+                    <th class="text-end pe-3">Ações</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for u in usuarios %}
+                <tr class="{% if not u.is_active %}table-secondary opacity-75{% endif %}">
+                    <td class="ps-3">
+                        <div class="d-flex align-items-center gap-2">
+                            <div class="rounded-circle bg-primary bg-opacity-10 text-primary p-2 d-flex align-items-center justify-content-center" style="width: 40px; height: 40px;">
+                                <i class="bi bi-person-fill fs-5"></i>
+                            </div>
+                            <div>
+                                <strong class="d-block text-dark">{{ u.get_full_name|default:u.username }}</strong>
+                                <small class="text-muted">{{ u.email|default:"Sem e-mail" }}</small>
+                            </div>
+                        </div>
+                    </td>
+                    <td><code>{{ u.username }}</code></td>
+                    <td>
+                        {% if u.cargo == 'ADMIN' %}
+                            <span class="badge bg-danger p-2"><i class="bi bi-shield-fill-check me-1"></i> Administrador</span>
+                        {% elif u.cargo == 'GERENTE' %}
+                            <span class="badge bg-primary p-2"><i class="bi bi-person-badge me-1"></i> Gerente</span>
+                        {% elif u.cargo == 'OPERADOR' %}
+                            <span class="badge bg-success p-2"><i class="bi bi-cart me-1"></i> Operador de Caixa</span>
+                        {% elif u.cargo == 'ESTOQUISTA' %}
+                            <span class="badge bg-warning text-dark p-2"><i class="bi bi-box-seam me-1"></i> Estoquista</span>
+                        {% else %}
+                            <span class="badge bg-info text-dark p-2"><i class="bi bi-bank me-1"></i> Financeiro</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        <small class="d-block"><i class="bi bi-telephone text-muted me-1"></i> {{ u.telefone|default:"—" }}</small>
+                    </td>
+                    <td>
+                        {% if u.limite_desconto_pct > 0 %}
+                            <span class="badge bg-light text-dark border">{{ u.limite_desconto_pct }}%</span>
+                        {% else %}
+                            <span class="text-muted small">Sem limite</span>
+                        {% endif %}
+                    </td>
+                    <td class="text-center">
+                        {% if u.is_active %}
+                            <span class="badge bg-success-subtle text-success border border-success px-2 py-1"><i class="bi bi-check-circle-fill me-1"></i> Ativo</span>
+                        {% else %}
+                            <span class="badge bg-danger-subtle text-danger border border-danger px-2 py-1"><i class="bi bi-dash-circle-fill me-1"></i> Inativo</span>
+                        {% endif %}
+                    </td>
+                    <td class="text-end pe-3">
+                        <div class="btn-group btn-group-sm">
+                            <a href="{% url 'usuario_editar' u.id %}" class="btn btn-outline-primary" title="Editar Usuário">
+                                <i class="bi bi-pencil"></i>
+                            </a>
+                            <a href="{% url 'usuario_redefinir_senha' u.id %}" class="btn btn-outline-warning text-dark" title="Redefinir Senha">
+                                <i class="bi bi-key-fill"></i>
+                            </a>
+                            {% if u.id != request.user.id %}
+                                <a href="{% url 'usuario_toggle_ativo' u.id %}" class="btn {% if u.is_active %}btn-outline-danger{% else %}btn-outline-success{% endif %}" title="{% if u.is_active %}Inativar Usuário{% else %}Ativar Usuário{% endif %}">
+                                    <i class="bi {% if u.is_active %}bi-person-x-fill{% else %}bi-person-check-fill{% endif %}"></i>
+                                </a>
+                            {% endif %}
+                        </div>
+                    </td>
+                </tr>
+                {% empty %}
+                <tr>
+                    <td colspan="7" class="text-center text-muted py-5">
+                        <i class="bi bi-people display-4 d-block mb-2"></i>
+                        Nenhum usuário cadastrado.
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}

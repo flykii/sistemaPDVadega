@@ -172,8 +172,8 @@ class PermissoesPorCargoTest(BaseEtapa9TestCase):
     def test_02_gerente_pode_cancelar_venda(self):
         self.assertTrue(self.gerente.pode_cancelar_venda)
 
-    def test_03_operador_nao_pode_cancelar_venda(self):
-        self.assertFalse(self.operador.pode_cancelar_venda)
+    def test_03_operador_pode_cancelar_venda(self):
+        self.assertTrue(self.operador.pode_cancelar_venda)
 
     def test_04_estoquista_nao_pode_cancelar_venda(self):
         self.assertFalse(self.estoquista.pode_cancelar_venda)
@@ -385,15 +385,19 @@ class DuploCancelamentoTest(BaseEtapa9TestCase):
 # =============================================================================
 class PermissaoCancelamentoTest(BaseEtapa9TestCase):
 
-    def test_27_operador_nao_pode_cancelar(self):
-        """Operador de caixa não tem permissão para cancelar vendas."""
+    def test_27_operador_nao_pode_cancelar_venda_de_outro_operador(self):
+        """Operador de caixa não tem permissão para cancelar vendas de outro operador."""
         venda = self._criar_venda_dinheiro()
+        outro_operador = Usuario.objects.create_user(
+            username='outro_operador_teste', password='pass123',
+            empresa=self.empresa, cargo='OPERADOR'
+        )
         with self.assertRaises(PermissionError) as ctx:
             SaleService.cancelar_venda(
                 venda_id=venda.id, empresa=self.empresa,
-                usuario=self.operador, motivo="Tentativa operador"
+                usuario=outro_operador, motivo="Tentativa operador"
             )
-        self.assertIn("sem permissão", str(ctx.exception).lower())
+        self.assertIn("permissão", str(ctx.exception).lower())
 
     def test_28_motivo_obrigatorio(self):
         """Cancelamento sem motivo deve lançar ValueError."""
@@ -590,9 +594,13 @@ class ViewCancelamentoTest(BaseEtapa9TestCase):
         self.assertEqual(response.status_code, 400)
 
     def test_41_view_cancelar_operador_retorna_403(self):
-        """Operador tentando cancelar via view retorna 403."""
+        """Operador tentando cancelar via view venda de outro operador retorna 403."""
         venda = self._criar_venda_dinheiro()
-        self.client.login(username='operador_teste', password='pass123')
+        Usuario.objects.create_user(
+            username='outro_operador_view', password='pass123',
+            empresa=self.empresa, cargo='OPERADOR'
+        )
+        self.client.login(username='outro_operador_view', password='pass123')
         response = self.client.post(
             f'/vendas/{venda.id}/cancelar/',
             {'motivo': 'Tentativa operador'}

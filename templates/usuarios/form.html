@@ -1,0 +1,117 @@
+﻿{% extends 'base.html' %}
+
+{% block title %}{% if usuario_obj %}Editar Usuário: {{ usuario_obj.username }}{% else %}Novo Usuário{% endif %} - PDV Enterprise{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center my-3">
+    <div class="col-12 col-md-8 col-lg-7">
+        <div class="card card-custom p-4 shadow-sm border-0 rounded-4">
+            <div class="d-flex justify-content-between align-items-center mb-4 pb-2 border-bottom">
+                <div>
+                    <h3 class="fw-bold text-dark mb-0">
+                        <i class="bi bi-person-fill-gear text-primary me-2"></i>
+                        {% if usuario_obj %}Editar Usuário: {{ usuario_obj.username }}{% else %}Cadastrar Novo Usuário{% endif %}
+                    </h3>
+                    <p class="text-muted mb-0">Defina o perfil de acesso e permissões para este usuário.</p>
+                </div>
+                <a href="{% url 'usuarios_list' %}" class="btn btn-outline-secondary btn-sm">
+                    <i class="bi bi-arrow-left me-1"></i> Voltar à Lista
+                </a>
+            </div>
+
+            <form method="post">
+                {% csrf_token %}
+
+                <!-- Identificação Básica -->
+                <div class="row g-3 mb-3">
+                    <div class="col-12 col-md-6">
+                        <label for="first_name" class="form-label fw-bold">Nome</label>
+                        <input type="text" name="first_name" id="first_name" class="form-control" value="{{ usuario_obj.first_name|default:'' }}" placeholder="Ex: João" autofocus>
+                    </div>
+                    <div class="col-12 col-md-6">
+                        <label for="last_name" class="form-label fw-bold">Sobrenome</label>
+                        <input type="text" name="last_name" id="last_name" class="form-control" value="{{ usuario_obj.last_name|default:'' }}" placeholder="Ex: Silva">
+                    </div>
+                </div>
+
+                <div class="row g-3 mb-3">
+                    <div class="col-12 col-md-6">
+                        <label for="username" class="form-label fw-bold">Nome de Usuário (Login) *</label>
+                        <div class="input-group">
+                            <span class="input-group-text"><i class="bi bi-person"></i></span>
+                            <input type="text" name="username" id="username" class="form-control" value="{{ usuario_obj.username|default:'' }}" placeholder="Ex: joao.caixa" {% if usuario_obj %}readonly disabled class="form-control bg-light"{% else %}required{% endif %}>
+                        </div>
+                        {% if usuario_obj %}<small class="text-muted">O login não pode ser alterado após a criação.</small>{% endif %}
+                    </div>
+                    <div class="col-12 col-md-6">
+                        <label for="email" class="form-label fw-semibold">E-mail</label>
+                        <input type="email" name="email" id="email" class="form-control" value="{{ usuario_obj.email|default:'' }}" placeholder="joao@empresa.com.br">
+                    </div>
+                </div>
+
+                <!-- Perfil e Permissões -->
+                <div class="row g-3 mb-3">
+                    <div class="col-12 col-md-6">
+                        <label for="cargo" class="form-label fw-bold">Perfil / Cargo *</label>
+                        <select name="cargo" id="cargo" class="form-select" required>
+                            {% for c_code, c_label in cargos %}
+                                <option value="{{ c_code }}" {% if usuario_obj.cargo == c_code %}selected{% elif not usuario_obj and c_code == 'OPERADOR' %}selected{% endif %}>
+                                    {{ c_label }}
+                                </option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="col-12 col-md-6">
+                        <label for="pin_caixa" class="form-label fw-semibold">PIN de Caixa (4 a 6 dígitos)</label>
+                        <input type="password" name="pin_caixa" id="pin_caixa" class="form-control font-monospace" maxlength="10" value="{{ usuario_obj.pin_caixa|default:'' }}" placeholder="Ex: 1234">
+                    </div>
+                </div>
+
+                <div class="row g-3 mb-4">
+                    <div class="col-12 col-md-6">
+                        <label for="telefone" class="form-label fw-semibold">Telefone / WhatsApp</label>
+                        <input type="text" name="telefone" id="telefone" class="form-control" value="{{ usuario_obj.telefone|default:'' }}" placeholder="(11) 98765-4321">
+                    </div>
+                    <div class="col-12 col-md-6">
+                        <label for="limite_desconto_pct" class="form-label fw-semibold">Limite de Desconto no PDV (%)</label>
+                        <input type="number" step="0.01" min="0" max="100" name="limite_desconto_pct" id="limite_desconto_pct" class="form-control" value="{{ usuario_obj.limite_desconto_pct|stringformat:'.2f'|default:'0.00' }}">
+                        <small class="text-muted">0 = sem limite específico configurado.</small>
+                    </div>
+                </div>
+
+                <!-- Senha (Apenas na criação) -->
+                {% if not usuario_obj %}
+                <div class="card p-3 bg-light border mb-4 rounded-3">
+                    <h6 class="fw-bold text-dark mb-3"><i class="bi bi-key me-2 text-primary"></i>Definição de Senha Inicial</h6>
+                    <div class="row g-3">
+                        <div class="col-12 col-md-6">
+                            <label for="password" class="form-label fw-bold">Senha de Acesso *</label>
+                            <input type="password" name="password" id="password" class="form-control" minlength="6" placeholder="Mínimo 6 caracteres" required>
+                        </div>
+                        <div class="col-12 col-md-6">
+                            <label for="confirmar_senha" class="form-label fw-bold">Confirmar Senha *</label>
+                            <input type="password" name="confirmar_senha" id="confirmar_senha" class="form-control" minlength="6" placeholder="Repita a senha" required>
+                        </div>
+                    </div>
+                </div>
+                {% endif %}
+
+                <!-- Status Ativo -->
+                <div class="form-check form-switch mb-4 p-3 bg-light rounded-3 border">
+                    <input class="form-check-input ms-0 me-3" type="checkbox" name="is_active" id="is_active" {% if usuario_obj %}{% if usuario_obj.is_active %}checked{% endif %}{% else %}checked{% endif %}>
+                    <label class="form-check-label fw-bold" for="is_active">
+                        Usuário Ativo (Pode acessar o sistema e realizar operações)
+                    </label>
+                </div>
+
+                <div class="d-flex gap-2">
+                    <a href="{% url 'usuarios_list' %}" class="btn btn-secondary w-50 py-3 fw-bold">Cancelar</a>
+                    <button type="submit" class="btn btn-primary w-50 py-3 fw-bold fs-5 shadow">
+                        <i class="bi bi-check-circle-fill me-1"></i> {% if usuario_obj %}Salvar Alterações{% else %}Cadastrar Usuário{% endif %}
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}

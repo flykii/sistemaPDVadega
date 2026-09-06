@@ -1,4 +1,4 @@
-from django.contrib.auth.models import AbstractUser
+﻿from django.contrib.auth.models import AbstractUser
 from django.db import models
 
 class Usuario(AbstractUser):
@@ -31,8 +31,10 @@ class Usuario(AbstractUser):
         verbose_name_plural = 'Usuários'
 
     def __str__(self):
-        empresa_str = f" - {self.empresa.nome_fantasia}" if self.empresa else ""
-        return f"{self.get_full_name() or self.username} ({self.get_cargo_display()}){empresa_str}"
+        empresa_nome = ""
+        if self.empresa:
+            empresa_nome = f" - {self.empresa.nome_fantasia or self.empresa.razao_social or f'Empresa #{self.empresa_id}'}"
+        return f"{self.get_full_name() or self.username} ({self.get_cargo_display()}){empresa_nome}"
 
     # =========================================================================
     # HELPERS DE AUTORIZAÇÃO POR CARGO
@@ -42,12 +44,20 @@ class Usuario(AbstractUser):
         return self.cargo == 'ADMIN' or self.is_superuser
 
     @property
+    def is_administrador(self):
+        return self.is_admin
+
+    @property
     def is_gerente(self):
         return self.cargo in ('ADMIN', 'GERENTE') or self.is_superuser
 
     @property
+    def is_operador(self):
+        return self.cargo == 'OPERADOR'
+
+    @property
     def pode_cancelar_venda(self):
-        return self.cargo in ('ADMIN', 'GERENTE') or self.is_superuser
+        return self.cargo in ('ADMIN', 'GERENTE', 'OPERADOR') or self.is_superuser
 
     @property
     def pode_autorizar_desconto(self):
