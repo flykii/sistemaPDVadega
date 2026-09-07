@@ -125,8 +125,9 @@ class ImportService:
             registros_principais = raw_data
             secoes['raiz'] = len(raw_data)
         elif isinstance(raw_data, dict):
-            # Procura por listas internas conhecidas
-            listas_encontradas = {k: v for k, v in raw_data.items() if isinstance(v, list)}
+            # Procura listas tanto na raiz quanto dentro de nó 'dados' (formato exportado)
+            source_dict = raw_data.get('dados') if isinstance(raw_data.get('dados'), dict) else raw_data
+            listas_encontradas = {k: v for k, v in source_dict.items() if isinstance(v, list)}
             if listas_encontradas:
                 secoes = {k: len(v) for k, v in listas_encontradas.items()}
                 # Seleciona a maior lista ou a primeira
@@ -740,3 +741,201 @@ class ImportService:
             )
 
         return historico
+
+
+class ExportService:
+    """
+    Serviço centralizado para exportação estruturada de dados da empresa em formato JSON,
+    com suporte a seleção de escopos cadastrais e operacionais, isolamento estrito de tenant
+    e exclusão absoluta de dados sensíveis (senhas, hashes, PINs e tokens).
+    """
+
+    @staticmethod
+    def exportar_dados(empresa, escopos=None) -> dict:
+        """
+        Gera dicionário contendo os dados exportados exclusivamente da empresa informada.
+        """
+        if escopos:
+            escopos = [str(e).strip().upper() for e in escopos]
+        else:
+            escopos = ['PRODUTOS', 'CATEGORIAS', 'CLIENTES', 'FORNECEDORES']
+
+        dados = {}
+
+        # 1. CATEGORIAS
+        if 'CATEGORIAS' in escopos:
+            categorias_qs = Categoria.objects.filter(empresa=empresa).order_by('nome')
+            dados['categorias'] = [
+                {
+                    'id': cat.id,
+                    'nome': cat.nome,
+                    'ativo': cat.ativo
+                }
+                for cat in categorias_qs
+            ]
+
+        # 2. FORNECEDORES
+        if 'FORNECEDORES' in escopos:
+            fornecedores_qs = Fornecedor.objects.filter(empresa=empresa).order_by('razao_social')
+            dados['fornecedores'] = [
+                {
+                    'id': f.id,
+                    'razao_social': f.razao_social,
+                    'nome_fantasia': f.nome_fantasia or '',
+                    'cnpj': f.cnpj or '',
+                    'telefone': f.telefone or '',
+                    'email': f.email or '',
+                    'contato_nome': f.contato_nome or '',
+                    'endereco': f.endereco or '',
+                    'ativo': f.ativo
+                }
+                for f in fornecedores_qs
+            ]
+
+        # 3. PRODUTOS
+        if 'PRODUTOS' in escopos:
+            produtos_qs = Produto.objects.filter(empresa=empresa).select_related('categoria', 'fornecedor_principal').order_by('nome')
+            dados['produtos'] = [
+                {
+                    'id': p.id,
+                    'nome': p.nome,
+                    'codigo_barras': p.codigo_barras or '',
+                    'sku': p.sku or '',
+                    'preco_custo': float(p.preco_custo),
+                    'preco_venda': float(p.preco_venda),
+                    'estoque_atual': float(p.estoque_atual),
+                    'estoque_minimo': float(p.estoque_minimo),
+                    'unidade_medida': p.unidade_medida,
+                    'categoria': p.categoria.nome if p.categoria else '',
+                    'fornecedor': p.fornecedor_principal.razao_social if p.fornecedor_principal else '',
+                    'ativo': p.ativo
+                }
+                for p in produtos_qs
+            ]
+
+        # 4. CLIENTES
+        if 'CLIENTES' in escopos:
+            clientes_qs = Cliente.objects.filter(empresa=empresa).order_by('nome')
+            dados['clientes'] = [
+                {
+                    'id': c.id,
+                    'nome': c.nome,
+                    'cpf_cnpj': c.cpf_cnpj or '',
+                    'telefone': c.telefone or '',
+                    'email': c.email or '',
+                    'endereco': c.endereco or '',
+                    'cidade': c.cidade or '',
+                    'estado': c.estado or '',
+                    'limite_credito': float(c.limite_credito),
+                    'saldo_devedor': float(c.saldo_devedor),
+                    'ativo': c.ativo
+                }
+                for c in clientes_qs
+            ]
+
+        # 5. VENDAS (Operacional)
+        if 'VENDAS' in escopos:
+            from apps.vendas.models import Venda
+            vendas_qs = (
+                Venda.objects.filter(empresa=empresa)
+                .select_related('cliente', 'operador')
+                .prefetch_related('itens__produto', 'pagamentos')
+                .order_by('-data_venda')
+            )
+            dados['vendas'] = [
+                {
+                    'codigo_venda': v.codigo_venda,
+                    'data_venda': v.data_venda.isoformat() if v.data_venda else None,
+                    'operador': v.operador.username if v.operador else '',
+                    'cliente': v.cliente.nome if v.cliente else '',
+                    'subtotal': float(v.subtotal),
+                    'desconto': float(v.desconto),
+                    'total': float(v.total),
+                    'status': v.status,
+                    'itens': [
+                        {
+                            'produto': item.produto.nome if item.produto else '',
+                            'quantidade': float(item.quantidade),
+                            'preco_unitario': float(item.preco_venda_unitario),
+                            'subtotal': float(item.subtotal)
+                        }
+                        for item in v.itens.all()
+                    ],
+                    'pagamentos': [
+                        {
+                            'forma': pag.forma_pagamento,
+                            'valor': float(pag.valor),
+                            'troco': float(pag.troco)
+                        }
+                        for pag in v.pagamentos.all()
+                    ]
+                }
+                for v in vendas_qs
+            ]
+
+        # 6. CONTAS A RECEBER / CREDIÁRIO (Operacional)
+        if 'CREDIARIO' in escopos or 'CONTAS_RECEBER' in escopos:
+            from apps.financeiro.models import ContaReceber
+            contas_qs = ContaReceber.objects.filter(empresa=empresa).select_related('cliente').order_by('-id')
+            dados['contas_receber'] = [
+                {
+                    'id': cr.id,
+                    'cliente': cr.cliente.nome if cr.cliente else '',
+                    'descricao': cr.descricao,
+                    'valor': float(cr.valor),
+                    'valor_pago': float(cr.valor_pago),
+                    'status': cr.status,
+                    'data_vencimento': cr.data_vencimento.isoformat() if cr.data_vencimento else None
+                }
+                for cr in contas_qs
+            ]
+
+        # 7. SESSÕES DE CAIXA (Operacional)
+        if 'CAIXAS' in escopos:
+            from apps.caixas.models import SessaoCaixa
+            sessoes_qs = SessaoCaixa.objects.filter(empresa=empresa).select_related('caixa', 'operador').order_by('-id')
+            dados['sessoes_caixa'] = [
+                {
+                    'id': sc.id,
+                    'caixa': sc.caixa.nome if sc.caixa else '',
+                    'operador': sc.operador.username if sc.operador else '',
+                    'data_abertura': sc.data_abertura.isoformat() if sc.data_abertura else None,
+                    'data_fechamento': sc.data_fechamento.isoformat() if sc.data_fechamento else None,
+                    'saldo_inicial': float(sc.saldo_inicial),
+                    'saldo_final_informado': float(sc.saldo_final_informado) if sc.saldo_final_informado is not None else None,
+                    'status': sc.status
+                }
+                for sc in sessoes_qs
+            ]
+
+        # 8. FLUXO DE CAIXA (Operacional)
+        if 'FINANCEIRO' in escopos:
+            from apps.financeiro.models import FluxoCaixa
+            fluxos_qs = FluxoCaixa.objects.filter(empresa=empresa).order_by('-data_movimento')
+            dados['fluxo_caixa'] = [
+                {
+                    'id': fc.id,
+                    'tipo': fc.tipo,
+                    'descricao': fc.descricao,
+                    'valor': float(fc.valor),
+                    'data_movimento': fc.data_movimento.isoformat() if fc.data_movimento else None,
+                    'categoria': fc.categoria or ''
+                }
+                for fc in fluxos_qs
+            ]
+
+        resultado = {
+            'versao': '1.0',
+            'tipo_exportacao': 'DADOS_EMPRESA',
+            'data_exportacao': timezone.now().isoformat(),
+            'empresa': {
+                'nome_fantasia': empresa.nome_fantasia or '',
+                'razao_social': empresa.razao_social or '',
+                'cnpj': empresa.cnpj or ''
+            },
+            'escopos_exportados': escopos,
+            'dados': dados
+        }
+
+        return resultado
+

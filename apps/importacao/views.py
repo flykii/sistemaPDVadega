@@ -174,3 +174,39 @@ def importacao_detalhe(request, importacao_id):
         'empresa': empresa
     }
     return render(request, 'importacao/detalhes.html', context)
+
+
+@login_required
+@cargo_required('ADMIN', 'GERENTE')
+def importacao_exportar(request):
+    """
+    Gera e entrega para download o arquivo JSON estruturado contendo os dados da empresa,
+    com respeito rigoroso ao isolamento multi-tenant e sem expor dados sensíveis.
+    """
+    from django.http import HttpResponse
+    from django.utils.text import slugify
+    from django.utils import timezone
+    from .services import ExportService
+
+    empresa = getattr(request, 'tenant', None) or request.user.empresa
+
+    if request.method == 'POST':
+        escopos = request.POST.getlist('escopos')
+    else:
+        escopos_param = request.GET.get('escopos', '')
+        escopos = [e.strip().upper() for e in escopos_param.split(',') if e.strip()] if escopos_param else []
+
+    if not escopos:
+        escopos = ['PRODUTOS', 'CATEGORIAS', 'CLIENTES', 'FORNECEDORES']
+
+    export_dict = ExportService.exportar_dados(empresa=empresa, escopos=escopos)
+    json_content = json.dumps(export_dict, ensure_ascii=False, indent=2)
+
+    empresa_slug = slugify(empresa.nome_fantasia or empresa.razao_social or 'empresa')
+    timestamp_str = timezone.now().strftime('%Y%m%d_%H%M%S')
+    filename = f"{empresa_slug}_exportacao_{timestamp_str}.json"
+
+    response = HttpResponse(json_content, content_type='application/json; charset=utf-8')
+    response['Content-Disposition'] = f'attachment; filename="{filename}"'
+    return response
+

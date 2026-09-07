@@ -30,6 +30,7 @@
                     <div class="d-flex gap-2">
                         <div class="w-100 position-relative">
                             <input type="text" id="barcode-input" class="form-control form-control-lg bg-dark text-warning fw-bold border-warning" placeholder="Digite o nome ou bipe o código de barras..." autocomplete="off" autofocus>
+                            <div id="bip-feedback" class="position-absolute end-0 top-0 mt-1 me-2 badge p-2 d-none shadow" style="z-index: 1060; font-size: 0.85rem;"></div>
                             <div id="search-results-dropdown" class="list-group position-absolute w-100 shadow-lg d-none" style="z-index: 1050; max-height: 280px; overflow-y: auto; top: 100%;"></div>
                         </div>
                         <button class="btn btn-warning fw-bold text-nowrap px-3" onclick="buscarEAdicionarProduto()">
@@ -506,33 +507,89 @@
         });
     }
 
+    function mostrarFeedbackBip(mensagem, tipo = 'success') {
+        const fb = document.getElementById('bip-feedback');
+        if (!fb) return;
+        fb.className = `position-absolute end-0 top-0 mt-1 me-2 badge p-2 shadow bg-${tipo === 'danger' ? 'danger' : 'success'} text-white`;
+        fb.innerHTML = tipo === 'danger'
+            ? `<i class="bi bi-exclamation-triangle-fill me-1"></i> ${mensagem}`
+            : `<i class="bi bi-check-circle-fill me-1"></i> ${mensagem}`;
+        fb.classList.remove('d-none');
+        clearTimeout(window._bipFeedbackTimeout);
+        window._bipFeedbackTimeout = setTimeout(() => {
+            fb.classList.add('d-none');
+        }, 2200);
+    }
+
     async function buscarEAdicionarProduto() {
+        clearTimeout(searchTimeout);
         const query = barcodeInput.value.trim();
         if (!query) return;
 
+        // Se houver item explicitamente selecionado pelo teclado no dropdown
         if (selectedIndex >= 0 && currentResults[selectedIndex]) {
             selecionarProdutoDropdown(currentResults[selectedIndex]);
             return;
         }
 
-        if (currentResults.length > 0) {
-            selecionarProdutoDropdown(currentResults[0]);
-            return;
-        }
+        dropdown.classList.add('d-none');
+        dropdown.innerHTML = '';
+        currentResults = [];
 
-        try {
-            const resp = await fetch(`/api/v1/produtos/?q=${encodeURIComponent(query)}`);
-            const data = await resp.json();
-            const produtos = data.results || data;
+        let produtoEncontrado = null;
 
-            if (produtos.length > 0) {
-                selecionarProdutoDropdown(produtos[0]);
-            } else {
-                alert(`Produto com código ou termo '${query}' não encontrado.`);
+        // 1. Tenta buscar no cache offline (IndexedDB) para resposta instantânea
+        if (window.pdvOfflineDB) {
+            try {
+                const listaOffline = await window.pdvOfflineDB.buscarProdutoOffline(query);
+                if (listaOffline && listaOffline.length > 0) {
+                    const exato = listaOffline.find(p => 
+                        (p.codigo_barras && p.codigo_barras.toLowerCase() === query.toLowerCase()) ||
+                        (p.sku && p.sku.toLowerCase() === query.toLowerCase())
+                    );
+                    produtoEncontrado = exato || listaOffline[0];
+                }
+            } catch (errOffline) {
+                console.warn('[PWA/BIP] Consulta offline:', errOffline);
             }
-        } catch (e) {
-            console.error(e);
         }
+
+        // 2. Se não encontrado localmente e estiver online, consulta API
+        if (!produtoEncontrado && navigator.onLine) {
+            try {
+                const resp = await fetch(`/api/v1/produtos/?q=${encodeURIComponent(query)}`);
+                if (resp.ok) {
+                    const data = await resp.json();
+                    const produtos = data.results || data;
+                    if (produtos && produtos.length > 0) {
+                        const exato = produtos.find(p => 
+                            (p.codigo_barras && p.codigo_barras.toLowerCase() === query.toLowerCase()) ||
+                            (p.sku && p.sku.toLowerCase() === query.toLowerCase())
+                        );
+                        produtoEncontrado = exato || produtos[0];
+                    }
+                }
+            } catch (e) {
+                console.warn('[BIP] Erro ao consultar servidor:', e);
+            }
+        }
+
+        if (produtoEncontrado) {
+            pdvApp.addItemToCart({
+                id: produtoEncontrado.id,
+                nome: produtoEncontrado.nome,
+                codigo_barras: produtoEncontrado.codigo_barras,
+                preco_venda: produtoEncontrado.preco_venda
+            });
+            mostrarFeedbackBip(`${produtoEncontrado.nome} adicionado`, 'success');
+            barcodeInput.value = '';
+        } else {
+            mostrarFeedbackBip(`Produto não encontrado: ${query}`, 'danger');
+            barcodeInput.value = '';
+        }
+
+        barcodeInput.focus();
+        barcodeInput.select();
     }
 
     barcodeInput.addEventListener('keydown', function(e) {

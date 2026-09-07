@@ -3,16 +3,104 @@
 {% block title %}Histórico de Vendas - PDV Enterprise{% endblock %}
 
 {% block content %}
-<div class="row mb-4">
-    <div class="col-12 d-flex justify-content-between align-items-center">
+<div class="row mb-3">
+    <div class="col-12 d-flex justify-content-between align-items-center flex-wrap gap-2">
         <div>
             <h2 class="fw-bold text-dark mb-0"><i class="bi bi-clock-history text-primary me-2"></i>Histórico de Vendas</h2>
-            <p class="text-muted mb-0">Clique em uma venda para ver os produtos relacionados</p>
+            <p class="text-muted mb-0">Consulte, filtre e detalhe todas as vendas realizadas na empresa</p>
+        </div>
+        <div>
+            <span class="badge bg-primary fs-6 px-3 py-2 shadow-sm">Total: {{ total_filtrado }} venda(s)</span>
         </div>
     </div>
 </div>
 
-<div class="card card-custom p-3">
+<!-- Barra de Filtros Dinâmicos -->
+<div class="card card-custom p-3 mb-4 shadow-sm border-0">
+    <form method="GET" action="{% url 'vendas_historico' %}" id="formFiltrosVendas">
+        <div class="row g-2 align-items-end">
+            <!-- Busca por Cód. Venda ou Cliente -->
+            <div class="col-12 col-md-4 col-lg-3">
+                <label class="form-label small fw-bold text-muted mb-1">Buscar Venda ou Cliente</label>
+                <div class="input-group">
+                    <span class="input-group-text bg-white"><i class="bi bi-search"></i></span>
+                    <input type="text" name="q" class="form-control" placeholder="Cód. #VD... ou Cliente" value="{{ filtros_ativos.q }}">
+                </div>
+            </div>
+
+            <!-- Período Rápido -->
+            <div class="col-6 col-md-3 col-lg-2">
+                <label class="form-label small fw-bold text-muted mb-1">Período</label>
+                <select name="periodo" id="periodoSelect" class="form-select" onchange="toggleDatasPersonalizadas(this.value)">
+                    <option value="" {% if not filtros_ativos.periodo %}selected{% endif %}>Todos os Períodos</option>
+                    <option value="hoje" {% if filtros_ativos.periodo == 'hoje' %}selected{% endif %}>Hoje</option>
+                    <option value="ontem" {% if filtros_ativos.periodo == 'ontem' %}selected{% endif %}>Ontem</option>
+                    <option value="ultimos_7_dias" {% if filtros_ativos.periodo == 'ultimos_7_dias' %}selected{% endif %}>Últimos 7 dias</option>
+                    <option value="ultimos_30_dias" {% if filtros_ativos.periodo == 'ultimos_30_dias' %}selected{% endif %}>Últimos 30 dias</option>
+                    <option value="este_mes" {% if filtros_ativos.periodo == 'este_mes' %}selected{% endif %}>Este Mês</option>
+                    <option value="mes_anterior" {% if filtros_ativos.periodo == 'mes_anterior' %}selected{% endif %}>Mês Anterior</option>
+                    <option value="personalizado" {% if filtros_ativos.periodo == 'personalizado' or filtros_ativos.data_inicio or filtros_ativos.data_fim %}selected{% endif %}>Personalizado</option>
+                </select>
+            </div>
+
+            <!-- Datas Início e Fim -->
+            <div class="col-6 col-md-2 col-lg-2" id="boxDataInicio" style="{% if filtros_ativos.periodo and filtros_ativos.periodo != 'personalizado' and not filtros_ativos.data_inicio %}display: none;{% endif %}">
+                <label class="form-label small fw-bold text-muted mb-1">Data Início</label>
+                <input type="date" name="data_inicio" class="form-control" value="{{ filtros_ativos.data_inicio }}">
+            </div>
+            <div class="col-6 col-md-2 col-lg-2" id="boxDataFim" style="{% if filtros_ativos.periodo and filtros_ativos.periodo != 'personalizado' and not filtros_ativos.data_fim %}display: none;{% endif %}">
+                <label class="form-label small fw-bold text-muted mb-1">Data Fim</label>
+                <input type="date" name="data_fim" class="form-control" value="{{ filtros_ativos.data_fim }}">
+            </div>
+
+            <!-- Operador -->
+            <div class="col-6 col-md-3 col-lg-2">
+                <label class="form-label small fw-bold text-muted mb-1">Operador</label>
+                <select name="operador" class="form-select">
+                    <option value="">Todos</option>
+                    {% for op in operadores %}
+                        <option value="{{ op.id }}" {% if filtros_ativos.operador == op.id|stringformat:"s" %}selected{% endif %}>{% if op.get_full_name %}{{ op.get_full_name }}{% else %}{{ op.username }}{% endif %}</option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <!-- Forma de Pagamento -->
+            <div class="col-6 col-md-3 col-lg-2">
+                <label class="form-label small fw-bold text-muted mb-1">Pagamento</label>
+                <select name="pagamento" class="form-select">
+                    <option value="">Todas</option>
+                    <option value="DINHEIRO" {% if filtros_ativos.pagamento == 'DINHEIRO' %}selected{% endif %}>Dinheiro</option>
+                    <option value="PIX" {% if filtros_ativos.pagamento == 'PIX' %}selected{% endif %}>PIX</option>
+                    <option value="CARTAO_DEBITO" {% if filtros_ativos.pagamento == 'CARTAO_DEBITO' %}selected{% endif %}>Cartão Débito</option>
+                    <option value="CARTAO_CREDITO" {% if filtros_ativos.pagamento == 'CARTAO_CREDITO' %}selected{% endif %}>Cartão Crédito</option>
+                    <option value="CREDIARIO" {% if filtros_ativos.pagamento == 'CREDIARIO' %}selected{% endif %}>Crediário / Fiado</option>
+                </select>
+            </div>
+
+            <!-- Status -->
+            <div class="col-6 col-md-3 col-lg-2">
+                <label class="form-label small fw-bold text-muted mb-1">Status</label>
+                <select name="status" class="form-select">
+                    <option value="">Todos</option>
+                    <option value="CONCLUIDA" {% if filtros_ativos.status == 'CONCLUIDA' %}selected{% endif %}>Concluída</option>
+                    <option value="CANCELADA" {% if filtros_ativos.status == 'CANCELADA' %}selected{% endif %}>Cancelada</option>
+                </select>
+            </div>
+
+            <!-- Botões de Ação -->
+            <div class="col-12 col-md-4 col-lg-2 d-flex gap-2">
+                <button type="submit" class="btn btn-primary fw-bold flex-grow-1 shadow-sm">
+                    <i class="bi bi-funnel-fill me-1"></i> Filtrar
+                </button>
+                <a href="{% url 'vendas_historico' %}" class="btn btn-outline-secondary fw-semibold" title="Limpar todos os filtros">
+                    <i class="bi bi-x-circle"></i>
+                </a>
+            </div>
+        </div>
+    </form>
+</div>
+
+<div class="card card-custom p-3 shadow-sm border-0">
     <div class="table-responsive">
         <table class="table table-hover table-custom align-middle mb-0">
             <thead>
@@ -93,7 +181,7 @@
                                     </div>
                                     <div class="col-md-4">
                                         <strong>Cancelado por:</strong><br>
-                                        {{ v.cancelado_por.get_full_name|default:v.cancelado_por.username|default:"—" }}
+                                        {% if v.cancelado_por %}{% if v.cancelado_por.get_full_name %}{{ v.cancelado_por.get_full_name }}{% else %}{{ v.cancelado_por.username }}{% endif %}{% else %}—{% endif %}
                                     </div>
                                     <div class="col-md-4">
                                         <strong>Motivo:</strong><br>
@@ -141,12 +229,69 @@
                 </tr>
                 {% empty %}
                 <tr>
-                    <td colspan="8" class="text-center text-muted py-4">Nenhuma venda realizada.</td>
+                    <td colspan="8" class="text-center text-muted py-4">
+                        <i class="bi bi-receipt-cutoff fs-2 d-block mb-2 text-secondary opacity-50"></i>
+                        Nenhuma venda encontrada com os filtros selecionados.
+                    </td>
                 </tr>
                 {% endfor %}
             </tbody>
         </table>
     </div>
+
+    <!-- Paginação Preservando Filtros -->
+    {% if page_obj.has_other_pages %}
+    <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mt-3 pt-3 border-top">
+        <div class="text-muted small">
+            Exibindo página <strong>{{ page_obj.number }}</strong> de <strong>{{ page_obj.paginator.num_pages }}</strong> (Total: {{ total_filtrado }} vendas)
+        </div>
+        <nav aria-label="Paginação de Vendas">
+            <ul class="pagination pagination-sm mb-0">
+                {% if page_obj.has_previous %}
+                    <li class="page-item">
+                        <a class="page-link" href="?{% if querystring_filtros %}{{ querystring_filtros }}&{% endif %}page=1" title="Primeira Página">
+                            &laquo;&laquo;
+                        </a>
+                    </li>
+                    <li class="page-item">
+                        <a class="page-link" href="?{% if querystring_filtros %}{{ querystring_filtros }}&{% endif %}page={{ page_obj.previous_page_number }}">
+                            &laquo;
+                        </a>
+                    </li>
+                {% else %}
+                    <li class="page-item disabled"><span class="page-link">&laquo;</span></li>
+                {% endif %}
+
+                {% for num in page_obj.paginator.page_range %}
+                    {% if num >= page_obj.number|add:"-3" and num <= page_obj.number|add:"3" %}
+                        {% if num == page_obj.number %}
+                            <li class="page-item active"><span class="page-link">{{ num }}</span></li>
+                        {% else %}
+                            <li class="page-item">
+                                <a class="page-link" href="?{% if querystring_filtros %}{{ querystring_filtros }}&{% endif %}page={{ num }}">{{ num }}</a>
+                            </li>
+                        {% endif %}
+                    {% endif %}
+                {% endfor %}
+
+                {% if page_obj.has_next %}
+                    <li class="page-item">
+                        <a class="page-link" href="?{% if querystring_filtros %}{{ querystring_filtros }}&{% endif %}page={{ page_obj.next_page_number }}">
+                            &raquo;
+                        </a>
+                    </li>
+                    <li class="page-item">
+                        <a class="page-link" href="?{% if querystring_filtros %}{{ querystring_filtros }}&{% endif %}page={{ page_obj.paginator.num_pages }}" title="Última Página">
+                            &raquo;&raquo;
+                        </a>
+                    </li>
+                {% else %}
+                    <li class="page-item disabled"><span class="page-link">&raquo;</span></li>
+                {% endif %}
+            </ul>
+        </nav>
+    </div>
+    {% endif %}
 </div>
 
 <!-- Modal de Cancelamento de Venda -->
@@ -196,6 +341,20 @@
             }
         }
         return cookieValue;
+    }
+
+    function toggleDatasPersonalizadas(valor) {
+        const boxInicio = document.getElementById('boxDataInicio');
+        const boxFim = document.getElementById('boxDataFim');
+        if (boxInicio && boxFim) {
+            if (valor === 'personalizado' || valor === '') {
+                boxInicio.style.display = '';
+                boxFim.style.display = '';
+            } else {
+                boxInicio.style.display = 'none';
+                boxFim.style.display = 'none';
+            }
+        }
     }
 
     function abrirModalCancelar(vendaId, codigoVenda) {
