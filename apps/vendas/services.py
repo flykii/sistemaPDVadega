@@ -10,15 +10,13 @@ from django.utils import timezone
 from .models import Venda, ItemVenda, PagamentoVenda
 from apps.produtos.models import Produto
 from apps.produtos.services import StockService
-from apps.financeiro.models import ContaReceber, FluxoCaixa
 from apps.clientes.models import Cliente
+from apps.financeiro.models import ContaReceber, FluxoCaixa, PagamentoContaReceber
 from apps.core.models import AuditService
-
 
 class SaleService:
     @staticmethod
     def processar_venda(
-
         empresa,
         operador,
         sessao_caixa,
@@ -27,8 +25,9 @@ class SaleService:
         cliente=None,
         desconto: Decimal | float = 0.00,
         offline_uuid: str = '',
-        observacao: str = ''
-    ) -> Venda:
+        observacao: str = '',
+        recebimento_divida: dict = None
+    ) -> Venda | dict:
         """
         Ponto de entrada para processamento de venda com garantia de Idempotência Semântica.
         Se um offline_uuid for enviado e já existir no banco, retorna a venda original
@@ -51,12 +50,11 @@ class SaleService:
                 cliente=cliente,
                 desconto=desconto,
                 offline_uuid=offline_uuid,
-                observacao=observacao
+                observacao=observacao,
+                recebimento_divida=recebimento_divida
             )
         except IntegrityError as e:
             # 3. Tratamento seguro de colisão de concorrência:
-            # Se a colisão ocorreu pelo constraint de offline_uuid, a transação interna já fez rollback completo.
-            # Consultamos fora do bloco quebrado e retornamos a venda vencedora.
             if offline_uuid:
                 venda_existente = Venda.objects.filter(empresa=empresa, offline_uuid=offline_uuid).first()
                 if venda_existente:
@@ -74,68 +72,137 @@ class SaleService:
         cliente=None,
         desconto: Decimal | float = 0.00,
         offline_uuid: str = '',
-        observacao: str = ''
-    ) -> Venda:
+        observacao: str = '',
+        recebimento_divida: dict = None
+    ) -> Venda | dict:
         """
-        Processamento transacional atômico da venda (Venda, Itens, Estoque, Pagamentos, Caixa).
+        Processamento transacional atômico do checkout (Venda, Itens, Estoque, Pagamentos, Caixa, Dívida FIFO).
         Qualquer exceção causa Rollback Total automático no banco de dados.
         """
-        if not itens_data:
-            raise ValueError("Uma venda precisa ter ao menos um item.")
+        tem_itens = bool(itens_data and len(itens_data) > 0)
+        tem_divida = bool(recebimento_divida and isinstance(recebimento_divida, dict))
+
+        if not tem_itens and not tem_divida:
+            raise ValueError("O checkout precisa conter ao menos um item de produto ou uma operação de recebimento de dívida.")
 
         if not pagamentos_data:
-            raise ValueError("Informe ao menos uma forma de pagamento para a venda.")
+            raise ValueError("Informe ao menos uma forma de pagamento para finalizar o checkout.")
 
         if sessao_caixa and sessao_caixa.status != 'ABERTA':
-            raise ValueError("Não é possível realizar vendas em um caixa fechado.")
+            raise ValueError("Não é possível realizar operações em um caixa fechado.")
 
-        # 1. Validação de itens, quantidade e estoque com lock de linha (select_for_update)
-        subtotal = Decimal('0.00')
-        itens_para_criar = []
+        # ---------------------------------------------------------------------
+        # 1. Validação Estrita do Recebimento de Dívida (se presente)
+        # ---------------------------------------------------------------------
+        valor_pago_divida = Decimal('0.00')
+        valor_abatimento_divida = Decimal('0.00')
+        motivo_abatimento_divida = ''
+        cliente_divida = None
+        contas_divida = []
 
-        for item in itens_data:
-            prod_id = item.get('produto_id')
-            if not prod_id:
-                raise ValueError("Identificador do produto é obrigatório para todos os itens.")
+        if tem_divida:
+            cli_divida_id = recebimento_divida.get('cliente_id')
+            if not cli_divida_id:
+                raise ValueError("Cliente é obrigatório para o recebimento de dívida.")
 
-            quant = Decimal(str(item.get('quantidade', 0)))
-            if quant <= Decimal('0.000'):
-                raise ValueError("A quantidade de cada produto deve ser estritamente maior que zero.")
+            if not cliente or cliente.id != int(cli_divida_id):
+                raise ValueError("Este checkout possui um recebimento de dívida. O cliente do checkout deve ser o mesmo cliente da dívida.")
 
             try:
-                produto = Produto.objects.select_for_update().get(id=prod_id, empresa=empresa, ativo=True)
-            except Produto.DoesNotExist:
-                raise ValueError(f"Produto ID {prod_id} não encontrado ou inativo.")
+                cliente_divida = Cliente.objects.select_for_update().get(id=cli_divida_id, empresa=empresa)
+            except Cliente.DoesNotExist:
+                raise ValueError(f"Cliente ID {cli_divida_id} não encontrado ou não pertence a esta empresa.")
 
-            if produto.estoque_atual < quant:
-                raise ValueError(f"Estoque insuficiente para '{produto.nome}'. Estoque atual: {produto.estoque_atual}, Solicitado: {quant}")
+            if not cliente_divida.ativo:
+                raise ValueError(f"O cliente '{cliente_divida.nome}' está inativo.")
 
-            preco_venda_unit = Decimal(str(item.get('preco_venda', produto.preco_venda)))
-            if preco_venda_unit <= Decimal('0.00'):
-                raise ValueError(f"Preço de venda inválido para '{produto.nome}'. O valor deve ser estritamente maior que zero.")
+            # Busca todas as contas a receber pendentes com lock de concorrência
+            contas_divida = list(ContaReceber.objects.select_for_update().filter(
+                empresa=empresa,
+                cliente=cliente_divida,
+                status__in=['ABERTA', 'PARCIAL', 'PENDENTE']
+            ).order_by('data_vencimento', 'id'))
 
-            subtotal_item = (quant * preco_venda_unit).quantize(Decimal('0.01'))
-            subtotal += subtotal_item
+            saldo_devedor_real = sum((c.saldo for c in contas_divida), Decimal('0.00'))
 
-            itens_para_criar.append({
-                'produto': produto,
-                'quantidade': quant,
-                'preco_custo_unitario': produto.preco_custo,
-                'preco_venda_unitario': preco_venda_unit,
-                'subtotal': subtotal_item,
-            })
+            valor_pago_divida = Decimal(str(recebimento_divida.get('valor_pago', '0.00'))).quantize(Decimal('0.01'))
+            valor_abatimento_divida = Decimal(str(recebimento_divida.get('valor_abatimento', '0.00'))).quantize(Decimal('0.01'))
+            motivo_abatimento_divida = str(recebimento_divida.get('motivo_abatimento', '')).strip()
 
-        # 2. Validação estrita de desconto e total da venda
-        desconto_dec = Decimal(str(desconto)).quantize(Decimal('0.01'))
-        if desconto_dec < Decimal('0.00'):
-            raise ValueError("O valor de desconto não pode ser negativo.")
+            if valor_pago_divida < Decimal('0.00'):
+                raise ValueError("O valor a pagar da dívida não pode ser negativo.")
 
-        if desconto_dec > subtotal:
-            raise ValueError(f"O desconto (R$ {desconto_dec:.2f}) não pode ser maior que o subtotal da venda (R$ {subtotal:.2f}).")
+            if valor_abatimento_divida < Decimal('0.00'):
+                raise ValueError("O valor de abatimento da dívida não pode ser negativo.")
 
-        total_venda = (subtotal - desconto_dec).quantize(Decimal('0.01'))
+            total_liquidado_divida = (valor_pago_divida + valor_abatimento_divida).quantize(Decimal('0.01'))
+            if total_liquidado_divida <= Decimal('0.00'):
+                raise ValueError("O total liquidado da dívida (pagamento + abatimento) deve ser maior que zero.")
 
-        # 3. Validação estrita de pagamentos e troco
+            if valor_abatimento_divida > saldo_devedor_real:
+                raise ValueError(f"O abatimento (R$ {valor_abatimento_divida:.2f}) não pode ser superior à dívida total consolidada (R$ {saldo_devedor_real:.2f}).")
+
+            if total_liquidado_divida > saldo_devedor_real:
+                raise ValueError(f"O total liquidado (R$ {total_liquidado_divida:.2f}) não pode ser superior à dívida total consolidada (R$ {saldo_devedor_real:.2f}).")
+
+        # ---------------------------------------------------------------------
+        # 2. Validação de Itens, Estoque e Subtotal de Produtos
+        # ---------------------------------------------------------------------
+        subtotal_produtos = Decimal('0.00')
+        desconto_dec = Decimal('0.00')
+        total_venda_produtos = Decimal('0.00')
+        itens_para_criar = []
+
+        if tem_itens:
+            for item in itens_data:
+                prod_id = item.get('produto_id')
+                if not prod_id:
+                    raise ValueError("Identificador do produto é obrigatório para todos os itens.")
+
+                quant = Decimal(str(item.get('quantidade', 0)))
+                if quant <= Decimal('0.000'):
+                    raise ValueError("A quantidade de cada produto deve ser estritamente maior que zero.")
+
+                try:
+                    produto = Produto.objects.select_for_update().get(id=prod_id, empresa=empresa, ativo=True)
+                except Produto.DoesNotExist:
+                    raise ValueError(f"Produto ID {prod_id} não encontrado ou inativo.")
+
+                if produto.estoque_atual < quant:
+                    raise ValueError(f"Estoque insuficiente para '{produto.nome}'. Estoque atual: {produto.estoque_atual}, Solicitado: {quant}")
+
+                preco_venda_unit = Decimal(str(item.get('preco_venda', produto.preco_venda)))
+                if preco_venda_unit <= Decimal('0.00'):
+                    raise ValueError(f"Preço de venda inválido para '{produto.nome}'. O valor deve ser estritamente maior que zero.")
+
+                subtotal_item = (quant * preco_venda_unit).quantize(Decimal('0.01'))
+                subtotal_produtos += subtotal_item
+
+                itens_para_criar.append({
+                    'produto': produto,
+                    'quantidade': quant,
+                    'preco_custo_unitario': produto.preco_custo,
+                    'preco_venda_unitario': preco_venda_unit,
+                    'subtotal': subtotal_item,
+                })
+
+            desconto_dec = Decimal(str(desconto)).quantize(Decimal('0.01'))
+            if desconto_dec < Decimal('0.00'):
+                raise ValueError("O valor de desconto não pode ser negativo.")
+
+            if desconto_dec > subtotal_produtos:
+                raise ValueError(f"O desconto (R$ {desconto_dec:.2f}) não pode ser maior que o subtotal da venda (R$ {subtotal_produtos:.2f}).")
+
+            total_venda_produtos = (subtotal_produtos - desconto_dec).quantize(Decimal('0.01'))
+
+        # ---------------------------------------------------------------------
+        # 3. Total Financeiro a Pagar no Checkout (Venda + Dívida)
+        # ---------------------------------------------------------------------
+        total_checkout = (total_venda_produtos + valor_pago_divida).quantize(Decimal('0.01'))
+
+        # ---------------------------------------------------------------------
+        # 4. Validação Estrita dos Pagamentos e Troco
+        # ---------------------------------------------------------------------
         total_liquido_pago = Decimal('0.00')
         pagamentos_validados = []
 
@@ -156,7 +223,7 @@ class SaleService:
             if troco_pago > Decimal('0.00') and forma != 'DINHEIRO':
                 raise ValueError("Troco só é permitido para pagamentos em Dinheiro.")
 
-            if forma == 'DINHEIRO' and troco_pago >= val_pago and total_venda > 0:
+            if forma == 'DINHEIRO' and troco_pago >= val_pago and total_checkout > 0:
                 raise ValueError("O troco não pode ser maior ou igual ao valor recebido em dinheiro.")
 
             valor_efetivo = val_pago - troco_pago
@@ -170,144 +237,221 @@ class SaleService:
                 'dados': pag.get('dados', {})
             })
 
-        # Validação do total pago vs total da venda
-        if total_liquido_pago < total_venda:
-            faltante = total_venda - total_liquido_pago
-            raise ValueError(f"Pagamento insuficiente. Total da venda: R$ {total_venda:.2f}, Total pago: R$ {total_liquido_pago:.2f}. Faltam R$ {faltante:.2f}.")
-
-        if total_liquido_pago > total_venda:
-            excedente = total_liquido_pago - total_venda
-            raise ValueError(f"O total líquido pago (R$ {total_liquido_pago:.2f}) excede o total da venda (R$ {total_venda:.2f}) em R$ {excedente:.2f}.")
-
-        # 4. Criação da Venda
-        codigo_venda = f"VD-{timezone.now().strftime('%Y%m%d%H%M%S')}-{uuid.uuid4().hex[:4].upper()}"
-
-        venda = Venda.objects.create(
-            empresa=empresa,
-            sessao_caixa=sessao_caixa,
-            cliente=cliente,
-            operador=operador,
-            codigo_venda=codigo_venda,
-            subtotal=subtotal,
-            desconto=desconto_dec,
-            total=total_venda,
-            status='CONCLUIDA',
-            offline_uuid=offline_uuid,
-            observacao=observacao
-        )
-
-        # 5. Cria Itens e Atualiza Estoque com MovimentacaoEstoque
-        for item in itens_para_criar:
-            ItemVenda.objects.create(
-                empresa=empresa,
-                venda=venda,
-                produto=item['produto'],
-                quantidade=item['quantidade'],
-                preco_custo_unitario=item['preco_custo_unitario'],
-                preco_venda_unitario=item['preco_venda_unitario'],
-                subtotal=item['subtotal']
-            )
-
-            # Baixa no estoque rastreada
-            StockService.remove_stock(
-                produto=item['produto'],
-                quantidade=item['quantidade'],
-                motivo=f"Venda #{venda.codigo_venda}",
-                origem_ref=venda.codigo_venda
-            )
-
-        # 6. Registra Pagamentos
-        for pag in pagamentos_validados:
-            forma = pag['forma']
-            val_pago = pag['valor']
-            troco_pago = pag['troco']
-            valor_efetivo = pag['valor_efetivo']
-
-            PagamentoVenda.objects.create(
-                empresa=empresa,
-                venda=venda,
-                forma_pagamento=forma,
-                valor=val_pago,
-                troco=troco_pago,
-                dados_transacao=pag['dados']
-            )
-
-            # Lançamento no Fluxo de Caixa se não for fiado
-            if forma != 'CREDIARIO':
-                FluxoCaixa.objects.create(
-                    empresa=empresa,
-                    tipo='ENTRADA',
-                    categoria='Venda PDV',
-                    descricao=f"Venda #{venda.codigo_venda} ({forma})",
-                    valor=valor_efetivo,
-                    referencia_origem=venda.codigo_venda
-                )
+        if abs(total_liquido_pago - total_checkout) > Decimal('0.01'):
+            if total_liquido_pago < total_checkout:
+                faltante = total_checkout - total_liquido_pago
+                raise ValueError(f"Pagamento insuficiente. Total a pagar: R$ {total_checkout:.2f}, Total pago: R$ {total_liquido_pago:.2f}. Faltam R$ {faltante:.2f}.")
             else:
-                # Se for CREDIARIO / Fiado, gera Conta a Receber e ajusta saldo do cliente
-                if not cliente:
-                    raise ValueError("Vendas em Crediário/Fiado exigem a seleção de um Cliente cadastrado.")
-                
-                # Bloqueio transacional de concorrência do Cliente
-                cliente_db = Cliente.objects.select_for_update().get(id=cliente.id, empresa=empresa)
+                excedente = total_liquido_pago - total_checkout
+                raise ValueError(f"O total líquido pago (R$ {total_liquido_pago:.2f}) excede o total a pagar (R$ {total_checkout:.2f}) em R$ {excedente:.2f}.")
 
-                if not cliente_db.ativo:
-                    raise ValueError(f"O cliente '{cliente_db.nome}' está inativo e não pode realizar compras no crediário.")
+        # ---------------------------------------------------------------------
+        # 5. Processamento da Nova Venda de Produtos (se houver itens)
+        # ---------------------------------------------------------------------
+        venda = None
+        if tem_itens:
+            codigo_venda = f"VD-{timezone.now().strftime('%Y%m%d%H%M%S')}-{uuid.uuid4().hex[:4].upper()}"
 
-                disponivel = cliente_db.credito_disponivel
-                if cliente_db.limite_credito > Decimal('0.00') and (cliente_db.saldo_devedor + valor_efetivo) > cliente_db.limite_credito:
-                    raise ValueError(
-                        f"Limite de crédito insuficiente para '{cliente_db.nome}'. "
-                        f"Limite: R$ {cliente_db.limite_credito:.2f}, Saldo Devedor Atual: R$ {cliente_db.saldo_devedor:.2f}, Crédito Disponível: R$ {disponivel:.2f}."
-                    )
+            venda = Venda.objects.create(
+                empresa=empresa,
+                sessao_caixa=sessao_caixa,
+                cliente=cliente,
+                operador=operador,
+                codigo_venda=codigo_venda,
+                subtotal=subtotal_produtos,
+                desconto=desconto_dec,
+                total=total_venda_produtos,
+                status='CONCLUIDA',
+                offline_uuid=offline_uuid,
+                observacao=observacao
+            )
 
-                conta_rec = ContaReceber.objects.create(
+            for item in itens_para_criar:
+                ItemVenda.objects.create(
                     empresa=empresa,
                     venda=venda,
-                    cliente=cliente_db,
-                    descricao=f"Crediário Venda #{venda.codigo_venda}",
-                    valor=valor_efetivo,
-                    valor_original=valor_efetivo,
-                    valor_pago=Decimal('0.00'),
-                    data_vencimento=timezone.now().date() + timezone.timedelta(days=30),
-                    status='ABERTA'
+                    produto=item['produto'],
+                    quantidade=item['quantidade'],
+                    preco_custo_unitario=item['preco_custo_unitario'],
+                    preco_venda_unitario=item['preco_venda_unitario'],
+                    subtotal=item['subtotal']
                 )
 
-                cliente_db.saldo_devedor += valor_efetivo
-                cliente_db.save()
+                StockService.remove_stock(
+                    produto=item['produto'],
+                    quantidade=item['quantidade'],
+                    motivo=f"Venda #{venda.codigo_venda}",
+                    origem_ref=venda.codigo_venda
+                )
 
-                # Auditoria de Crediário Concedido
-                AuditService.registrar(
+            # Rateio dos pagamentos para a Venda de Produtos
+            restante_venda = total_venda_produtos
+            for pag in pagamentos_validados:
+                if restante_venda <= Decimal('0.00'):
+                    break
+
+                val_para_venda = min(restante_venda, pag['valor_efetivo'])
+                troco_para_venda = pag['troco'] if pag['valor_efetivo'] == val_para_venda else Decimal('0.00')
+
+                PagamentoVenda.objects.create(
                     empresa=empresa,
-                    usuario=operador,
-                    acao='CREDIARIO_CONCEDIDO',
-                    entidade='ContaReceber',
-                    entidade_id=conta_rec.id,
-                    descricao=f"Crediário de R$ {valor_efetivo:.2f} concedido para '{cliente_db.nome}' na venda #{venda.codigo_venda}",
-                    dados_posteriores={
-                        'cliente': cliente_db.nome,
-                        'valor': str(valor_efetivo),
-                        'saldo_devedor_atual': str(cliente_db.saldo_devedor),
-                        'limite_credito': str(cliente_db.limite_credito)
-                    }
+                    venda=venda,
+                    forma_pagamento=pag['forma'],
+                    valor=(val_para_venda + troco_para_venda),
+                    troco=troco_para_venda,
+                    dados_transacao=pag['dados']
                 )
 
-        # Auditoria da Venda Criada
-        AuditService.registrar(
-            empresa=empresa,
-            usuario=operador,
-            acao='VENDA_CRIADA',
-            entidade='Venda',
-            entidade_id=venda.id,
-            descricao=f"Venda #{venda.codigo_venda} finalizada no valor de R$ {venda.total:.2f}",
-            dados_posteriores={
-                'codigo_venda': venda.codigo_venda,
-                'total': str(venda.total),
-                'desconto': str(venda.desconto),
-                'itens_qtd': str(len(itens_data))
-            }
-        )
+                if pag['forma'] != 'CREDIARIO':
+                    FluxoCaixa.objects.create(
+                        empresa=empresa,
+                        tipo='ENTRADA',
+                        categoria='Venda PDV',
+                        descricao=f"Venda #{venda.codigo_venda} ({pag['forma']})",
+                        valor=val_para_venda,
+                        referencia_origem=venda.codigo_venda
+                    )
+                else:
+                    # Crediário gera Conta a Receber e ajusta saldo devedor
+                    if not cliente:
+                        raise ValueError("Vendas em Crediário/Fiado exigem a seleção de um Cliente cadastrado.")
 
-        return venda
+                    cliente_db = Cliente.objects.select_for_update().get(id=cliente.id, empresa=empresa)
+                    if not cliente_db.ativo:
+                        raise ValueError(f"O cliente '{cliente_db.nome}' está inativo.")
+
+                    if cliente_db.limite_credito > Decimal('0.00') and (cliente_db.saldo_devedor + val_para_venda) > cliente_db.limite_credito:
+                        raise ValueError(
+                            f"Limite de crédito insuficiente para '{cliente_db.nome}'. "
+                            f"Limite: R$ {cliente_db.limite_credito:.2f}, Saldo Devedor Atual: R$ {cliente_db.saldo_devedor:.2f}."
+                        )
+
+                    conta_rec = ContaReceber.objects.create(
+                        empresa=empresa,
+                        venda=venda,
+                        cliente=cliente_db,
+                        descricao=f"Crediário Venda #{venda.codigo_venda}",
+                        valor=val_para_venda,
+                        valor_original=val_para_venda,
+                        valor_pago=Decimal('0.00'),
+                        data_vencimento=timezone.now().date() + timezone.timedelta(days=30),
+                        status='ABERTA'
+                    )
+
+                    cliente_db.saldo_devedor += val_para_venda
+                    cliente_db.save()
+
+                restante_venda -= val_para_venda
+
+            AuditService.registrar(
+                empresa=empresa,
+                usuario=operador,
+                acao='VENDA_CRIADA',
+                entidade='Venda',
+                entidade_id=venda.id,
+                descricao=f"Venda #{venda.codigo_venda} finalizada no valor de R$ {venda.total:.2f}",
+                dados_posteriores={
+                    'codigo_venda': venda.codigo_venda,
+                    'total': str(venda.total),
+                    'desconto': str(venda.desconto),
+                    'itens_qtd': str(len(itens_data))
+                }
+            )
+
+        # ---------------------------------------------------------------------
+        # 6. Processamento da Baixa de Dívida / Quitação FIFO (se houver dívida)
+        # ---------------------------------------------------------------------
+        if tem_divida:
+            restante_liquidar = (valor_pago_divida + valor_abatimento_divida).quantize(Decimal('0.01'))
+            restante_pago = valor_pago_divida
+            restante_abatimento = valor_abatimento_divida
+
+            # Determina a forma de pagamento principal utilizada para a dívida
+            forma_divida = 'DINHEIRO'
+            for pag in reversed(pagamentos_validados):
+                if pag['forma'] != 'CREDIARIO':
+                    forma_divida = pag['forma']
+                    break
+
+            for conta in contas_divida:
+                if restante_liquidar <= Decimal('0.00'):
+                    break
+
+                saldo_c = conta.saldo
+                if saldo_c <= Decimal('0.00'):
+                    continue
+
+                liquidar_nesta = min(saldo_c, restante_liquidar)
+                pago_nesta = min(restante_pago, liquidar_nesta)
+                abat_nesta = min(restante_abatimento, (liquidar_nesta - pago_nesta))
+
+                conta.valor_pago = (Decimal(str(conta.valor_pago or '0.00')) + liquidar_nesta).quantize(Decimal('0.01'))
+                if conta.saldo <= Decimal('0.00'):
+                    conta.status = 'QUITADA'
+                    conta.data_pagamento = timezone.now().date()
+                else:
+                    conta.status = 'PARCIAL'
+                conta.save()
+
+                PagamentoContaReceber.objects.create(
+                    empresa=empresa,
+                    conta_receber=conta,
+                    valor=pago_nesta,
+                    troco=Decimal('0.00'),
+                    valor_abatimento=abat_nesta,
+                    motivo_abatimento=motivo_abatimento_divida,
+                    forma_pagamento=forma_divida,
+                    sessao_caixa=sessao_caixa,
+                    usuario=operador,
+                    observacao=f"Recebimento Dívida PDV"
+                )
+
+                if pago_nesta > Decimal('0.00'):
+                    FluxoCaixa.objects.create(
+                        empresa=empresa,
+                        tipo='ENTRADA',
+                        categoria='Recebimento Fiado',
+                        descricao=f"Recebimento Dívida #{conta.id} - {cliente_divida.nome} ({forma_divida})",
+                        valor=pago_nesta,
+                        referencia_origem=f"REC-DIV-{conta.id}"
+                    )
+
+                restante_liquidar -= liquidar_nesta
+                restante_pago -= pago_nesta
+                restante_abatimento -= abat_nesta
+
+            # Atualiza saldo devedor consolidado do cliente
+            cliente_divida.saldo_devedor = max(Decimal('0.00'), cliente_divida.saldo_devedor - (valor_pago_divida + valor_abatimento_divida))
+            cliente_divida.save()
+
+            AuditService.registrar(
+                empresa=empresa,
+                usuario=operador,
+                acao='RECEBIMENTO_DIVIDA_PDV',
+                entidade='Cliente',
+                entidade_id=cliente_divida.id,
+                descricao=f"Recebimento de dívida PDV do cliente '{cliente_divida.nome}'. Pago: R$ {valor_pago_divida:.2f}, Abatimento: R$ {valor_abatimento_divida:.2f}",
+                dados_posteriores={
+                    'cliente': cliente_divida.nome,
+                    'valor_pago': str(valor_pago_divida),
+                    'valor_abatimento': str(valor_abatimento_divida),
+                    'saldo_devedor_restante': str(cliente_divida.saldo_devedor),
+                    'motivo_abatimento': motivo_abatimento_divida
+                }
+            )
+
+        if venda is not None:
+            return venda
+
+        return {
+            'status': 'CONCLUIDA',
+            'tipo': 'RECEBIMENTO_DIVIDA',
+            'cliente': cliente_divida.nome if cliente_divida else '',
+            'valor_pago': float(valor_pago_divida),
+            'valor_abatimento': float(valor_abatimento_divida),
+            'total_liquidado': float(valor_pago_divida + valor_abatimento_divida),
+            'saldo_devedor_restante': float(cliente_divida.saldo_devedor if cliente_divida else 0.0)
+        }
 
 
     # =========================================================================

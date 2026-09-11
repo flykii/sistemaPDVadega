@@ -143,15 +143,19 @@
 
         <!-- 3. Seleção Rápida de Cliente -->
         <div class="card card-custom p-3 shadow-sm border-0">
-            <label for="cliente-select" class="form-label fw-bold text-dark small text-uppercase mb-1">
-                Cliente <small class="text-muted">(Opcional / <span id="label-shortcut-cliente">{{ atalhos_pdv.IDENTIFICAR_CLIENTE|default:"F4" }}</span>)</small>
+            <label for="cliente-select" class="form-label small fw-bold text-secondary text-uppercase d-flex justify-content-between align-items-center mb-1">
+                <span><i class="bi bi-person-fill"></i> Cliente (<span id="label-shortcut-cliente">{{ atalhos_pdv.IDENTIFICAR_CLIENTE|default:"F4" }}</span>)</span>
+                <span id="cliente-lock-badge" class="badge bg-warning text-dark d-none"><i class="bi bi-lock-fill"></i> Vinculado à Dívida</span>
             </label>
-            <select id="cliente-select" class="form-select" onchange="pdvApp.salvarCarrinhoPersistido()">
+            <select id="cliente-select" class="form-select border-2" onchange="pdvApp.setClient(this.value)">
                 <option value="">-- Consumidor Não Identificado --</option>
                 {% for cli in clientes %}
                     <option value="{{ cli.id }}">{{ cli.nome }} {% if cli.saldo_devedor > 0 %}(Dívida: R$ {{ cli.saldo_devedor }}){% endif %}</option>
                 {% endfor %}
             </select>
+            <div id="cliente-lock-msg" class="text-danger small mt-1 fw-bold d-none">
+                <i class="bi bi-shield-lock-fill"></i> Cliente fixado devido ao recebimento de dívida no carrinho.
+            </div>
         </div>
 
         <!-- 4. Botão Principal de Pagamento / Finalizar Venda -->
@@ -389,29 +393,112 @@
                 <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
             </div>
             <div class="modal-body p-4">
-                <div class="row g-3 mb-3">
-                    <div class="col-12 col-md-8">
-                        <label for="divida-cliente-select" class="form-label fw-bold">Selecione o Cliente</label>
-                        <select id="divida-cliente-select" class="form-select" onchange="carregarContasCliente(this.value)">
-                            <option value="">-- Escolha um Cliente --</option>
-                            {% for cli in clientes %}
-                                <option value="{{ cli.id }}">{{ cli.nome }} (Saldo Devedor: R$ {{ cli.saldo_devedor }})</option>
-                            {% endfor %}
-                        </select>
-                    </div>
-                    <div class="col-12 col-md-4">
-                        <label for="divida-forma-pagamento" class="form-label fw-bold">Forma de Pagamento</label>
-                        <select id="divida-forma-pagamento" class="form-select fw-bold">
-                            <option value="DINHEIRO">Dinheiro (Gaveta)</option>
-                            <option value="PIX">PIX</option>
-                            <option value="CARTAO_DEBITO">Cartão Débito</option>
-                            <option value="CARTAO_CREDITO">Cartão Crédito</option>
-                        </select>
-                    </div>
+                <!-- 1. Seleção do Cliente -->
+                <div class="mb-3">
+                    <label for="divida-cliente-select" class="form-label fw-bold">Cliente</label>
+                    <select id="divida-cliente-select" class="form-select form-select-lg" onchange="carregarContasCliente(this.value)">
+                        <option value="">-- Selecione o Cliente --</option>
+                        {% for cli in clientes %}
+                            <option value="{{ cli.id }}">{{ cli.nome }} (Dívida: R$ {{ cli.saldo_devedor }})</option>
+                        {% endfor %}
+                    </select>
                 </div>
 
-                <div id="contas-cliente-container" class="mt-3">
-                    <p class="text-muted text-center py-3">Selecione um cliente para visualizar os débitos pendentes.</p>
+                <!-- 2. Painel de Informações da Dívida Consolidada -->
+                <div id="divida-info-container" class="d-none">
+                    <div class="row g-2 mb-3">
+                        <div class="col-12 col-md-6">
+                            <div class="p-3 bg-danger-subtle border border-danger rounded text-center">
+                                <span class="text-danger small fw-bold text-uppercase d-block">Dívida Total Consolidada</span>
+                                <h3 class="fw-bold text-danger mb-0" id="divida-total-display">R$ 0,00</h3>
+                            </div>
+                        </div>
+                        <div class="col-12 col-md-6">
+                            <div class="p-3 bg-light border rounded text-center">
+                                <span class="text-muted small fw-bold text-uppercase d-block">Compras / Contas Pendentes</span>
+                                <h3 class="fw-bold text-dark mb-0" id="divida-contas-count-display">0</h3>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 3. Configuração de Abatimento -->
+                    <div class="card border-0 bg-light p-3 mb-3">
+                        <h6 class="fw-bold text-dark mb-3"><i class="bi bi-tag-fill text-primary me-1"></i> Abatimento de Dívida</h6>
+                        <div class="row g-3">
+                            <div class="col-12 col-md-6">
+                                <label for="divida-tipo-abatimento" class="form-label small fw-bold">Tipo de Abatimento</label>
+                                <select id="divida-tipo-abatimento" class="form-select" onchange="atualizarTipoAbatimento()">
+                                    <option value="SEM_ABATIMENTO">Sem Abatimento</option>
+                                    <option value="VALOR_BRL">Abatimento por Valor (R$)</option>
+                                    <option value="PERCENTUAL">Abatimento por Percentual (%)</option>
+                                    <option value="QUITAR">Quitar Dívida (Calcula Abatimento Auto)</option>
+                                </select>
+                            </div>
+
+                            <div class="col-12 col-md-6" id="group-valor-abatimento" style="display: none;">
+                                <label id="label-valor-abatimento" for="divida-valor-abatimento" class="form-label small fw-bold">Valor do Abatimento (R$)</label>
+                                <input type="number" id="divida-valor-abatimento" class="form-control" step="0.01" min="0" placeholder="0,00" oninput="calcularLiquidacaoDivida()">
+                            </div>
+
+                            <div class="col-12" id="group-motivo-abatimento" style="display: none;">
+                                <label for="divida-motivo-abatimento" class="form-label small fw-bold">Motivo do Abatimento (Opcional)</label>
+                                <input type="text" id="divida-motivo-abatimento" class="form-control" placeholder="Ex: Desconto concedido para quitação, acordo...">
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 4. Valor que o Cliente vai Pagar (Dinâmico) -->
+                    <div class="mb-3">
+                        <label for="divida-valor-pagar" class="form-label fw-bold text-dark fs-5">
+                            Valor que o Cliente vai Pagar (R$)
+                        </label>
+                        <div class="input-group input-group-lg">
+                            <span class="input-group-text bg-success text-white fw-bold">R$</span>
+                            <input type="number" id="divida-valor-pagar" class="form-control fw-bold text-success fs-4" step="0.01" min="0" oninput="calcularLiquidacaoDivida(true)">
+                        </div>
+                        <small class="text-muted">Valor a ser recebido no caixa do checkout.</small>
+                    </div>
+
+                    <!-- 5. Resumo da Liquidação -->
+                    <div class="card border border-info-subtle shadow-sm mb-3">
+                        <div class="card-header bg-info-subtle py-2">
+                            <strong class="text-dark small text-uppercase"><i class="bi bi-receipt-cutoff me-1"></i> Resumo da Liquidação</strong>
+                        </div>
+                        <div class="card-body p-3">
+                            <div class="d-flex justify-content-between py-1 border-bottom">
+                                <span class="text-muted">Dívida Total</span>
+                                <strong id="resumo-divida-total">R$ 0,00</strong>
+                            </div>
+                            <div class="d-flex justify-content-between py-1 border-bottom text-success">
+                                <span>Valor a Pagar (Caixa)</span>
+                                <strong id="resumo-valor-pagar">R$ 0,00</strong>
+                            </div>
+                            <div class="d-flex justify-content-between py-1 border-bottom text-warning">
+                                <span>Abatimento</span>
+                                <strong id="resumo-abatimento">R$ 0,00</strong>
+                            </div>
+                            <div class="d-flex justify-content-between py-1 border-bottom text-primary">
+                                <span>Total Liquidado</span>
+                                <strong id="resumo-total-liquidado">R$ 0,00</strong>
+                            </div>
+                            <div class="d-flex justify-content-between pt-2">
+                                <span class="fw-bold">Saldo Restante</span>
+                                <strong class="fs-5 text-danger" id="resumo-saldo-restante">R$ 0,00</strong>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div id="divida-error-msg" class="alert alert-danger d-none py-2"></div>
+
+                    <!-- 6. Botão de Adicionar ao Carrinho -->
+                    <button type="button" class="btn btn-info text-dark btn-lg w-100 fw-bold shadow" onclick="adicionarDividaAoCarrinho()">
+                        <i class="bi bi-cart-plus-fill me-2"></i> ADICIONAR AO CARRINHO
+                    </button>
+                </div>
+
+                <div id="divida-placeholder-msg" class="text-center text-muted py-4">
+                    <i class="bi bi-person-bounding-box fs-1 opacity-50 d-block mb-2"></i>
+                    Selecione um cliente para carregar a dívida consolidada.
                 </div>
             </div>
         </div>
@@ -660,113 +747,223 @@
     }
 
     // Modal de Receber Dívida
-    function abrirModalReceberDivida() {
-        const modalEl = document.getElementById('receberDividaModal');
-        if (modalEl) {
-            const modal = bootstrap.Modal.getInstance(modalEl) || new bootstrap.Modal(modalEl);
-            modal.show();
-        }
-    }
+    window._dividaClienteAtual = null;
 
-    async function carregarContasCliente(clienteId) {
-        const container = document.getElementById('contas-cliente-container');
-        if (!clienteId) {
-            container.innerHTML = '<p class="text-muted text-center py-3">Selecione um cliente para visualizar os débitos pendentes.</p>';
+    function abrirModalReceberDivida() {
+        if (pdvApp.cart.some(i => i.tipo_item === 'RECEBIMENTO_DIVIDA')) {
+            alert('Já existe uma operação de recebimento de dívida no carrinho para este checkout.');
             return;
         }
 
-        container.innerHTML = '<div class="text-center py-3"><div class="spinner-border text-primary"></div></div>';
+        const modalEl = document.getElementById('receberDividaModal');
+        if (!modalEl) return;
+
+        const cliSelect = document.getElementById('divida-cliente-select');
+        const checkoutCliId = pdvApp.cliente_id;
+
+        if (cliSelect && checkoutCliId) {
+            cliSelect.value = checkoutCliId;
+            carregarContasCliente(checkoutCliId);
+        } else if (cliSelect) {
+            cliSelect.value = '';
+            document.getElementById('divida-info-container').classList.add('d-none');
+            document.getElementById('divida-placeholder-msg').classList.remove('d-none');
+        }
+
+        const modal = bootstrap.Modal.getInstance(modalEl) || new bootstrap.Modal(modalEl);
+        modal.show();
+    }
+
+    async function carregarContasCliente(clienteId) {
+        const infoContainer = document.getElementById('divida-info-container');
+        const placeholderMsg = document.getElementById('divida-placeholder-msg');
+
+        if (!clienteId) {
+            window._dividaClienteAtual = null;
+            infoContainer.classList.add('d-none');
+            placeholderMsg.classList.remove('d-none');
+            return;
+        }
 
         try {
             const resp = await fetch(`/api/v1/financeiro/contas-pendentes/${clienteId}/`);
             const data = await resp.json();
 
-            if (!data.contas || data.contas.length === 0) {
-                container.innerHTML = `<div class="alert alert-success text-center">Este cliente não possui débitos pendentes!</div>`;
+            if (!data.contas || data.contas.length === 0 || data.total_divida <= 0) {
+                alert(`O cliente '${data.cliente}' não possui débitos pendentes em aberto.`);
+                window._dividaClienteAtual = null;
+                infoContainer.classList.add('d-none');
+                placeholderMsg.classList.remove('d-none');
                 return;
             }
 
-            let html = `
-                <div class="alert alert-danger py-2 mb-3 d-flex justify-content-between align-items-center">
-                    <span>Cliente: <strong>${data.cliente}</strong></span>
-                    <span class="fs-6">Saldo Devedor Total: <strong>R$ ${data.saldo_devedor.toFixed(2).replace('.', ',')}</strong></span>
-                </div>
-                <div class="list-group">
-            `;
+            window._dividaClienteAtual = {
+                cliente_id: parseInt(clienteId),
+                cliente_nome: data.cliente,
+                total_divida: data.total_divida,
+                total_contas: data.total_contas
+            };
 
-            data.contas.forEach(c => {
-                html += `
-                    <div class="list-group-item p-3 mb-2 rounded border">
-                        <div class="d-flex justify-content-between align-items-center mb-2">
-                            <div>
-                                <strong class="d-block text-dark fs-6">${c.descricao}</strong>
-                                <small class="text-muted">Vencimento: <strong>${c.data_vencimento}</strong> | Status: <span class="badge ${c.is_vencida ? 'bg-danger' : 'bg-warning text-dark'}">${c.status}</span></small>
-                            </div>
-                            <div class="text-end">
-                                <span class="text-muted small d-block">Saldo Devedor</span>
-                                <span class="badge bg-danger fs-5">R$ ${c.saldo.toFixed(2).replace('.', ',')}</span>
-                            </div>
-                        </div>
-                        <div class="row g-2 align-items-center pt-2 border-top">
-                            <div class="col-12 col-sm-6">
-                                <div class="input-group input-group-sm">
-                                    <span class="input-group-text fw-bold">Valor a Quitar R$</span>
-                                    <input type="number" id="valor-quitar-${c.id}" class="form-control fw-bold" value="${c.saldo.toFixed(2)}" max="${c.saldo.toFixed(2)}" step="0.01">
-                                </div>
-                            </div>
-                            <div class="col-12 col-sm-6 text-end">
-                                <button class="btn btn-success btn-sm fw-bold px-3 py-1 shadow-sm" onclick="quitarContaCliente(${c.id})">
-                                    <i class="bi bi-check2-circle me-1"></i> Confirmar Recebimento
-                                </button>
-                            </div>
-                        </div>
-                    </div>
-                `;
-            });
+            document.getElementById('divida-total-display').innerText = `R$ ${data.total_divida.toFixed(2).replace('.', ',')}`;
+            document.getElementById('divida-contas-count-display').innerText = data.total_contas;
 
-            html += '</div>';
-            container.innerHTML = html;
+            document.getElementById('divida-tipo-abatimento').value = 'SEM_ABATIMENTO';
+            document.getElementById('divida-valor-abatimento').value = '';
+            document.getElementById('divida-motivo-abatimento').value = '';
+            document.getElementById('divida-valor-pagar').value = data.total_divida.toFixed(2);
+
+            atualizarTipoAbatimento();
+            infoContainer.classList.remove('d-none');
+            placeholderMsg.classList.add('d-none');
         } catch (err) {
-            container.innerHTML = '<div class="alert alert-danger">Erro ao carregar débitos do cliente.</div>';
+            alert('Erro ao carregar débitos consolidados do cliente.');
         }
     }
 
-    async function quitarContaCliente(contaId) {
-        const valorInput = document.getElementById(`valor-quitar-${contaId}`);
-        const valorPago = valorInput ? parseFloat(valorInput.value.replace(',', '.')) : null;
-        const formaPagamento = document.getElementById('divida-forma-pagamento')?.value || 'DINHEIRO';
+    function atualizarTipoAbatimento() {
+        const tipo = document.getElementById('divida-tipo-abatimento').value;
+        const groupVal = document.getElementById('group-valor-abatimento');
+        const groupMotivo = document.getElementById('group-motivo-abatimento');
+        const labelVal = document.getElementById('label-valor-abatimento');
+        const inputVal = document.getElementById('divida-valor-abatimento');
 
-        if (valorPago !== null && (isNaN(valorPago) || valorPago <= 0)) {
-            alert('Informe um valor de quitação válido maior que zero.');
+        if (tipo === 'SEM_ABATIMENTO') {
+            groupVal.style.display = 'none';
+            groupMotivo.style.display = 'none';
+            inputVal.value = '';
+        } else if (tipo === 'VALOR_BRL') {
+            groupVal.style.display = 'block';
+            groupMotivo.style.display = 'block';
+            labelVal.innerText = 'Valor do Abatimento (R$)';
+            inputVal.placeholder = '0,00';
+        } else if (tipo === 'PERCENTUAL') {
+            groupVal.style.display = 'block';
+            groupMotivo.style.display = 'block';
+            labelVal.innerText = 'Percentual do Abatimento (%)';
+            inputVal.placeholder = 'Ex: 10 para 10%';
+        } else if (tipo === 'QUITAR') {
+            groupVal.style.display = 'none';
+            groupMotivo.style.display = 'block';
+            inputVal.value = '';
+        }
+
+        calcularLiquidacaoDivida(false);
+    }
+
+    function calcularLiquidacaoDivida(alteradoValorPagarManualmente = false) {
+        if (!window._dividaClienteAtual) return;
+
+        const dividaTotal = window._dividaClienteAtual.total_divida;
+        const tipo = document.getElementById('divida-tipo-abatimento').value;
+        const inputAbat = document.getElementById('divida-valor-abatimento');
+        const inputPagar = document.getElementById('divida-valor-pagar');
+        const errEl = document.getElementById('divida-error-msg');
+
+        let abatimento = 0.00;
+        let valorPagar = parseFloat(inputPagar.value) || 0.00;
+
+        if (tipo === 'SEM_ABATIMENTO') {
+            abatimento = 0.00;
+            if (!alteradoValorPagarManualmente) {
+                valorPagar = dividaTotal;
+                inputPagar.value = valorPagar.toFixed(2);
+            }
+        } else if (tipo === 'VALOR_BRL') {
+            abatimento = parseFloat(inputAbat.value) || 0.00;
+            abatimento = Math.min(dividaTotal, Math.max(0, abatimento));
+            if (!alteradoValorPagarManualmente) {
+                valorPagar = Math.max(0, Math.round((dividaTotal - abatimento) * 100) / 100);
+                inputPagar.value = valorPagar.toFixed(2);
+            }
+        } else if (tipo === 'PERCENTUAL') {
+            const pct = Math.min(100, Math.max(0, parseFloat(inputAbat.value) || 0.00));
+            abatimento = Math.round(((dividaTotal * pct) / 100.00) * 100) / 100;
+            if (!alteradoValorPagarManualmente) {
+                valorPagar = Math.max(0, Math.round((dividaTotal - abatimento) * 100) / 100);
+                inputPagar.value = valorPagar.toFixed(2);
+            }
+        } else if (tipo === 'QUITAR') {
+            if (alteradoValorPagarManualmente) {
+                valorPagar = Math.min(dividaTotal, Math.max(0, valorPagar));
+            } else {
+                valorPagar = parseFloat(inputPagar.value) || 0.00;
+            }
+            abatimento = Math.max(0, Math.round((dividaTotal - valorPagar) * 100) / 100);
+        }
+
+        const totalLiquidado = Math.round((valorPagar + abatimento) * 100) / 100;
+        const saldoRestante = Math.max(0, Math.round((dividaTotal - totalLiquidado) * 100) / 100);
+
+        document.getElementById('resumo-divida-total').innerText = `R$ ${dividaTotal.toFixed(2).replace('.', ',')}`;
+        document.getElementById('resumo-valor-pagar').innerText = `R$ ${valorPagar.toFixed(2).replace('.', ',')}`;
+        document.getElementById('resumo-abatimento').innerText = `R$ ${abatimento.toFixed(2).replace('.', ',')}`;
+        document.getElementById('resumo-total-liquidado').innerText = `R$ ${totalLiquidado.toFixed(2).replace('.', ',')}`;
+        document.getElementById('resumo-saldo-restante').innerText = `R$ ${saldoRestante.toFixed(2).replace('.', ',')}`;
+
+        if (totalLiquidado > (dividaTotal + 0.01)) {
+            errEl.innerText = `O total liquidado (R$ ${totalLiquidado.toFixed(2).replace('.', ',')}) não pode ser superior à dívida consolidada (R$ ${dividaTotal.toFixed(2).replace('.', ',')}).`;
+            errEl.classList.remove('d-none');
+        } else if (totalLiquidado <= 0) {
+            errEl.innerText = 'O valor a pagar ou abatimento deve ser maior que zero.';
+            errEl.classList.remove('d-none');
+        } else {
+            errEl.classList.add('d-none');
+        }
+    }
+
+    function adicionarDividaAoCarrinho() {
+        if (!window._dividaClienteAtual) {
+            alert('Selecione um cliente com débitos em aberto.');
             return;
         }
 
-        if (!confirm(`Confirmar o recebimento de R$ ${valorPago ? valorPago.toFixed(2) : ''} (${formaPagamento}) para esta dívida?`)) return;
+        const dividaTotal = window._dividaClienteAtual.total_divida;
+        const tipo = document.getElementById('divida-tipo-abatimento').value;
+        const inputAbat = document.getElementById('divida-valor-abatimento');
+        const inputPagar = document.getElementById('divida-valor-pagar');
+        const motivoAbat = document.getElementById('divida-motivo-abatimento').value.trim();
 
-        try {
-            const resp = await fetch('/api/v1/financeiro/receber-divida/', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'X-CSRFToken': pdvApp.getCsrfToken()
-                },
-                body: JSON.stringify({
-                    conta_id: contaId,
-                    valor_pago: valorPago,
-                    forma_pagamento: formaPagamento
-                })
-            });
+        let valorPagar = Math.max(0, parseFloat(inputPagar.value) || 0.00);
+        let abatimento = 0.00;
 
-            const res = await resp.json();
-            if (res.sucesso) {
-                alert(res.mensagem);
-                const cliSelect = document.getElementById('divida-cliente-select');
-                if (cliSelect) carregarContasCliente(cliSelect.value);
-            } else {
-                alert(`Erro: ${res.error || 'Não foi possível quitar a dívida'}`);
+        if (tipo === 'VALOR_BRL') {
+            abatimento = Math.max(0, parseFloat(inputAbat.value) || 0.00);
+        } else if (tipo === 'PERCENTUAL') {
+            const pct = Math.min(100, Math.max(0, parseFloat(inputAbat.value) || 0.00));
+            abatimento = Math.round(((dividaTotal * pct) / 100.00) * 100) / 100;
+        } else if (tipo === 'QUITAR') {
+            abatimento = Math.max(0, Math.round((dividaTotal - valorPagar) * 100) / 100);
+        }
+
+        const totalLiquidado = Math.round((valorPagar + abatimento) * 100) / 100;
+
+        if (totalLiquidado > (dividaTotal + 0.01)) {
+            alert(`O total liquidado (R$ ${totalLiquidado.toFixed(2)}) excede a dívida consolidada (R$ ${dividaTotal.toFixed(2)}).`);
+            return;
+        }
+
+        if (totalLiquidado <= 0) {
+            alert('O valor a pagar ou abatimento deve ser superior a zero.');
+            return;
+        }
+
+        const adicionado = pdvApp.addDividaToCart({
+            cliente_id: window._dividaClienteAtual.cliente_id,
+            cliente_nome: window._dividaClienteAtual.cliente_nome,
+            divida_total: dividaTotal,
+            valor_pago: valorPagar,
+            valor_abatimento: abatimento,
+            motivo_abatimento: motivoAbat,
+            total_liquidado: totalLiquidado
+        });
+
+        if (adicionado) {
+            const modalEl = document.getElementById('receberDividaModal');
+            if (modalEl) {
+                const modal = bootstrap.Modal.getInstance(modalEl);
+                if (modal) modal.hide();
             }
-        } catch (err) {
-            alert('Falha na comunicação com o servidor.');
+            mostrarFeedbackBip('Recebimento de Dívida adicionado ao carrinho', 'success');
         }
     }
 </script>

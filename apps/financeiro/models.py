@@ -121,6 +121,8 @@ class PagamentoContaReceber(TenantModelMixin):
     conta_receber = models.ForeignKey(ContaReceber, on_delete=models.CASCADE, related_name='pagamentos_recebidos')
     valor = models.DecimalField('Valor Recebido (R$)', max_digits=12, decimal_places=2)
     troco = models.DecimalField('Troco (R$)', max_digits=12, decimal_places=2, default=0.00)
+    valor_abatimento = models.DecimalField('Valor Abatimento (R$)', max_digits=12, decimal_places=2, default=0.00)
+    motivo_abatimento = models.CharField('Motivo do Abatimento', max_length=255, blank=True)
     forma_pagamento = models.CharField('Forma de Pagamento', max_length=20, choices=FORMA_CHOICES, default='DINHEIRO')
     sessao_caixa = models.ForeignKey(SessaoCaixa, on_delete=models.SET_NULL, null=True, blank=True, related_name='recebimentos_crediario')
     usuario = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT, related_name='recebimentos_realizados')

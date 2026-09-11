@@ -122,14 +122,17 @@ class VendaViewSet(viewsets.ModelViewSet):
                 empresa=empresa,
                 operador=operador,
                 sessao_caixa=sessao_caixa,
-                itens_data=data['itens'],
+                itens_data=data.get('itens', []),
                 pagamentos_data=data['pagamentos'],
                 cliente=cliente,
                 desconto=data.get('desconto', 0.00),
                 offline_uuid=data.get('offline_uuid', ''),
-                observacao=data.get('observacao', '')
+                observacao=data.get('observacao', ''),
+                recebimento_divida=data.get('recebimento_divida')
             )
-            return Response(VendaSerializer(venda).data, status=status.HTTP_201_CREATED)
+            if isinstance(venda, Venda):
+                return Response(VendaSerializer(venda).data, status=status.HTTP_201_CREATED)
+            return Response(venda, status=status.HTTP_201_CREATED)
         except Exception as e:
             return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
 
@@ -168,14 +171,18 @@ class PDVSyncAPIView(APIView):
                     empresa=empresa,
                     operador=operador,
                     sessao_caixa=sessao_caixa,
-                    itens_data=data['itens'],
+                    itens_data=data.get('itens', []),
                     pagamentos_data=data['pagamentos'],
                     cliente=cliente,
                     desconto=data.get('desconto', 0.00),
                     offline_uuid=data.get('offline_uuid', ''),
-                    observacao=data.get('observacao', '')
+                    observacao=data.get('observacao', ''),
+                    recebimento_divida=data.get('recebimento_divida')
                 )
-                sincronizadas.append(VendaSerializer(venda).data)
+                if isinstance(venda, Venda):
+                    sincronizadas.append(VendaSerializer(venda).data)
+                else:
+                    sincronizadas.append(venda)
             except Exception as e:
                 erros.append({'offline_uuid': data.get('offline_uuid'), 'error': str(e)})
 
@@ -265,10 +272,15 @@ class ContasPendentesClienteAPIView(APIView):
             'status': c.status_display_calculado
         } for c in contas if c.saldo > 0]
 
+        total_divida_consolidada = sum((c['saldo'] for c in data), 0.0)
+
         return Response({
             'cliente': cliente.nome,
+            'cliente_id': cliente.id,
             'limite_credito': float(cliente.limite_credito),
             'saldo_devedor': float(cliente.saldo_devedor),
+            'total_divida': total_divida_consolidada,
+            'total_contas': len(data),
             'credito_disponivel': float(cliente.credito_disponivel),
             'contas': data
         }, status=status.HTTP_200_OK)

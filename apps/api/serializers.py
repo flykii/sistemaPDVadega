@@ -101,11 +101,19 @@ class PagamentoInputSerializer(serializers.Serializer):
     dados = serializers.JSONField(required=False, default=dict)
 
 
+class RecebimentoDividaInputSerializer(serializers.Serializer):
+    cliente_id = serializers.IntegerField(min_value=1)
+    valor_pago = serializers.DecimalField(max_digits=12, decimal_places=2, min_value=Decimal('0.00'))
+    valor_abatimento = serializers.DecimalField(max_digits=12, decimal_places=2, default=Decimal('0.00'), min_value=Decimal('0.00'))
+    motivo_abatimento = serializers.CharField(max_length=255, required=False, allow_blank=True, default='')
+
+
 class ProcessarVendaInputSerializer(serializers.Serializer):
     sessao_caixa_id = serializers.IntegerField(required=False, allow_null=True)
     cliente_id = serializers.IntegerField(required=False, allow_null=True)
-    desconto = serializers.DecimalField(max_digits=12, decimal_places=2, default=0.00)
+    desconto = serializers.DecimalField(max_digits=12, decimal_places=2, default=Decimal('0.00'))
     offline_uuid = serializers.CharField(required=False, allow_blank=True, default='')
     observacao = serializers.CharField(required=False, allow_blank=True, default='')
-    itens = VendaItemInputSerializer(many=True)
+    itens = VendaItemInputSerializer(many=True, required=False, default=list)
     pagamentos = PagamentoInputSerializer(many=True)
+    recebimento_divida = RecebimentoDividaInputSerializer(required=False, allow_null=True)

@@ -139,6 +139,11 @@ class PDVApp {
                     this.focusBarcodeScanner();
                 } else if (isKeyMatch('IDENTIFICAR_CLIENTE')) {
                     e.preventDefault();
+                    const debtItem = this.cart.find(i => i.tipo_item === 'RECEBIMENTO_DIVIDA');
+                    if (debtItem) {
+                        alert(`Este checkout possui um recebimento de dívida de ${debtItem.cliente_nome}. O cliente do checkout deve ser o mesmo cliente da dívida.`);
+                        return;
+                    }
                     const cliSelect = document.getElementById('cliente-select') || document.getElementById('modal-cliente-select');
                     if (cliSelect) cliSelect.focus();
                 } else if (isKeyMatch('FINALIZAR_COMPRA')) {
@@ -505,9 +510,86 @@ class PDVApp {
         return true;
     }
 
+    addDividaToCart(dividaData) {
+        if (this.cart.some(i => i.tipo_item === 'RECEBIMENTO_DIVIDA')) {
+            alert('Já existe uma operação de recebimento de dívida neste checkout. Finalize ou remova a operação atual antes de adicionar outra.');
+            return false;
+        }
+
+        const virtualItem = {
+            tipo_item: 'RECEBIMENTO_DIVIDA',
+            cliente_id: dividaData.cliente_id,
+            cliente_nome: dividaData.cliente_nome,
+            divida_total: roundMoney(dividaData.divida_total),
+            valor_pago: roundMoney(dividaData.valor_pago),
+            valor_abatimento: roundMoney(dividaData.valor_abatimento),
+            motivo_abatimento: dividaData.motivo_abatimento || '',
+            total_liquidado: roundMoney(dividaData.total_liquidado),
+            nome: `RECEBIMENTO DE DÍVIDA - ${dividaData.cliente_nome}`,
+            preco_venda: roundMoney(dividaData.valor_pago),
+            subtotal: roundMoney(dividaData.valor_pago),
+            quantidade: 1
+        };
+
+        this.cart.push(virtualItem);
+
+        // Fixa e trava o cliente no checkout
+        this.setClient(dividaData.cliente_id, true);
+
+        this.salvarCarrinhoPersistido();
+        this.renderCart();
+        this.updateNetworkBadge();
+        return true;
+    }
+
+    setClient(clienteId, isForcedByDebt = false) {
+        const debtItem = this.cart.find(i => i.tipo_item === 'RECEBIMENTO_DIVIDA');
+        const cliSelect = document.getElementById('cliente-select');
+        const lockBadge = document.getElementById('cliente-lock-badge');
+        const lockMsg = document.getElementById('cliente-lock-msg');
+
+        if (debtItem) {
+            const requiredId = String(debtItem.cliente_id);
+            if (clienteId && String(clienteId) !== requiredId && !isForcedByDebt) {
+                alert(`Este checkout possui um recebimento de dívida de ${debtItem.cliente_nome}. O cliente do checkout deve ser o mesmo cliente da dívida.`);
+                if (cliSelect) cliSelect.value = requiredId;
+                return false;
+            }
+            this.cliente_id = parseInt(requiredId, 10);
+            if (cliSelect) {
+                cliSelect.value = requiredId;
+                cliSelect.disabled = true;
+            }
+            if (lockBadge) lockBadge.classList.remove('d-none');
+            if (lockMsg) lockMsg.classList.remove('d-none');
+        } else {
+            this.cliente_id = clienteId ? parseInt(clienteId, 10) : null;
+            if (cliSelect) {
+                cliSelect.disabled = false;
+            }
+            if (lockBadge) lockBadge.classList.add('d-none');
+            if (lockMsg) lockMsg.classList.add('d-none');
+        }
+        this.salvarCarrinhoPersistido();
+        return true;
+    }
+
+    unlockClienteCheckout() {
+        const cliSelect = document.getElementById('cliente-select');
+        const lockBadge = document.getElementById('cliente-lock-badge');
+        const lockMsg = document.getElementById('cliente-lock-msg');
+        if (cliSelect) cliSelect.disabled = false;
+        if (lockBadge) lockBadge.classList.add('d-none');
+        if (lockMsg) lockMsg.classList.add('d-none');
+    }
+
     removeItem(index) {
         if (index >= 0 && index < this.cart.length) {
+            const item = this.cart[index];
             this.cart.splice(index, 1);
+            if (item.tipo_item === 'RECEBIMENTO_DIVIDA') {
+                this.unlockClienteCheckout();
+            }
             this.salvarCarrinhoPersistido();
             this.renderCart();
             this.focusBarcodeScanner();
@@ -515,27 +597,36 @@ class PDVApp {
     }
 
     updateItemQuantity(index, newQty) {
+        const item = this.cart[index];
+        if (!item) return;
+
+        if (item.tipo_item === 'RECEBIMENTO_DIVIDA') {
+            alert('A quantidade da operação de recebimento de dívida é fixa.');
+            this.renderCart();
+            return;
+        }
+
         const val = parseFloat(String(newQty).replace(',', '.'));
         if (isNaN(val) || val <= 0) {
             this.removeItem(index);
             return;
         }
-        if (this.cart[index]) {
-            this.cart[index].quantidade = Math.round((val + Number.EPSILON) * 1000) / 1000;
-            this.cart[index].subtotal = roundMoney(this.cart[index].quantidade * this.cart[index].preco_venda);
-            this.salvarCarrinhoPersistido();
-            this.renderCart();
-        }
+        this.cart[index].quantidade = Math.round((val + Number.EPSILON) * 1000) / 1000;
+        this.cart[index].subtotal = roundMoney(this.cart[index].quantidade * this.cart[index].preco_venda);
+        this.salvarCarrinhoPersistido();
+        this.renderCart();
     }
 
     clearCart() {
         this.cart = [];
         this.payments = [];
         this.selectedCustomer = null;
+        this.cliente_id = null;
         this.discountValue = 0.00;
         this.discountType = 'BRL';
         this.currentSaleName = '';
 
+        this.unlockClienteCheckout();
         const cliSelect = document.getElementById('cliente-select');
         if (cliSelect) cliSelect.value = '';
         const discInput = document.getElementById('discount-input');
@@ -548,22 +639,31 @@ class PDVApp {
 
     // --- CÁLCULOS E TOTAIS COM PRECISÃO MONETÁRIA ---
 
+    getSubtotalProdutos() {
+        return roundMoney(this.cart.filter(i => i.tipo_item !== 'RECEBIMENTO_DIVIDA').reduce((acc, item) => acc + item.subtotal, 0.00));
+    }
+
+    getValorDivida() {
+        return roundMoney(this.cart.filter(i => i.tipo_item === 'RECEBIMENTO_DIVIDA').reduce((acc, item) => acc + item.valor_pago, 0.00));
+    }
+
     getSubtotal() {
-        return roundMoney(this.cart.reduce((acc, item) => acc + item.subtotal, 0.00));
+        return roundMoney(this.getSubtotalProdutos() + this.getValorDivida());
     }
 
     getDiscountAmount() {
-        const subtotal = this.getSubtotal();
-        if (subtotal <= 0) return 0.00;
+        const subtotalProd = this.getSubtotalProdutos();
+        if (subtotalProd <= 0) return 0.00;
 
         if (this.discountType === 'PERCENT') {
-            return roundMoney((subtotal * this.discountValue) / 100.00);
+            return roundMoney((subtotalProd * this.discountValue) / 100.00);
         }
-        return roundMoney(Math.min(subtotal, this.discountValue));
+        return roundMoney(Math.min(subtotalProd, this.discountValue));
     }
 
     getTotal() {
-        return Math.max(0.00, roundMoney(this.getSubtotal() - this.getDiscountAmount()));
+        const totalProd = Math.max(0.00, roundMoney(this.getSubtotalProdutos() - this.getDiscountAmount()));
+        return roundMoney(totalProd + this.getValorDivida());
     }
 
     getTotalPaid() {
@@ -613,29 +713,59 @@ class PDVApp {
                     </td>
                 </tr>
             `;
+            this.unlockClienteCheckout();
         } else {
+            const debt = this.cart.find(i => i.tipo_item === 'RECEBIMENTO_DIVIDA');
+            if (debt) {
+                this.setClient(debt.cliente_id, true);
+            }
+
             this.cart.forEach((item, idx) => {
                 const tr = document.createElement('tr');
-                tr.innerHTML = `
-                    <td>
-                        <strong class="text-dark d-block">${item.nome}</strong>
-                        <small class="text-muted font-monospace">${item.codigo_barras || 'S/ Código'}</small>
-                    </td>
-                    <td class="text-center">
-                        <div class="input-group input-group-sm justify-content-center" style="max-width: 130px; margin: 0 auto;">
-                            <button class="btn btn-outline-secondary" type="button" onclick="pdvApp.updateItemQuantity(${idx}, ${item.quantidade - 1})">-</button>
-                            <input type="number" class="form-control text-center fw-bold" value="${item.quantidade}" min="0.001" step="any" onchange="pdvApp.updateItemQuantity(${idx}, this.value)">
-                            <button class="btn btn-outline-secondary" type="button" onclick="pdvApp.updateItemQuantity(${idx}, ${item.quantidade + 1})">+</button>
-                        </div>
-                    </td>
-                    <td class="fw-bold">R$ ${item.preco_venda.toFixed(2).replace('.', ',')}</td>
-                    <td class="fw-bold text-success">R$ ${item.subtotal.toFixed(2).replace('.', ',')}</td>
-                    <td class="text-end">
-                        <button class="btn btn-outline-danger btn-sm py-0 px-2" onclick="pdvApp.removeItem(${idx})">
-                            <i class="bi bi-trash"></i>
-                        </button>
-                    </td>
-                `;
+                if (item.tipo_item === 'RECEBIMENTO_DIVIDA') {
+                    tr.className = 'table-info-subtle';
+                    tr.innerHTML = `
+                        <td colspan="2">
+                            <div class="d-flex align-items-center gap-2">
+                                <span class="badge bg-info text-dark fw-bold"><i class="bi bi-cash-stack me-1"></i> RECEBIMENTO DE DÍVIDA</span>
+                                <strong class="text-dark">Cliente: ${item.cliente_nome}</strong>
+                            </div>
+                            <small class="text-muted d-block mt-1">
+                                ${item.valor_abatimento > 0 ? `Abatimento: <strong>R$ ${item.valor_abatimento.toFixed(2).replace('.', ',')}</strong> | ` : ''}
+                                Total Liquidado: <strong>R$ ${item.total_liquidado.toFixed(2).replace('.', ',')}</strong>
+                                ${item.motivo_abatimento ? ` | Motivo: <em>${item.motivo_abatimento}</em>` : ''}
+                            </small>
+                        </td>
+                        <td class="fw-bold text-muted text-center">1x</td>
+                        <td class="fw-bold text-primary">R$ ${item.valor_pago.toFixed(2).replace('.', ',')}</td>
+                        <td class="text-end">
+                            <button class="btn btn-outline-danger btn-sm py-0 px-2" onclick="pdvApp.removeItem(${idx})" title="Remover Recebimento de Dívida">
+                                <i class="bi bi-trash"></i>
+                            </button>
+                        </td>
+                    `;
+                } else {
+                    tr.innerHTML = `
+                        <td>
+                            <strong class="text-dark d-block">${item.nome}</strong>
+                            <small class="text-muted font-monospace">${item.codigo_barras || 'S/ Código'}</small>
+                        </td>
+                        <td class="text-center">
+                            <div class="input-group input-group-sm justify-content-center" style="max-width: 130px; margin: 0 auto;">
+                                <button class="btn btn-outline-secondary" type="button" onclick="pdvApp.updateItemQuantity(${idx}, ${item.quantidade - 1})">-</button>
+                                <input type="number" class="form-control text-center fw-bold" value="${item.quantidade}" min="0.001" step="any" onchange="pdvApp.updateItemQuantity(${idx}, this.value)">
+                                <button class="btn btn-outline-secondary" type="button" onclick="pdvApp.updateItemQuantity(${idx}, ${item.quantidade + 1})">+</button>
+                            </div>
+                        </td>
+                        <td class="fw-bold">R$ ${item.preco_venda.toFixed(2).replace('.', ',')}</td>
+                        <td class="fw-bold text-success">R$ ${item.subtotal.toFixed(2).replace('.', ',')}</td>
+                        <td class="text-end">
+                            <button class="btn btn-outline-danger btn-sm py-0 px-2" onclick="pdvApp.removeItem(${idx})">
+                                <i class="bi bi-trash"></i>
+                            </button>
+                        </td>
+                    `;
+                }
                 tbody.appendChild(tr);
             });
         }
@@ -644,11 +774,13 @@ class PDVApp {
         const discount = this.getDiscountAmount();
         const total = this.getTotal();
 
-        if (countBadge) countBadge.innerText = this.cart.reduce((acc, i) => acc + i.quantidade, 0);
+        if (countBadge) countBadge.innerText = this.cart.reduce((acc, i) => acc + (i.tipo_item === 'RECEBIMENTO_DIVIDA' ? 1 : i.quantidade), 0);
         if (subtotalEl) subtotalEl.innerText = `R$ ${subtotal.toFixed(2).replace('.', ',')}`;
         if (discountEl) discountEl.innerText = `- R$ ${discount.toFixed(2).replace('.', ',')}`;
         if (totalEl) totalEl.innerText = `R$ ${total.toFixed(2).replace('.', ',')}`;
         if (totalPayEl) totalPayEl.innerText = `R$ ${total.toFixed(2).replace('.', ',')}`;
+
+        this.updateNetworkBadge();
     }
 
     // --- PAUSA E RETOMADA DE VENDAS (COM NOME FIXO E PERSISTÊNCIA) ---
@@ -1351,15 +1483,24 @@ class PDVApp {
 
         const offlineUuid = (typeof crypto !== 'undefined' && crypto.randomUUID) ? crypto.randomUUID() : ('OFF-' + Date.now() + '-' + Math.random().toString(36).substring(2, 9));
 
+        const debtItem = this.cart.find(i => i.tipo_item === 'RECEBIMENTO_DIVIDA');
+        const prodItems = this.cart.filter(i => i.tipo_item !== 'RECEBIMENTO_DIVIDA');
+
         const vendaPayload = {
             offline_uuid: offlineUuid,
             cliente_id: clienteId,
             desconto: parseFloat(this.getDiscountAmount().toFixed(2)),
-            itens: this.cart.map(i => ({
+            itens: prodItems.map(i => ({
                 produto_id: i.produto_id,
                 quantidade: parseFloat(i.quantidade),
                 preco_venda: parseFloat(i.preco_venda.toFixed(2))
             })),
+            recebimento_divida: debtItem ? {
+                cliente_id: debtItem.cliente_id,
+                valor_pago: parseFloat(debtItem.valor_pago.toFixed(2)),
+                valor_abatimento: parseFloat(debtItem.valor_abatimento.toFixed(2)),
+                motivo_abatimento: debtItem.motivo_abatimento || ''
+            } : null,
             pagamentos: this.payments.map(p => ({
                 forma: p.forma,
                 valor: parseFloat(p.valor.toFixed(2)),
@@ -1394,8 +1535,12 @@ class PDVApp {
                         }
                         this.closeModals();
 
-                        if (confirm(`Venda #${data.codigo_venda} finalizada com SUCESSO!\n\nDeseja imprimir o comprovante da venda?`)) {
-                            this.abrirRecibo(data.id);
+                        if (data.codigo_venda) {
+                            if (confirm(`Venda #${data.codigo_venda} finalizada com SUCESSO!\n\nDeseja imprimir o comprovante da venda?`)) {
+                                this.abrirRecibo(data.id);
+                            }
+                        } else {
+                            alert(`Recebimento de Dívida finalizado com SUCESSO!\n\nCliente: ${data.cliente}\nValor Recebido: R$ ${data.valor_pago.toFixed(2)}\nTotal Liquidado: R$ ${data.total_liquidado.toFixed(2)}\nSaldo Restante: R$ ${data.saldo_devedor_restante.toFixed(2)}`);
                         }
                         this.clearCart();
                         return;
