@@ -64,6 +64,7 @@
                         <form method="POST" action="{% url 'configuracoes' %}" id="formCoresSistema">
                             {% csrf_token %}
                             <input type="hidden" name="action" value="salvar_tema_cores">
+                            <input type="hidden" name="aba_origem" value="visual">
                             
                             <h5 class="fw-bold text-dark mb-3"><i class="bi bi-brush text-primary me-2"></i>Paleta de Cores do Painel Geral</h5>
                             <p class="text-muted small mb-4">Escolha as cores através do seletor ou digite o código HEX (ex: <code>#2563EB</code>).</p>
@@ -126,6 +127,22 @@
                                 </div>
 
                                 <div class="col-12 col-md-6 col-lg-4">
+                                    <label class="form-label fw-semibold">Cor do Texto Secundário:</label>
+                                    <div class="input-group">
+                                        <input type="color" class="form-control form-control-color" id="picker_cor_texto_secundario" value="{{ config_visual.cor_texto_secundario }}" onchange="syncColorInput(this, 'cor_texto_secundario')">
+                                        <input type="text" class="form-control font-monospace" id="cor_texto_secundario" name="cor_texto_secundario" value="{{ config_visual.cor_texto_secundario }}" onchange="syncPickerInput(this, 'picker_cor_texto_secundario')" required>
+                                    </div>
+                                </div>
+
+                                <div class="col-12 col-md-6 col-lg-4">
+                                    <label class="form-label fw-semibold">Cor dos Botões Primários:</label>
+                                    <div class="input-group">
+                                        <input type="color" class="form-control form-control-color" id="picker_cor_botoes" value="{{ config_visual.cor_botoes }}" onchange="syncColorInput(this, 'cor_botoes')">
+                                        <input type="text" class="form-control font-monospace" id="cor_botoes" name="cor_botoes" value="{{ config_visual.cor_botoes }}" onchange="syncPickerInput(this, 'picker_cor_botoes')" required>
+                                    </div>
+                                </div>
+
+                                <div class="col-12 col-md-6 col-lg-4">
                                     <label class="form-label fw-semibold">Cor dos Botões de Ação:</label>
                                     <div class="input-group">
                                         <input type="color" class="form-control form-control-color" id="picker_cor_botoes_acao" value="{{ config_visual.cor_botoes_acao }}" onchange="syncColorInput(this, 'cor_botoes_acao')">
@@ -134,10 +151,34 @@
                                 </div>
 
                                 <div class="col-12 col-md-6 col-lg-4">
+                                    <label class="form-label fw-semibold">Cor dos Links:</label>
+                                    <div class="input-group">
+                                        <input type="color" class="form-control form-control-color" id="picker_cor_links" value="{{ config_visual.cor_links }}" onchange="syncColorInput(this, 'cor_links')">
+                                        <input type="text" class="form-control font-monospace" id="cor_links" name="cor_links" value="{{ config_visual.cor_links }}" onchange="syncPickerInput(this, 'picker_cor_links')" required>
+                                    </div>
+                                </div>
+
+                                <div class="col-12 col-md-6 col-lg-4">
                                     <label class="form-label fw-semibold">Cor de Sucesso / Lucro:</label>
                                     <div class="input-group">
                                         <input type="color" class="form-control form-control-color" id="picker_cor_sucesso" value="{{ config_visual.cor_sucesso }}" onchange="syncColorInput(this, 'cor_sucesso')">
                                         <input type="text" class="form-control font-monospace" id="cor_sucesso" name="cor_sucesso" value="{{ config_visual.cor_sucesso }}" onchange="syncPickerInput(this, 'picker_cor_sucesso')" required>
+                                    </div>
+                                </div>
+
+                                <div class="col-12 col-md-6 col-lg-4">
+                                    <label class="form-label fw-semibold">Cor de Alerta / Atenção:</label>
+                                    <div class="input-group">
+                                        <input type="color" class="form-control form-control-color" id="picker_cor_alerta" value="{{ config_visual.cor_alerta }}" onchange="syncColorInput(this, 'cor_alerta')">
+                                        <input type="text" class="form-control font-monospace" id="cor_alerta" name="cor_alerta" value="{{ config_visual.cor_alerta }}" onchange="syncPickerInput(this, 'picker_cor_alerta')" required>
+                                    </div>
+                                </div>
+
+                                <div class="col-12 col-md-6 col-lg-4">
+                                    <label class="form-label fw-semibold">Cor de Erro / Cancelamento:</label>
+                                    <div class="input-group">
+                                        <input type="color" class="form-control form-control-color" id="picker_cor_erro" value="{{ config_visual.cor_erro }}" onchange="syncColorInput(this, 'cor_erro')">
+                                        <input type="text" class="form-control font-monospace" id="cor_erro" name="cor_erro" value="{{ config_visual.cor_erro }}" onchange="syncPickerInput(this, 'picker_cor_erro')" required>
                                     </div>
                                 </div>
                             </div>
@@ -183,8 +224,7 @@
                                 <button type="submit" class="btn btn-success fw-bold px-4">
                                     <i class="bi bi-check2-circle me-1"></i> Salvar Cores do Sistema
                                 </button>
-                                <button type="submit" class="btn btn-outline-danger btn-sm" onclick="return confirm('Deseja realmente restaurar as cores padrão de fábrica?');" formaction="{% url 'configuracoes' %}?action=restaurar_padroes">
-                                    <input type="hidden" name="action" value="restaurar_padroes">
+                                <button type="button" class="btn btn-outline-danger btn-sm" onclick="if(confirm('Deseja realmente restaurar as cores padrão de fábrica?')) { document.querySelector('#formRestaurarPadroes input[name=aba_origem]').value='visual'; document.getElementById('formRestaurarPadroes').submit(); }">
                                     <i class="bi bi-arrow-counterclockwise me-1"></i> Restaurar Padrões
                                 </button>
                             </div>
@@ -196,6 +236,7 @@
                         <form method="POST" action="{% url 'configuracoes' %}" id="formCoresPDV">
                             {% csrf_token %}
                             <input type="hidden" name="action" value="salvar_tema_cores">
+                            <input type="hidden" name="aba_origem" value="pdv">
 
                             <h5 class="fw-bold text-dark mb-3"><i class="bi bi-cart-check text-primary me-2"></i>Personalização da Tela do PDV</h5>
                             <p class="text-muted small mb-4">Ajuste o contraste, tamanhos de fontes e cores dos preços para facilitar a visão do operador de caixa.</p>
@@ -206,6 +247,14 @@
                                     <div class="input-group">
                                         <input type="color" class="form-control form-control-color" id="picker_cor_pdv_fundo" value="{{ config_visual.cor_pdv_fundo }}" onchange="syncColorInput(this, 'cor_pdv_fundo')">
                                         <input type="text" class="form-control font-monospace" id="cor_pdv_fundo" name="cor_pdv_fundo" value="{{ config_visual.cor_pdv_fundo }}" onchange="syncPickerInput(this, 'picker_cor_pdv_fundo')" required>
+                                    </div>
+                                </div>
+
+                                <div class="col-12 col-md-6 col-lg-4">
+                                    <label class="form-label fw-semibold">Cor do Texto no PDV:</label>
+                                    <div class="input-group">
+                                        <input type="color" class="form-control form-control-color" id="picker_cor_pdv_texto" value="{{ config_visual.cor_pdv_texto }}" onchange="syncColorInput(this, 'cor_pdv_texto')">
+                                        <input type="text" class="form-control font-monospace" id="cor_pdv_texto" name="cor_pdv_texto" value="{{ config_visual.cor_pdv_texto }}" onchange="syncPickerInput(this, 'picker_cor_pdv_texto')" required>
                                     </div>
                                 </div>
 
@@ -276,7 +325,7 @@
 
                             <h5 class="fw-bold text-dark mb-3 pt-3 border-top"><i class="bi bi-type text-primary me-2"></i>Tipografia e Densidade do PDV</h5>
                             <div class="row g-3">
-                                <div class="col-12 col-md-4">
+                                <div class="col-12 col-md-3">
                                     <label class="form-label fw-semibold">Tamanho da Fonte do Total:</label>
                                     <select class="form-select" name="tamanho_fonte_total" id="tamanho_fonte_total">
                                         <option value="1.75rem" {% if config_visual.tamanho_fonte_total == '1.75rem' %}selected{% endif %}>Médio (1.75rem)</option>
@@ -285,7 +334,7 @@
                                     </select>
                                 </div>
 
-                                <div class="col-12 col-md-4">
+                                <div class="col-12 col-md-3">
                                     <label class="form-label fw-semibold">Tamanho da Fonte dos Preços:</label>
                                     <select class="form-select" name="tamanho_fonte_preco" id="tamanho_fonte_preco">
                                         <option value="1.0rem" {% if config_visual.tamanho_fonte_preco == '1.0rem' %}selected{% endif %}>Compacto (1.0rem)</option>
@@ -294,12 +343,30 @@
                                     </select>
                                 </div>
 
-                                <div class="col-12 col-md-4">
+                                <div class="col-12 col-md-3">
+                                    <label class="form-label fw-semibold">Tamanho da Fonte dos Itens:</label>
+                                    <select class="form-select" name="tamanho_fonte_itens" id="tamanho_fonte_itens">
+                                        <option value="0.875rem" {% if config_visual.tamanho_fonte_itens == '0.875rem' %}selected{% endif %}>Pequeno (0.875rem)</option>
+                                        <option value="1.0rem" {% if config_visual.tamanho_fonte_itens == '1.0rem' %}selected{% endif %}>Padrão (1.0rem)</option>
+                                        <option value="1.15rem" {% if config_visual.tamanho_fonte_itens == '1.15rem' %}selected{% endif %}>Médio (1.15rem)</option>
+                                    </select>
+                                </div>
+
+                                <div class="col-12 col-md-3">
                                     <label class="form-label fw-semibold">Densidade do Carrinho:</label>
                                     <select class="form-select" name="modo_layout" id="modo_layout">
                                         <option value="CONFORTAVEL" {% if config_visual.modo_layout == 'CONFORTAVEL' %}selected{% endif %}>Confortável (Maior espaçamento)</option>
                                         <option value="COMPACTO" {% if config_visual.modo_layout == 'COMPACTO' %}selected{% endif %}>Compacto (Mais linhas por tela)</option>
                                     </select>
+                                </div>
+
+                                <div class="col-12 mt-3">
+                                    <div class="form-check form-switch">
+                                        <input class="form-check-input" type="checkbox" role="switch" id="exibir_painel_produtos_rapidos" name="exibir_painel_produtos_rapidos" {% if config_visual.exibir_painel_produtos_rapidos %}checked{% endif %}>
+                                        <label class="form-check-label fw-semibold" for="exibir_painel_produtos_rapidos">
+                                            Exibir painel de Atalhos de Produtos Rápidos na lateral direita do PDV
+                                        </label>
+                                    </div>
                                 </div>
                             </div>
 
@@ -379,13 +446,23 @@
                                 </div>
                             </div>
 
-                            <div class="mt-4 pt-3 border-top">
+                            <div class="d-flex justify-content-between align-items-center mt-4 pt-3 border-top">
                                 <button type="submit" class="btn btn-success fw-bold px-4">
                                     <i class="bi bi-check2-circle me-1"></i> Salvar Configurações do PDV
+                                </button>
+                                <button type="button" class="btn btn-outline-danger btn-sm" onclick="if(confirm('Deseja realmente restaurar as cores padrão de fábrica?')) { document.querySelector('#formRestaurarPadroes input[name=aba_origem]').value='pdv'; document.getElementById('formRestaurarPadroes').submit(); }">
+                                    <i class="bi bi-arrow-counterclockwise me-1"></i> Restaurar Padrões
                                 </button>
                             </div>
                         </form>
                     </div>
+
+                    <!-- Formulário centralizado de Restaurar Padrões -->
+                    <form id="formRestaurarPadroes" method="POST" action="{% url 'configuracoes' %}" class="d-none">
+                        {% csrf_token %}
+                        <input type="hidden" name="action" value="restaurar_padroes">
+                        <input type="hidden" name="aba_origem" value="visual">
+                    </form>
 
                     <!-- ABA 3: IDENTIDADE VISUAL & LOGO -->
                     <div class="tab-pane fade" id="tab-identidade" role="tabpanel">
@@ -685,13 +762,26 @@ function checarConflitoAoMudar() {
 // Ativa aba baseada em URL hash caso presente
 window.addEventListener('DOMContentLoaded', () => {
     const hash = window.location.hash;
-    if (hash === '#atalhos' || hash === '#tab-atalhos') {
-        const btn = document.getElementById('tab-atalhos-btn');
-        if (btn) {
-            const triggerEl = new bootstrap.Tab(btn);
+    if (hash) {
+        let tabBtn = document.querySelector(`button[data-bs-target="${hash}"]`);
+        if (!tabBtn) {
+            const clean = hash.replace('#tab-', '').replace('#', '');
+            tabBtn = document.getElementById(`tab-${clean}-btn`);
+        }
+        if (tabBtn) {
+            const triggerEl = new bootstrap.Tab(tabBtn);
             triggerEl.show();
         }
     }
+
+    document.querySelectorAll('#configTabs button[data-bs-toggle="pill"]').forEach(btn => {
+        btn.addEventListener('shown.bs.tab', (e) => {
+            const target = e.target.getAttribute('data-bs-target');
+            if (target) {
+                history.replaceState(null, null, target);
+            }
+        });
+    });
 });
 function syncColorInput(pickerEl, targetTextId) {
     const textInput = document.getElementById(targetTextId);

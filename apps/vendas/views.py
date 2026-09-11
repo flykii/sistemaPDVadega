@@ -15,7 +15,8 @@ def pdv_front_view(request):
         messages.warning(request, "Você precisa abrir uma Sessão de Caixa antes de acessar o PDV Rápido.")
         return redirect('caixas_list')
 
-    produtos = Produto.objects.filter(empresa=empresa, ativo=True).order_by('nome')[:100]
+    from .services import SaleService
+    grupos_produtos_rapidos = SaleService.obter_produtos_rapidos_agrupados(empresa)
     clientes = Cliente.objects.filter(empresa=empresa, ativo=True)
 
     import json
@@ -24,7 +25,7 @@ def pdv_front_view(request):
 
     return render(request, 'vendas/pdv.html', {
         'sessao': sessao_ativa,
-        'produtos': produtos,
+        'grupos_produtos_rapidos': grupos_produtos_rapidos,
         'clientes': clientes,
         'atalhos_pdv': atalhos_dict,
         'atalhos_pdv_json': json.dumps(atalhos_dict),

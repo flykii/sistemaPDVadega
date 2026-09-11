@@ -1,6 +1,7 @@
 import json
 import re
 from django.shortcuts import render, redirect
+from django.urls import reverse
 from django.contrib.auth.decorators import login_required
 from django.contrib import messages
 from django.core.exceptions import ValidationError
@@ -94,6 +95,7 @@ def configuracoes_view(request):
 
         # 3. Salvar Cores do Sistema e Cores do PDV
         elif action == 'salvar_tema_cores':
+            aba_origem = request.POST.get('aba_origem', '')
             dados_anteriores = {
                 'cor_principal': config_visual.cor_principal,
                 'cor_secundaria': config_visual.cor_secundaria,
@@ -113,21 +115,27 @@ def configuracoes_view(request):
 
             try:
                 for c in campos_cores:
-                    val = request.POST.get(c)
-                    if val:
-                        val = val.strip()
-                        if not val.startswith('#'):
-                            val = f"#{val}"
-                        if not HEX_COLOR_REGEX.match(val):
-                            raise ValidationError(f"Código de cor inválido no campo '{c}': '{val}'. Use formato HEX (ex: #2563EB).")
-                        setattr(config_visual, c, val)
+                    if c in request.POST:
+                        val = request.POST.get(c)
+                        if val:
+                            val = val.strip()
+                            if not val.startswith('#'):
+                                val = f"#{val}"
+                            if not HEX_COLOR_REGEX.match(val):
+                                raise ValidationError(f"Código de cor inválido no campo '{c}': '{val}'. Use formato HEX (ex: #2563EB).")
+                            setattr(config_visual, c, val)
 
-                # Tipografia e Layout do PDV
-                config_visual.tamanho_fonte_preco = request.POST.get('tamanho_fonte_preco', config_visual.tamanho_fonte_preco)
-                config_visual.tamanho_fonte_total = request.POST.get('tamanho_fonte_total', config_visual.tamanho_fonte_total)
-                config_visual.tamanho_fonte_itens = request.POST.get('tamanho_fonte_itens', config_visual.tamanho_fonte_itens)
-                config_visual.modo_layout = request.POST.get('modo_layout', config_visual.modo_layout)
-                config_visual.exibir_painel_produtos_rapidos = request.POST.get('exibir_painel_produtos_rapidos') == 'on'
+                # Tipografia e Layout do PDV (apenas quando enviados pelo formulário do PDV)
+                if 'tamanho_fonte_preco' in request.POST:
+                    config_visual.tamanho_fonte_preco = request.POST.get('tamanho_fonte_preco') or config_visual.tamanho_fonte_preco
+                if 'tamanho_fonte_total' in request.POST:
+                    config_visual.tamanho_fonte_total = request.POST.get('tamanho_fonte_total') or config_visual.tamanho_fonte_total
+                if 'tamanho_fonte_itens' in request.POST:
+                    config_visual.tamanho_fonte_itens = request.POST.get('tamanho_fonte_itens') or config_visual.tamanho_fonte_itens
+                if 'modo_layout' in request.POST:
+                    config_visual.modo_layout = request.POST.get('modo_layout') or config_visual.modo_layout
+                if aba_origem == 'pdv' or 'exibir_painel_produtos_rapidos' in request.POST:
+                    config_visual.exibir_painel_produtos_rapidos = request.POST.get('exibir_painel_produtos_rapidos') in ['on', 'true', '1']
 
                 config_visual.full_clean()
                 config_visual.save()
@@ -154,8 +162,13 @@ def configuracoes_view(request):
             except Exception as e:
                 messages.error(request, f"Erro ao salvar configurações visuais: {str(e)}")
 
+            if aba_origem:
+                return redirect(f"{reverse('configuracoes')}#tab-{aba_origem}")
+            return redirect('configuracoes')
+
         # 4. Restaurar Cores Padrão
         elif action == 'restaurar_padroes':
+            aba_origem = request.POST.get('aba_origem', '')
             config_visual.cor_principal = '#2563eb'
             config_visual.cor_secundaria = '#475569'
             config_visual.cor_destaque = '#f59e0b'
@@ -180,8 +193,17 @@ def configuracoes_view(request):
             config_visual.cor_pdv_botao_pausar = '#d97706'
             config_visual.cor_pdv_botao_espera = '#2563eb'
             config_visual.cor_pdv_botao_divida = '#7c3aed'
+            config_visual.tamanho_fonte_preco = '1.25rem'
+            config_visual.tamanho_fonte_total = '2.0rem'
+            config_visual.tamanho_fonte_itens = '1.0rem'
+            config_visual.modo_layout = 'CONFORTAVEL'
+            config_visual.exibir_painel_produtos_rapidos = True
+            config_visual.full_clean()
             config_visual.save()
             messages.success(request, "Configurações visuais restauradas para os padrões de fábrica!")
+            if aba_origem:
+                return redirect(f"{reverse('configuracoes')}#tab-{aba_origem}")
+            return redirect('configuracoes')
 
         # 5. Salvar Atalhos do PDV
         elif action == 'salvar_atalhos_pdv':
@@ -211,6 +233,7 @@ def configuracoes_view(request):
                 messages.error(request, msg)
             except Exception as e:
                 messages.error(request, f"Erro ao salvar atalhos: {str(e)}")
+            return redirect(f"{reverse('configuracoes')}#tab-atalhos")
 
         # 6. Restaurar Atalhos Padrão do PDV
         elif action == 'restaurar_padroes_atalhos':
@@ -227,6 +250,7 @@ def configuracoes_view(request):
                 dados_posteriores=ConfiguracaoAtalhoPDV.get_padroes_dict()
             )
             messages.success(request, "Atalhos do PDV restaurados para os padrões originais com sucesso!")
+            return redirect(f"{reverse('configuracoes')}#tab-atalhos")
 
         return redirect('configuracoes')
 

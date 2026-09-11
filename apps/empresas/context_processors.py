@@ -44,6 +44,9 @@ def configuracao_visual_context(request):
             --cor-pdv-botao-finalizar: #16a34a;
             --cor-pdv-botao-cancelar: #dc2626;
             --cor-pdv-botoes-pagamento: #3b82f6;
+            --cor-pdv-botao-pausar: #d97706;
+            --cor-pdv-botao-espera: #2563eb;
+            --cor-pdv-botao-divida: #7c3aed;
 
             --pdv-fonte-preco: 1.25rem;
             --pdv-fonte-total: 2.0rem;
@@ -51,3 +54,4 @@ def configuracao_visual_context(request):
         }
         """
     }
+

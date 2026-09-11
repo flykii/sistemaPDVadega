@@ -1,6 +1,11 @@
 from decimal import Decimal
+from datetime import timedelta
+from collections import defaultdict
+import unicodedata
 import uuid
 from django.db import transaction, IntegrityError
+from django.db.models import Sum, Q
+from django.db.models.functions import Coalesce
 from django.utils import timezone
 from .models import Venda, ItemVenda, PagamentoVenda
 from apps.produtos.models import Produto
@@ -106,8 +111,8 @@ class SaleService:
                 raise ValueError(f"Estoque insuficiente para '{produto.nome}'. Estoque atual: {produto.estoque_atual}, Solicitado: {quant}")
 
             preco_venda_unit = Decimal(str(item.get('preco_venda', produto.preco_venda)))
-            if preco_venda_unit < Decimal('0.00'):
-                raise ValueError(f"Preço de venda inválido para '{produto.nome}'.")
+            if preco_venda_unit <= Decimal('0.00'):
+                raise ValueError(f"Preço de venda inválido para '{produto.nome}'. O valor deve ser estritamente maior que zero.")
 
             subtotal_item = (quant * preco_venda_unit).quantize(Decimal('0.01'))
             subtotal += subtotal_item
@@ -455,3 +460,82 @@ class SaleService:
         )
 
         return venda
+
+    @staticmethod
+    def normalizar_primeira_letra(nome: str) -> str:
+        """
+        Normaliza a primeira letra do nome do produto para agrupamento alfabético:
+        - A / Á / À / Ã / Â -> A
+        - E / É / Ê -> E
+        - I / Í / Î -> I
+        - O / Ó / Ô / Õ -> O
+        - U / Ú / Ü -> U
+        - Ç -> C
+        - Dígitos (0-9) -> '0-9'
+        - Demais caracteres especiais -> '#'
+        """
+        if not nome:
+            return '#'
+        nome_limpo = str(nome).strip()
+        if not nome_limpo:
+            return '#'
+        primeiro_char = nome_limpo[0].upper()
+        if primeiro_char == 'Ç':
+            return 'C'
+        decomp = unicodedata.normalize('NFD', primeiro_char)
+        sem_acento = ''.join(c for c in decomp if unicodedata.category(c) != 'Mn')
+        if sem_acento.isalpha():
+            return sem_acento.upper()
+        if sem_acento.isdigit():
+            return '0-9'
+        return '#'
+
+    @staticmethod
+    def obter_produtos_rapidos_agrupados(empresa) -> list:
+        """
+        Retorna os produtos rápidos agrupados por letra inicial:
+        - Considera a totalidade dos produtos ativos da empresa (sem corte preliminar)
+        - Calcula a quantidade vendida nos últimos 60 dias (apenas vendas CONCLUIDAS)
+        - Produtos sem venda recebem quantidade 0 e permanecem elegíveis
+        - Ordena por maior quantidade vendida nos últimos 60 dias e desempata por nome alfabético
+        - Seleciona no máximo 4 produtos por letra
+        - Grupos ordenados alfabeticamente: A -> Z, depois '0-9' e '#'
+        """
+        data_limite = timezone.now() - timedelta(days=60)
+
+        # Agregação eficiente em uma única consulta ORM
+        produtos = (
+            Produto.objects.filter(empresa=empresa, ativo=True)
+            .annotate(
+                total_vendido_60d=Coalesce(
+                    Sum(
+                        'itens_venda__quantidade',
+                        filter=Q(
+                            itens_venda__venda__data_venda__gte=data_limite,
+                            itens_venda__venda__status='CONCLUIDA'
+                        )
+                    ),
+                    Decimal('0.000')
+                )
+            )
+            .order_by('-total_vendido_60d', 'nome')
+        )
+
+        grupos_dict = defaultdict(list)
+        for prod in produtos:
+            letra = SaleService.normalizar_primeira_letra(prod.nome)
+            if len(grupos_dict[letra]) < 4:
+                grupos_dict[letra].append(prod)
+
+        def chave_ordenacao(letra):
+            if letra.isalpha():
+                return (0, letra)
+            if letra == '0-9':
+                return (1, letra)
+            return (2, letra)
+
+        grupos_ordenados = [
+            {'letra': letra, 'produtos': grupos_dict[letra]}
+            for letra in sorted(grupos_dict.keys(), key=chave_ordenacao)
+        ]
+        return grupos_ordenados

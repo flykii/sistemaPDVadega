@@ -1,3 +1,4 @@
+from decimal import Decimal
 from rest_framework import serializers
 from apps.produtos.models import Produto, Categoria
 from apps.clientes.models import Cliente
@@ -88,9 +89,9 @@ class VendaSerializer(serializers.ModelSerializer):
 
 
 class VendaItemInputSerializer(serializers.Serializer):
-    produto_id = serializers.IntegerField()
-    quantidade = serializers.DecimalField(max_digits=12, decimal_places=3)
-    preco_venda = serializers.DecimalField(max_digits=12, decimal_places=2, required=False)
+    produto_id = serializers.IntegerField(min_value=1)
+    quantidade = serializers.DecimalField(max_digits=12, decimal_places=3, min_value=Decimal('0.001'))
+    preco_venda = serializers.DecimalField(max_digits=12, decimal_places=2, required=False, min_value=Decimal('0.01'))
 
 
 class PagamentoInputSerializer(serializers.Serializer):

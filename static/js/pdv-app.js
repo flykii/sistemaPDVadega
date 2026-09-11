@@ -11,6 +11,12 @@
  * - Pausa de vendas com nome persistente e retenção de estado ao retomar.
  */
 
+function roundMoney(val) {
+    const num = typeof val === 'number' ? val : parseFloat(String(val).replace(',', '.'));
+    if (isNaN(num)) return 0.00;
+    return Math.round((num + Number.EPSILON) * 100) / 100;
+}
+
 class PDVApp {
     constructor() {
         this.cart = [];
@@ -184,6 +190,13 @@ class PDVApp {
 
         const payModalEl = document.getElementById('paymentModal');
         if (payModalEl) {
+            payModalEl.addEventListener('shown.bs.modal', () => {
+                const valorInput = document.getElementById('modal-pay-valor');
+                if (valorInput) {
+                    valorInput.focus();
+                    valorInput.select();
+                }
+            });
             payModalEl.addEventListener('hidden.bs.modal', () => {
                 if (!this.isTransitioningToConfirm) {
                     this.resetModalPagamento();
@@ -381,44 +394,105 @@ class PDVApp {
 
     // --- MANIPULAÇÃO DO CARRINHO ---
 
-    addItemToCart(produto, quantidadePrevia = null) {
-        if (!produto || !produto.id) return;
+    mostrarFeedback(mensagem, tipo = 'danger') {
+        if (typeof window.mostrarFeedbackBip === 'function') {
+            window.mostrarFeedbackBip(mensagem, tipo);
+        } else {
+            const fb = document.getElementById('bip-feedback');
+            if (fb) {
+                fb.className = `position-absolute end-0 top-0 mt-1 me-2 badge p-2 shadow bg-${tipo === 'danger' ? 'danger' : 'success'} text-white`;
+                fb.innerHTML = `<i class="bi ${tipo === 'danger' ? 'bi-exclamation-triangle-fill' : 'bi-check-circle-fill'} me-1"></i> ${mensagem}`;
+                fb.classList.remove('d-none');
+                clearTimeout(window._bipFeedbackTimeout);
+                window._bipFeedbackTimeout = setTimeout(() => { fb.classList.add('d-none'); }, 2500);
+            } else {
+                console.warn(`[PDV] ${tipo.toUpperCase()}: ${mensagem}`);
+            }
+        }
+    }
 
+    addItemToCart(produto, quantidadePrevia = null) {
+        if (!produto || typeof produto !== 'object') {
+            this.mostrarFeedback('Objeto de produto inválido.', 'danger');
+            return false;
+        }
+
+        const rawId = produto.produto_id || produto.id;
+        const prodId = parseInt(rawId, 10);
+        if (isNaN(prodId) || prodId <= 0) {
+            this.mostrarFeedback('Não foi possível identificar o código/ID do produto.', 'danger');
+            return false;
+        }
+
+        const nome = (produto.nome || '').trim();
+        if (!nome) {
+            this.mostrarFeedback('Produto sem identificação de nome válida.', 'danger');
+            return false;
+        }
+
+        // Validação estrita do preço de venda (NUNCA aceitar 0, NaN, undefined, null ou vazio)
+        let preco = null;
+        const camposPreco = [
+            produto.preco_venda,
+            produto.preco,
+            produto.preco_venda_unitario,
+            produto.valor_unitario,
+            produto.valor,
+            produto.unit_price,
+            produto.price
+        ];
+        for (const p of camposPreco) {
+            if (p !== undefined && p !== null && p !== '') {
+                if (typeof p === 'number' && !isNaN(p) && p > 0) {
+                    preco = p;
+                    break;
+                }
+                if (typeof p === 'string' && p.trim() !== '') {
+                    const parsed = parseFloat(p.replace(',', '.'));
+                    if (!isNaN(parsed) && parsed > 0) {
+                        preco = parsed;
+                        break;
+                    }
+                }
+            }
+        }
+
+        if (preco === null || isNaN(preco) || preco <= 0) {
+            this.mostrarFeedback(`Não foi possível adicionar "${nome}" porque o preço de venda é inválido ou não foi identificado.`, 'danger');
+            return false;
+        }
+
+        preco = roundMoney(preco);
+
+        // Validação de quantidade
         let qtd = 1.0;
         if (quantidadePrevia !== null && !isNaN(parseFloat(quantidadePrevia)) && parseFloat(quantidadePrevia) > 0) {
             qtd = parseFloat(quantidadePrevia);
         } else {
             const qtdInput = document.getElementById('qtd-input');
             if (qtdInput && qtdInput.value) {
-                const parsed = parseFloat(qtdInput.value.replace(',', '.'));
-                if (!isNaN(parsed) && parsed > 0) {
-                    qtd = parsed;
+                const parsedQtd = parseFloat(String(qtdInput.value).replace(',', '.'));
+                if (!isNaN(parsedQtd) && parsedQtd > 0) {
+                    qtd = parsedQtd;
                 }
             }
         }
-
-        const prodId = parseInt(produto.id, 10);
-        let preco = 0.0;
-        if (typeof produto.preco_venda === 'number') {
-            preco = produto.preco_venda;
-        } else if (typeof produto.preco_venda === 'string') {
-            preco = parseFloat(produto.preco_venda.replace(',', '.'));
-        }
-        if (isNaN(preco)) preco = 0.0;
+        qtd = Math.round((qtd + Number.EPSILON) * 1000) / 1000;
 
         const existingIndex = this.cart.findIndex(i => i.produto_id === prodId);
 
         if (existingIndex > -1) {
-            this.cart[existingIndex].quantidade += qtd;
-            this.cart[existingIndex].subtotal = this.cart[existingIndex].quantidade * this.cart[existingIndex].preco_venda;
+            this.cart[existingIndex].quantidade = Math.round((this.cart[existingIndex].quantidade + qtd) * 1000) / 1000;
+            this.cart[existingIndex].subtotal = roundMoney(this.cart[existingIndex].quantidade * this.cart[existingIndex].preco_venda);
         } else {
             this.cart.push({
                 produto_id: prodId,
-                nome: produto.nome || 'Produto Sem Nome',
-                codigo_barras: produto.codigo_barras || '',
+                nome: nome,
+                codigo_barras: (produto.codigo_barras || '').trim(),
+                sku: (produto.sku || '').trim(),
                 quantidade: qtd,
                 preco_venda: preco,
-                subtotal: qtd * preco
+                subtotal: roundMoney(qtd * preco)
             });
         }
 
@@ -428,6 +502,7 @@ class PDVApp {
         this.salvarCarrinhoPersistido();
         this.renderCart();
         this.focusBarcodeScanner();
+        return true;
     }
 
     removeItem(index) {
@@ -440,14 +515,14 @@ class PDVApp {
     }
 
     updateItemQuantity(index, newQty) {
-        const val = parseFloat(newQty);
+        const val = parseFloat(String(newQty).replace(',', '.'));
         if (isNaN(val) || val <= 0) {
             this.removeItem(index);
             return;
         }
         if (this.cart[index]) {
-            this.cart[index].quantidade = val;
-            this.cart[index].subtotal = val * this.cart[index].preco_venda;
+            this.cart[index].quantidade = Math.round((val + Number.EPSILON) * 1000) / 1000;
+            this.cart[index].subtotal = roundMoney(this.cart[index].quantidade * this.cart[index].preco_venda);
             this.salvarCarrinhoPersistido();
             this.renderCart();
         }
@@ -471,10 +546,10 @@ class PDVApp {
         this.focusBarcodeScanner();
     }
 
-    // --- CÁLCULOS E TOTAIS ---
+    // --- CÁLCULOS E TOTAIS COM PRECISÃO MONETÁRIA ---
 
     getSubtotal() {
-        return this.cart.reduce((acc, item) => acc + item.subtotal, 0.00);
+        return roundMoney(this.cart.reduce((acc, item) => acc + item.subtotal, 0.00));
     }
 
     getDiscountAmount() {
@@ -482,29 +557,29 @@ class PDVApp {
         if (subtotal <= 0) return 0.00;
 
         if (this.discountType === 'PERCENT') {
-            return (subtotal * this.discountValue) / 100.00;
+            return roundMoney((subtotal * this.discountValue) / 100.00);
         }
-        return Math.min(subtotal, this.discountValue);
+        return roundMoney(Math.min(subtotal, this.discountValue));
     }
 
     getTotal() {
-        return Math.max(0.00, this.getSubtotal() - this.getDiscountAmount());
+        return Math.max(0.00, roundMoney(this.getSubtotal() - this.getDiscountAmount()));
     }
 
     getTotalPaid() {
-        return this.payments.reduce((acc, p) => acc + p.valor, 0.00);
+        return roundMoney(this.payments.reduce((acc, p) => acc + p.valor, 0.00));
     }
 
     getTotalPaidEffective() {
-        return this.payments.reduce((acc, p) => acc + (p.valor - p.troco), 0.00);
+        return roundMoney(this.payments.reduce((acc, p) => acc + (p.valor - p.troco), 0.00));
     }
 
     getTotalTroco() {
-        return this.payments.reduce((acc, p) => acc + p.troco, 0.00);
+        return roundMoney(this.payments.reduce((acc, p) => acc + p.troco, 0.00));
     }
 
     getRemainingToPay() {
-        return Math.max(0.00, this.getTotal() - this.getTotalPaidEffective());
+        return Math.max(0.00, roundMoney(this.getTotal() - this.getTotalPaidEffective()));
     }
 
     updateDiscount(type, value) {
@@ -784,10 +859,12 @@ class PDVApp {
             if (remaining > 0) {
                 valorInput.value = remaining.toFixed(2);
             }
+            valorInput.focus();
+            valorInput.select();
             setTimeout(() => {
                 valorInput.focus();
                 valorInput.select();
-            }, 100);
+            }, 50);
         }
 
         this.onValorRecebidoInput();
@@ -863,11 +940,11 @@ class PDVApp {
     onValorRecebidoInput() {
         const totalVenda = this.getTotal();
         const totalPaidEffective = this.getTotalPaidEffective();
-        const remainingBefore = Math.max(0.00, totalVenda - totalPaidEffective);
+        const remainingBefore = Math.max(0.00, roundMoney(totalVenda - totalPaidEffective));
 
         const valorInput = document.getElementById('modal-pay-valor');
-        const inputVal = valorInput ? parseFloat(valorInput.value.replace(',', '.')) : 0.00;
-        const currentVal = isNaN(inputVal) || inputVal < 0 ? 0.00 : inputVal;
+        const inputVal = valorInput ? parseFloat(String(valorInput.value).replace(',', '.')) : 0.00;
+        const currentVal = isNaN(inputVal) || inputVal < 0 ? 0.00 : roundMoney(inputVal);
 
         const forma = this.selectedPaymentMethod || 'DINHEIRO';
 
@@ -877,23 +954,21 @@ class PDVApp {
 
         if (forma === 'DINHEIRO') {
             if (currentVal >= remainingBefore) {
-                novoTroco = currentVal - remainingBefore;
+                novoTroco = roundMoney(this.getTotalTroco() + (currentVal - remainingBefore));
                 novoFalta = 0.00;
                 totalPagoDisplay = totalVenda;
             } else {
-                novoTroco = 0.00;
-                novoFalta = remainingBefore - currentVal;
-                totalPagoDisplay = totalPaidEffective + currentVal;
+                novoFalta = roundMoney(remainingBefore - currentVal);
+                totalPagoDisplay = roundMoney(totalPaidEffective + currentVal);
             }
         } else {
             // PIX / CRÉDITO / DÉBITO nunca geram troco
-            novoTroco = 0.00;
             if (currentVal >= remainingBefore) {
                 novoFalta = 0.00;
                 totalPagoDisplay = totalVenda;
             } else {
-                novoFalta = remainingBefore - currentVal;
-                totalPagoDisplay = totalPaidEffective + currentVal;
+                novoFalta = roundMoney(remainingBefore - currentVal);
+                totalPagoDisplay = roundMoney(totalPaidEffective + currentVal);
             }
         }
 
@@ -931,15 +1006,18 @@ class PDVApp {
             return;
         }
 
-        const val = parseFloat(valorInput.value.replace(',', '.'));
-        if (isNaN(val) || val <= 0) {
+        const remaining = this.getRemainingToPay();
+        if (remaining <= 0.001) {
             this._isAddingPayment = false;
-            alert('Informe um valor válido maior que zero.');
-            valorInput.focus();
+            this.abrirModalConfirmacao();
             return;
         }
 
-        const remaining = this.getRemainingToPay();
+        let val = parseFloat(String(valorInput.value).replace(',', '.'));
+        if (isNaN(val) || val <= 0) {
+            val = remaining;
+        }
+        val = roundMoney(val);
 
         if (forma === 'CREDIARIO') {
             const cliSelect = document.getElementById('modal-cliente-select') || document.getElementById('cliente-select');
@@ -957,22 +1035,23 @@ class PDVApp {
         if (forma === 'DINHEIRO') {
             if (val > remaining) {
                 valorRegistrado = val;
-                troco = val - remaining;
+                troco = roundMoney(val - remaining);
             }
         } else {
             if (val > remaining + 0.001) {
                 this._isAddingPayment = false;
-                alert(`Para pagamentos em ${forma}, o valor não pode exceder o saldo restante (R$ ${remaining.toFixed(2)}).`);
+                alert(`Para pagamentos em ${forma}, o valor não pode exceder o saldo restante (R$ ${remaining.toFixed(2).replace('.', ',')}).`);
                 valorInput.value = remaining.toFixed(2);
                 valorInput.focus();
                 return;
             }
+            valorRegistrado = Math.min(val, remaining);
         }
 
         this.payments.push({
             forma: forma,
-            valor: valorRegistrado,
-            troco: troco
+            valor: roundMoney(valorRegistrado),
+            troco: roundMoney(troco)
         });
 
         this.salvarCarrinhoPersistido();
@@ -983,10 +1062,13 @@ class PDVApp {
             valorInput.value = novoRestante.toFixed(2);
             valorInput.focus();
             valorInput.select();
+            setTimeout(() => {
+                valorInput.focus();
+                valorInput.select();
+            }, 50);
         } else {
             valorInput.value = '0.00';
-            const btnFinalizar = document.getElementById('modal-btn-finalizar');
-            if (btnFinalizar) btnFinalizar.focus();
+            this.abrirModalConfirmacao();
         }
     }
 
@@ -995,13 +1077,22 @@ class PDVApp {
             this.payments.splice(index, 1);
             this.salvarCarrinhoPersistido();
             this.renderPaymentModal();
+            const valorInput = document.getElementById('modal-pay-valor');
+            if (valorInput) {
+                const remaining = this.getRemainingToPay();
+                if (remaining > 0) {
+                    valorInput.value = remaining.toFixed(2);
+                }
+                valorInput.focus();
+                valorInput.select();
+            }
         }
     }
 
     renderPaymentModal() {
         const totalVenda = this.getTotal();
         const totalPaid = this.getTotalPaidEffective();
-        const remaining = Math.max(0.00, totalVenda - totalPaid);
+        const remaining = Math.max(0.00, roundMoney(totalVenda - totalPaid));
         const totalTroco = this.getTotalTroco();
 
         const totalEl = document.getElementById('modal-display-total');
@@ -1067,51 +1158,70 @@ class PDVApp {
         }
 
         const totalVenda = this.getTotal();
-        let paymentsToReview = [...this.payments];
+        let remaining = this.getRemainingToPay();
 
-        // Se o operador não adicionou parcelas mas preencheu valor diretamente no input:
-        if (paymentsToReview.length === 0) {
+        // Se ainda resta saldo a pagar E há valor no input / forma selecionada:
+        // O botão FINALIZAR adiciona automaticamente a parcela restante pendente!
+        if (remaining > 0.001) {
             const valorInput = document.getElementById('modal-pay-valor');
-            const val = valorInput ? parseFloat(valorInput.value.replace(',', '.')) : totalVenda;
             const forma = this.selectedPaymentMethod || 'DINHEIRO';
-            const valorFinal = isNaN(val) || val <= 0 ? totalVenda : val;
+            let val = valorInput ? parseFloat(String(valorInput.value).replace(',', '.')) : NaN;
+
+            if (isNaN(val) || val <= 0) {
+                val = remaining;
+            }
+            val = roundMoney(val);
+
+            if (forma === 'CREDIARIO') {
+                const cliSelect = document.getElementById('modal-cliente-select') || document.getElementById('cliente-select');
+                if (!cliSelect || !cliSelect.value) {
+                    alert('Vendas contendo parcelas no Crediário / Fiado exigem a seleção de um Cliente.');
+                    this.toggleCrediarioBox(true);
+                    return;
+                }
+            }
 
             let troco = 0.00;
+            let valorRegistrado = val;
+
             if (forma === 'DINHEIRO') {
-                if (valorFinal < totalVenda - 0.001) {
-                    alert(`O valor em dinheiro (R$ ${valorFinal.toFixed(2)}) é insuficiente para cobrir o total de R$ ${totalVenda.toFixed(2)}.`);
+                if (val < remaining - 0.001) {
+                    alert(`O valor em dinheiro (R$ ${val.toFixed(2).replace('.', ',')}) é insuficiente para cobrir o saldo restante de R$ ${remaining.toFixed(2).replace('.', ',')}.`);
                     if (valorInput) valorInput.focus();
                     return;
                 }
-                if (valorFinal > totalVenda) {
-                    troco = valorFinal - totalVenda;
+                if (val > remaining) {
+                    troco = roundMoney(val - remaining);
                 }
             } else {
-                if (valorFinal < totalVenda - 0.001) {
-                    alert(`O valor informado em ${forma} (R$ ${valorFinal.toFixed(2)}) é insuficiente para cobrir a venda de R$ ${totalVenda.toFixed(2)}.`);
+                if (val < remaining - 0.001) {
+                    alert(`O valor informado em ${forma} (R$ ${val.toFixed(2).replace('.', ',')}) é insuficiente para cobrir o saldo restante de R$ ${remaining.toFixed(2).replace('.', ',')}.`);
                     if (valorInput) valorInput.focus();
                     return;
                 }
-                if (valorFinal > totalVenda + 0.001) {
-                    alert(`Para pagamentos em ${forma}, o valor não pode ultrapassar o total da venda (R$ ${totalVenda.toFixed(2)}).`);
+                if (val > remaining + 0.001) {
+                    alert(`Para pagamentos em ${forma}, o valor não pode ultrapassar o saldo restante (R$ ${remaining.toFixed(2).replace('.', ',')}).`);
                     if (valorInput) valorInput.focus();
                     return;
                 }
+                valorRegistrado = remaining; // Garante o valor líquido exato
             }
 
-            paymentsToReview.push({
+            // Adiciona a última parcela automaticamente sem duplicar
+            this.payments.push({
                 forma: forma,
-                valor: valorFinal,
-                troco: troco
+                valor: roundMoney(valorRegistrado),
+                troco: roundMoney(troco)
             });
-            this.payments = paymentsToReview;
+
             this.salvarCarrinhoPersistido();
-        } else {
-            const remaining = this.getRemainingToPay();
-            if (remaining > 0.001) {
-                alert(`Ainda resta um saldo de R$ ${remaining.toFixed(2)} a ser pago.`);
-                return;
-            }
+            remaining = this.getRemainingToPay();
+        }
+
+        // Se após a validação ainda restar saldo
+        if (remaining > 0.001) {
+            alert(`Ainda resta um saldo de R$ ${remaining.toFixed(2).replace('.', ',')} a ser pago.`);
+            return;
         }
 
         const temCrediario = this.payments.some(p => p.forma === 'CREDIARIO');
@@ -1143,12 +1253,12 @@ class PDVApp {
         if (breakdownEl) {
             let html = '<ul class="list-unstyled mb-0 text-dark">';
             this.payments.forEach(p => {
-                const valorLiquido = p.valor - p.troco;
+                const valorLiquido = roundMoney(p.valor - p.troco);
                 html += `<li class="d-flex justify-content-between py-1 border-bottom text-dark">
                     <span class="text-dark"><strong>${nomesFormas[p.forma] || p.forma}</strong></span>
                     <span class="fw-bold text-dark">R$ ${valorLiquido.toFixed(2).replace('.', ',')}</span>
                 </li>`;
-                if (p.troco > 0) totalTroco += p.troco;
+                if (p.troco > 0) totalTroco = roundMoney(totalTroco + p.troco);
             });
             html += '</ul>';
             breakdownEl.innerHTML = html;
