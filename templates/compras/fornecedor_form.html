@@ -49,6 +49,35 @@
                     </div>
                 </div>
 
+                <div class="row g-3 mb-3">
+                    <div class="col-12 col-md-6">
+                        <label for="condicao_pagamento_padrao" class="form-label fw-bold">Prazo / Condição de Pagamento Padrão</label>
+                        <select name="condicao_pagamento_padrao" id="condicao_pagamento_padrao" class="form-select" onchange="aoMudarCondicaoPagamento(this)">
+                            <option value="A_VISTA" {% if fornecedor.condicao_pagamento_padrao == 'A_VISTA' %}selected{% endif %}>À vista (0 dias)</option>
+                            <option value="1_DIA" {% if fornecedor.condicao_pagamento_padrao == '1_DIA' %}selected{% endif %}>Boleto 1 dia</option>
+                            <option value="2_DIAS" {% if fornecedor.condicao_pagamento_padrao == '2_DIAS' %}selected{% endif %}>Boleto 2 dias</option>
+                            <option value="3_DIAS" {% if fornecedor.condicao_pagamento_padrao == '3_DIAS' %}selected{% endif %}>Boleto 3 dias</option>
+                            <option value="4_DIAS" {% if fornecedor.condicao_pagamento_padrao == '4_DIAS' %}selected{% endif %}>Boleto 4 dias</option>
+                            <option value="7_DIAS" {% if fornecedor.condicao_pagamento_padrao == '7_DIAS' %}selected{% endif %}>Boleto 7 dias</option>
+                            <option value="14_DIAS" {% if fornecedor.condicao_pagamento_padrao == '14_DIAS' %}selected{% endif %}>Boleto 14 dias</option>
+                            <option value="21_DIAS" {% if fornecedor.condicao_pagamento_padrao == '21_DIAS' %}selected{% endif %}>Boleto 21 dias</option>
+                            <option value="28_DIAS" {% if fornecedor.condicao_pagamento_padrao == '28_DIAS' %}selected{% endif %}>Boleto 28 dias</option>
+                            <option value="30_DIAS" {% if not fornecedor or fornecedor.condicao_pagamento_padrao == '30_DIAS' %}selected{% endif %}>Boleto 30 dias</option>
+                            <option value="PERSONALIZADO" {% if fornecedor.condicao_pagamento_padrao == 'PERSONALIZADO' %}selected{% endif %}>Personalizado (dias)</option>
+                        </select>
+                        <small class="text-muted">Calcula a data de vencimento padrão ao criar pedidos de compra deste fornecedor.</small>
+                    </div>
+
+                    <div class="col-12 col-md-6" id="div-prazo-dias">
+                        <label for="prazo_pagamento_dias" class="form-label fw-bold">Dias para Vencimento</label>
+                        <div class="input-group">
+                            <input type="number" min="0" max="365" name="prazo_pagamento_dias" id="prazo_pagamento_dias" class="form-control" value="{{ fornecedor.prazo_pagamento_dias|default:30 }}">
+                            <span class="input-group-text">dias</span>
+                        </div>
+                        <small class="text-muted">Dias adicionados à data do pedido</small>
+                    </div>
+                </div>
+
                 <div class="mb-3">
                     <label for="endereco" class="form-label fw-bold">Endereço Completo</label>
                     <input type="text" name="endereco" id="endereco" class="form-control" value="{{ fornecedor.endereco|default:'' }}" placeholder="Rua, Número, Bairro, Cidade - UF">
@@ -76,4 +105,21 @@
         </div>
     </div>
 </div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    const diasMap = {
+        'A_VISTA': 0, '1_DIA': 1, '2_DIAS': 2, '3_DIAS': 3, '4_DIAS': 4,
+        '7_DIAS': 7, '14_DIAS': 14, '21_DIAS': 21, '28_DIAS': 28, '30_DIAS': 30
+    };
+
+    function aoMudarCondicaoPagamento(sel) {
+        const val = sel.value;
+        const inputDias = document.getElementById('prazo_pagamento_dias');
+        if (val in diasMap) {
+            inputDias.value = diasMap[val];
+        }
+    }
+</script>
 {% endblock %}

@@ -241,10 +241,10 @@ class ProductStockPurchaseTestCase(TestCase):
         self.assertEqual(compra.total, Decimal('120.00'))
         self.assertEqual(compra.itens.count(), 2)
 
-    # 13. Compra atualizando estoque dos produtos
+    # 13. Compra e Recebimento atualizando estoque dos produtos
     def test_13_compra_atualizando_estoque(self):
         prod = Produto.objects.create(empresa=self.empresa_a, codigo_barras="7891003", nome="Cerveja Lata", preco_custo=Decimal('3.00'), estoque_atual=Decimal('20.000'))
-        PurchaseService.processar_compra(
+        compra = PurchaseService.processar_compra(
             empresa=self.empresa_a,
             fornecedor=self.fornecedor,
             numero_nota="NF-200",
@@ -252,10 +252,21 @@ class ProductStockPurchaseTestCase(TestCase):
             usuario=self.operador_a
         )
         prod.refresh_from_db()
+        # No momento do pedido, estoque não muda:
+        self.assertEqual(prod.estoque_atual, Decimal('20.000'))
+
+        # No momento do recebimento físico, o estoque e custo são atualizados:
+        item = compra.itens.first()
+        PurchaseService.registrar_recebimento(
+            compra=compra,
+            itens_recebidos=[{'item_compra_id': item.id, 'quantidade_recebida': 50, 'preco_custo': 3.20}],
+            usuario=self.operador_a
+        )
+        prod.refresh_from_db()
         self.assertEqual(prod.estoque_atual, Decimal('70.000')) # 20 + 50
         self.assertEqual(prod.preco_custo, Decimal('3.20')) # Atualizou custo
 
-    # 14. Compra gerando movimentações de estoque rastreadas
+    # 14. Recebimento de compra gerando movimentações de estoque rastreadas
     def test_14_compra_gerando_movimentacoes(self):
         prod = Produto.objects.create(empresa=self.empresa_a, codigo_barras="7891004", nome="Refrigerante 2L", estoque_atual=Decimal('10.000'))
         compra = PurchaseService.processar_compra(
@@ -265,7 +276,13 @@ class ProductStockPurchaseTestCase(TestCase):
             itens_data=[{'produto_id': prod.id, 'quantidade': 30, 'preco_custo_unitario': 5.00}],
             usuario=self.operador_a
         )
-        mov = MovimentacaoEstoque.objects.filter(origem_ref=f"Compra #{compra.id}").first()
+        item = compra.itens.first()
+        PurchaseService.registrar_recebimento(
+            compra=compra,
+            itens_recebidos=[{'item_compra_id': item.id, 'quantidade_recebida': 30, 'preco_custo': 5.00}],
+            usuario=self.operador_a
+        )
+        mov = MovimentacaoEstoque.objects.filter(origem_ref__startswith=f"Compra #{compra.id}").first()
         self.assertIsNotNone(mov)
         self.assertEqual(mov.tipo, 'ENTRADA')
         self.assertEqual(mov.quantidade, Decimal('30.000'))
@@ -363,12 +380,21 @@ class ProductStockPurchaseTestCase(TestCase):
             estoque_atual=Decimal('0.000')
         )
 
-        # 2. Entrada via Compra de 24 unidades a R$ 7.50
+        # 2. Entrada via Compra e Recebimento de 24 unidades a R$ 7.50
         compra = PurchaseService.processar_compra(
             empresa=self.empresa_a,
             fornecedor=self.fornecedor,
             numero_nota="NF-IPA-01",
             itens_data=[{'produto_id': prod.id, 'quantidade': 24, 'preco_custo_unitario': 7.50}],
+            usuario=self.operador_a
+        )
+        prod.refresh_from_db()
+        self.assertEqual(prod.estoque_atual, Decimal('0.000')) # Ainda não recebido
+
+        item = compra.itens.first()
+        PurchaseService.registrar_recebimento(
+            compra=compra,
+            itens_recebidos=[{'item_compra_id': item.id, 'quantidade_recebida': 24, 'preco_custo': 7.50}],
             usuario=self.operador_a
         )
         prod.refresh_from_db()

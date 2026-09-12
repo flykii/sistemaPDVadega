@@ -88,8 +88,11 @@ class SaleService:
         if not pagamentos_data:
             raise ValueError("Informe ao menos uma forma de pagamento para finalizar o checkout.")
 
-        if sessao_caixa and sessao_caixa.status != 'ABERTA':
-            raise ValueError("Não é possível realizar operações em um caixa fechado.")
+        if sessao_caixa:
+            if sessao_caixa.status != 'ABERTA':
+                raise ValueError("Não é possível realizar operações em um caixa fechado.")
+            from apps.caixas.services import CashService
+            CashService.validar_sessao_dia_operacional(sessao_caixa)
 
         # ---------------------------------------------------------------------
         # 1. Validação Estrita do Recebimento de Dívida (se presente)
@@ -340,6 +343,16 @@ class SaleService:
 
                     cliente_db.saldo_devedor += val_para_venda
                     cliente_db.save()
+
+                    AuditService.registrar(
+                        empresa=empresa,
+                        usuario=operador,
+                        acao='CREDIARIO_CONCEDIDO',
+                        entidade='ContaReceber',
+                        entidade_id=conta_rec.id,
+                        descricao=f"Crediário de R$ {val_para_venda:.2f} concedido ao cliente {cliente_db.nome} (Venda #{venda.codigo_venda})",
+                        dados_posteriores={'conta_id': conta_rec.id, 'cliente_id': cliente_db.id, 'valor': str(val_para_venda)}
+                    )
 
                 restante_venda -= val_para_venda
 

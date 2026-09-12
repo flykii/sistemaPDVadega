@@ -10,10 +10,10 @@
             <h2 class="fw-bold text-dark mb-0">
                 <i class="bi bi-arrow-repeat text-primary me-2"></i>RELATÓRIO DE REPOSIÇÃO
             </h2>
-            <p class="text-muted mb-0">Vendas semanais para apoio à reposição de estoque</p>
+            <p class="text-muted mb-0">Análise de giro de vendas para reposição de estoque e geração ágil de pedidos de compra</p>
         </div>
         <div class="d-flex gap-2 d-print-none">
-            <a href="{% url 'exportar_relatorio_csv' 'reposicao' %}?semana={{ semana_selecionada.codigo }}" class="btn btn-outline-success fw-bold">
+            <a href="{% url 'exportar_relatorio_csv' 'reposicao' %}?periodo={{ p_info.periodo }}&data_inicio={{ p_info.data_inicio_str }}&data_fim={{ p_info.data_fim_str }}" class="btn btn-outline-success fw-bold">
                 <i class="bi bi-file-earmark-excel me-1"></i> Exportar CSV
             </a>
             <button onclick="window.print()" class="btn btn-outline-dark fw-bold">
@@ -22,47 +22,60 @@
         </div>
     </div>
 
-    <!-- Seletor de Semana (Últimos 18 Meses) -->
+    <!-- Filtro de Períodos -->
     <div class="card card-custom p-3 border-0 shadow-sm mb-4 d-print-none">
-        <form method="get" class="row g-2 align-items-center">
-            <div class="col-12 col-md-8 col-lg-6">
+        <form method="get" id="form-filtro-periodo" class="row g-2 align-items-center">
+            <div class="col-12 col-md-4 col-lg-3">
                 <label class="form-label small fw-bold text-uppercase text-muted mb-1">
-                    <i class="bi bi-calendar3 me-1"></i> Selecionar Semana:
+                    <i class="bi bi-calendar-event me-1"></i> Período de Vendas:
                 </label>
-                <div class="input-group">
-                    <span class="input-group-text bg-light"><i class="bi bi-calendar-week"></i></span>
-                    <select name="semana" class="form-select form-select-lg fw-bold" onchange="this.form.submit()">
-                        {% for s in semanas %}
-                        <option value="{{ s.codigo }}" {% if s.codigo == semana_selecionada.codigo %}selected{% endif %}>
-                            {{ s.label }}
-                        </option>
-                        {% endfor %}
-                    </select>
-                </div>
+                <select name="periodo" id="select-periodo" class="form-select fw-bold" onchange="alternarCamposDatas(this.value)">
+                    <option value="7dias" {% if p_info.periodo == '7dias' or p_info.periodo == 'ultimos_7_dias' %}selected{% endif %}>Últimos 7 dias (Padrão)</option>
+                    <option value="hoje" {% if p_info.periodo == 'hoje' %}selected{% endif %}>Hoje</option>
+                    <option value="ontem" {% if p_info.periodo == 'ontem' %}selected{% endif %}>Ontem</option>
+                    <option value="15dias" {% if p_info.periodo == '15dias' or p_info.periodo == 'ultimos_15_dias' %}selected{% endif %}>Últimos 15 dias</option>
+                    <option value="30dias" {% if p_info.periodo == '30dias' or p_info.periodo == 'ultimos_30_dias' %}selected{% endif %}>Últimos 30 dias</option>
+                    <option value="semana_atual" {% if p_info.periodo == 'semana_atual' %}selected{% endif %}>Semana Atual</option>
+                    <option value="semana_anterior" {% if p_info.periodo == 'semana_anterior' %}selected{% endif %}>Semana Anterior</option>
+                    <option value="mes_atual" {% if p_info.periodo == 'mes_atual' %}selected{% endif %}>Mês Atual</option>
+                    <option value="mes_anterior" {% if p_info.periodo == 'mes_anterior' %}selected{% endif %}>Mês Anterior</option>
+                    <option value="personalizado" {% if p_info.periodo == 'personalizado' %}selected{% endif %}>Personalizado</option>
+                </select>
             </div>
-            <div class="col-12 col-md-4 col-lg-3 d-flex align-items-end">
-                <button type="submit" class="btn btn-primary btn-lg w-100 fw-bold mt-2 mt-md-0">
-                    <i class="bi bi-arrow-clockwise me-1"></i> Atualizar
+
+            <div class="col-6 col-md-3 col-lg-2 campos-personalizados" style="display: {% if p_info.periodo == 'personalizado' %}block{% else %}none{% endif %};">
+                <label class="form-label small fw-bold text-uppercase text-muted mb-1">Data Início:</label>
+                <input type="date" name="data_inicio" class="form-control" value="{{ p_info.data_inicio_str }}">
+            </div>
+
+            <div class="col-6 col-md-3 col-lg-2 campos-personalizados" style="display: {% if p_info.periodo == 'personalizado' %}block{% else %}none{% endif %};">
+                <label class="form-label small fw-bold text-uppercase text-muted mb-1">Data Fim:</label>
+                <input type="date" name="data_fim" class="form-control" value="{{ p_info.data_fim_str }}">
+            </div>
+
+            <div class="col-12 col-md-2 col-lg-2 d-flex align-items-end">
+                <button type="submit" class="btn btn-primary fw-bold w-100">
+                    <i class="bi bi-funnel me-1"></i> Filtrar
                 </button>
             </div>
         </form>
     </div>
 
-    <!-- Indicador da Semana Ativa (Imprimível) -->
+    <!-- Indicador do Período Ativo -->
     <div class="alert alert-light border shadow-sm mb-4 d-flex justify-content-between align-items-center flex-wrap gap-2">
         <div>
-            <span class="badge bg-primary fs-6 me-2">Semana {{ semana_selecionada.numero }}/{{ semana_selecionada.ano }}</span>
-            <span class="fw-bold text-dark fs-6">{{ semana_selecionada.data_inicio_str }} a {{ semana_selecionada.data_fim_str }}</span>
+            <span class="badge bg-primary fs-6 me-2">Período: {{ p_info.periodo|upper }}</span>
+            <span class="fw-bold text-dark fs-6">{{ p_info.data_inicio|date:"d/m/Y" }} a {{ p_info.data_fim|date:"d/m/Y" }}</span>
         </div>
         <div class="text-muted small">
-            <i class="bi bi-clock-history me-1"></i> Período operacional (corte às 02:00)
+            <i class="bi bi-clock-history me-1"></i> Dia Operacional: 00:00:00 às 23:59:59
         </div>
     </div>
 
-    <!-- MINI DASHBOARD DA SEMANA -->
+    <!-- MINI DASHBOARD DO PERÍODO -->
     <div class="card card-custom p-3 border-0 shadow-sm mb-4">
         <h5 class="fw-bold text-dark mb-3">
-            <i class="bi bi-speedometer2 text-primary me-2"></i>MINI DASHBOARD DE VENDAS — SEMANA
+            <i class="bi bi-speedometer2 text-primary me-2"></i>DESEMPENHO DE VENDAS NO PERÍODO
         </h5>
 
         <div class="row g-3">
@@ -73,18 +86,18 @@
                     <h3 class="fw-bold text-primary mb-0 mt-1">
                         {{ dados.total_itens_vendidos|floatformat:0 }}
                     </h3>
-                    <small class="text-muted">Unidades vendidas na semana</small>
+                    <small class="text-muted">Unidades vendidas</small>
                 </div>
             </div>
 
-            <!-- 2. Total Vendido na Semana -->
+            <!-- 2. Total Vendido -->
             <div class="col-12 col-sm-6 col-xl">
                 <div class="card p-3 border-0 shadow-sm border-start border-info border-4 bg-light h-100">
                     <span class="text-info small text-uppercase fw-bold">Total Vendido</span>
                     <h3 class="fw-bold text-dark mb-0 mt-1">
                         R$ {{ dados.total_faturamento|floatformat:2 }}
                     </h3>
-                    <small class="text-muted">Faturamento bruto líquido real</small>
+                    <small class="text-muted">Faturamento do período</small>
                 </div>
             </div>
 
@@ -101,7 +114,7 @@
                     </span>
                     {% else %}
                     <h5 class="fw-bold text-muted mb-0 mt-1">Nenhum produto</h5>
-                    <small class="text-muted">Sem vendas nesta semana</small>
+                    <small class="text-muted">Sem vendas no período</small>
                     {% endif %}
                 </div>
             </div>
@@ -119,7 +132,7 @@
                     </span>
                     {% else %}
                     <h5 class="fw-bold text-muted mb-0 mt-1">Nenhum produto</h5>
-                    <small class="text-muted">Sem vendas nesta semana</small>
+                    <small class="text-muted">Sem vendas no período</small>
                     {% endif %}
                 </div>
             </div>
@@ -131,33 +144,79 @@
                     <h3 class="fw-bold text-success mb-0 mt-1">
                         R$ {{ dados.total_lucro_obtido|floatformat:2 }}
                     </h3>
-                    <small class="text-muted">Resultado real histórico</small>
+                    <small class="text-muted">Margem real calculada</small>
                 </div>
             </div>
         </div>
     </div>
 
+    <!-- PAINEL DE AÇÃO PARA NOVO PEDIDO DE COMPRA -->
+    <div class="card card-custom p-3 border-0 shadow-sm mb-4 bg-primary-subtle border-start border-primary border-4 d-print-none">
+        <form id="form-gerar-compra" action="{% url 'nova_compra' %}" method="get">
+            <div class="row g-3 align-items-center justify-content-between">
+                <div class="col-12 col-md-4">
+                    <label class="form-label small fw-bold text-uppercase text-dark mb-1">
+                        <i class="bi bi-truck me-1"></i> Fornecedor para o Pedido:
+                    </label>
+                    <select name="fornecedor_id" id="fornecedor_compra_id" class="form-select fw-bold">
+                        <option value="">-- Selecione o Fornecedor (Opcional) --</option>
+                        {% for f in fornecedores %}
+                            <option value="{{ f.id }}">{{ f.nome_fantasia|default:f.razao_social }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+
+                <div class="col-12 col-md-4 text-md-center">
+                    <span class="badge bg-primary fs-6 px-3 py-2" id="badge-selecionados">
+                        <i class="bi bi-check2-square me-1"></i> 0 produtos selecionados
+                    </span>
+                    <div class="mt-1">
+                        <button type="button" class="btn btn-link btn-sm text-decoration-none p-0" onclick="selecionarPorStatus('ESGOTADO')">
+                            Marcar Esgotados
+                        </button>
+                        <span class="text-muted mx-1">|</span>
+                        <button type="button" class="btn btn-link btn-sm text-decoration-none p-0" onclick="selecionarPorStatus('REPOSIÇÃO')">
+                            Marcar Reposição
+                        </button>
+                    </div>
+                </div>
+
+                <div class="col-12 col-md-4 text-md-end">
+                    <button type="button" class="btn btn-success btn-lg fw-bold shadow-sm px-4" onclick="enviarParaPedidoCompra()">
+                        <i class="bi bi-cart-plus me-1"></i> Novo Pedido de Compra
+                    </button>
+                </div>
+            </div>
+            <!-- Container oculto para inputs selecionados -->
+            <div id="container-inputs-compra"></div>
+        </form>
+    </div>
+
     <!-- Tabela Principal de Reposição -->
     <div class="card card-custom p-0 border-0 shadow-sm rounded-4 overflow-hidden mb-4">
-        <div class="card-header bg-white py-3 px-4 d-flex justify-content-between align-items-center">
+        <div class="card-header bg-white py-3 px-4 d-flex justify-content-between align-items-center flex-wrap gap-2">
             <h5 class="fw-bold text-dark mb-0">
-                <i class="bi bi-box-seam text-primary me-2"></i>PRODUTOS VENDIDOS NA SEMANA
+                <i class="bi bi-box-seam text-primary me-2"></i>PRODUTOS VENDIDOS NA SEMANA / NO PERÍODO
             </h5>
-            <span class="text-muted small">
+            <div class="text-muted small">
                 Ordenado por: <strong>Maior Quantidade Vendida</strong>
-            </span>
+            </div>
         </div>
 
         <div class="table-responsive">
-            <table class="table table-hover align-middle mb-0">
+            <table class="table table-hover align-middle mb-0" id="tabela-reposicao">
                 <thead class="table-light">
                     <tr>
-                        <th class="ps-4" style="width: 50px;">#</th>
+                        <th class="ps-3 text-center d-print-none" style="width: 40px;">
+                            <input type="checkbox" id="check-todos" class="form-check-input" onchange="toggleTodos(this)">
+                        </th>
+                        <th style="width: 50px;">#</th>
                         <th>Produto</th>
-                        <th>Código</th>
+                        <th>Fornecedor Principal</th>
+                        <th>Código / SKU</th>
                         <th class="text-end">Custo Unit.</th>
                         <th class="text-end">Venda Unit.</th>
-                        <th class="text-center fw-bold text-dark">Qtde. Vendida</th>
+                        <th class="text-center fw-bold text-primary">Qtde. Vendida</th>
                         <th class="text-end">Total Vendido</th>
                         <th class="text-end">Lucro Obtido</th>
                         <th class="text-center">Estoque Atual</th>
@@ -166,11 +225,25 @@
                 </thead>
                 <tbody>
                     {% for p in dados.produtos %}
-                    <tr>
-                        <td class="ps-4 fw-bold text-muted">{{ p.posicao }}º</td>
+                    <tr data-status="{{ p.status_reposicao }}">
+                        <td class="ps-3 text-center d-print-none">
+                            <input type="checkbox"
+                                   class="form-check-input check-item"
+                                   data-id="{{ p.id }}"
+                                   data-quantidade="{{ p.quantidade }}"
+                                   data-custo="{{ p.preco_custo_unitario }}"
+                                   data-fornecedor-id="{{ p.fornecedor_id|default:'' }}"
+                                   onchange="atualizarContador()">
+                        </td>
+                        <td class="fw-bold text-muted">{{ p.posicao }}º</td>
                         <td>
                             <strong class="text-dark">{{ p.nome }}</strong>
                             <small class="d-block text-muted">{{ p.categoria }}</small>
+                        </td>
+                        <td>
+                            <span class="badge bg-light text-dark border">
+                                {{ p.fornecedor_nome|default:"-" }}
+                            </span>
                         </td>
                         <td>
                             <code class="text-secondary">{{ p.codigo }}</code>
@@ -202,10 +275,10 @@
                     </tr>
                     {% empty %}
                     <tr>
-                        <td colspan="10" class="text-center text-muted py-5">
+                        <td colspan="12" class="text-center text-muted py-5">
                             <i class="bi bi-inbox fs-1 d-block mb-2 text-secondary"></i>
-                            <h6 class="fw-bold">Nenhuma venda encontrada nesta semana.</h6>
-                            <p class="small text-muted mb-0">Não foram registradas operações de vendas concluídas no período operacional selecionado.</p>
+                            <h6 class="fw-bold">Nenhuma venda encontrada no período selecionado.</h6>
+                            <p class="small text-muted mb-0">Não foram registradas operações de vendas concluídas no intervalo especificado.</p>
                         </td>
                     </tr>
                     {% endfor %}
@@ -213,11 +286,11 @@
                 {% if dados.tem_vendas %}
                 <tfoot class="table-light border-top border-2">
                     <tr class="fw-bold">
-                        <td colspan="5" class="ps-4 text-uppercase">Total da Semana:</td>
+                        <td colspan="7" class="ps-4 text-uppercase">Total do Período:</td>
                         <td class="text-center fs-6 text-primary">{{ dados.total_itens_vendidos|floatformat:0 }} itens</td>
                         <td class="text-end fs-6 text-dark">R$ {{ dados.total_faturamento|floatformat:2 }}</td>
                         <td class="text-end fs-6 text-success">R$ {{ dados.total_lucro_obtido|floatformat:2 }}</td>
-                        <td colspan="2" class="text-muted small text-center">Consolidado da semana selecionada</td>
+                        <td colspan="2" class="text-muted small text-center">Consolidado</td>
                     </tr>
                 </tfoot>
                 {% endif %}
@@ -225,4 +298,102 @@
         </div>
     </div>
 </div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    function alternarCamposDatas(periodo) {
+        const campos = document.querySelectorAll('.campos-personalizados');
+        if (periodo === 'personalizado') {
+            campos.forEach(c => c.style.display = 'block');
+        } else {
+            campos.forEach(c => c.style.display = 'none');
+            document.getElementById('form-filtro-periodo').submit();
+        }
+    }
+
+    function toggleTodos(master) {
+        const checks = document.querySelectorAll('.check-item');
+        checks.forEach(c => c.checked = master.checked);
+        atualizarContador();
+    }
+
+    function atualizarContador() {
+        const checks = document.querySelectorAll('.check-item:checked');
+        const count = checks.length;
+        const badge = document.getElementById('badge-selecionados');
+        if (badge) {
+            badge.innerHTML = `<i class="bi bi-check2-square me-1"></i> ${count} produto(s) selecionado(s)`;
+        }
+
+        // Se todos os produtos selecionados pertencerem ao mesmo fornecedor, seleciona-o automaticamente no dropdown
+        if (count > 0) {
+            let primeiroForn = null;
+            let mesmoForn = true;
+            checks.forEach(c => {
+                const fId = c.getAttribute('data-fornecedor-id');
+                if (fId) {
+                    if (primeiroForn === null) {
+                        primeiroForn = fId;
+                    } else if (primeiroForn !== fId) {
+                        mesmoForn = false;
+                    }
+                }
+            });
+            const selForn = document.getElementById('fornecedor_compra_id');
+            if (selForn && mesmoForn && primeiroForn && !selForn.value) {
+                selForn.value = primeiroForn;
+            }
+        }
+    }
+
+    function selecionarPorStatus(termo) {
+        const rows = document.querySelectorAll('#tabela-reposicao tbody tr');
+        rows.forEach(tr => {
+            const status = tr.getAttribute('data-status') || '';
+            const check = tr.querySelector('.check-item');
+            if (check && status.includes(termo)) {
+                check.checked = true;
+            }
+        });
+        atualizarContador();
+    }
+
+    function enviarParaPedidoCompra() {
+        const checks = document.querySelectorAll('.check-item:checked');
+        if (checks.length === 0) {
+            alert('Selecione ao menos um produto na tabela para gerar o pedido de compra.');
+            return;
+        }
+
+        const container = document.getElementById('container-inputs-compra');
+        container.innerHTML = '';
+
+        checks.forEach(c => {
+            const prodId = c.getAttribute('data-id');
+            const qtd = c.getAttribute('data-quantidade');
+            const custo = c.getAttribute('data-custo');
+
+            const inProd = document.createElement('input');
+            inProd.type = 'hidden';
+            inProd.name = 'produto_id[]';
+            inProd.value = prodId;
+            container.appendChild(inProd);
+
+            const inQtd = document.createElement('input');
+            inQtd.type = 'hidden';
+            inQtd.name = 'quantidade[]';
+            inQtd.value = qtd;
+            container.appendChild(inQtd);
+
+            const inCusto = document.createElement('input');
+            inCusto.type = 'hidden';
+            inCusto.name = 'preco_custo[]';
+            inCusto.value = custo;
+            container.appendChild(inCusto);
+        });
+
+        document.getElementById('form-gerar-compra').submit();
+    }
+</script>
 {% endblock %}

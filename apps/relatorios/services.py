@@ -33,12 +33,22 @@ class ReportService:
         elif periodo_str == 'ontem':
             dt_inicio = hoje - timedelta(days=1)
             dt_fim = dt_inicio
-        elif periodo_str == '7dias':
+        elif periodo_str in ('7dias', 'ultimos_7_dias'):
             dt_inicio = hoje - timedelta(days=6)
             dt_fim = hoje
-        elif periodo_str == '30dias':
+        elif periodo_str in ('15dias', 'ultimos_15_dias'):
+            dt_inicio = hoje - timedelta(days=14)
+            dt_fim = hoje
+        elif periodo_str in ('30dias', 'ultimos_30_dias'):
             dt_inicio = hoje - timedelta(days=29)
             dt_fim = hoje
+        elif periodo_str == 'semana_atual':
+            dt_inicio = hoje - timedelta(days=hoje.weekday())
+            dt_fim = dt_inicio + timedelta(days=6)
+        elif periodo_str == 'semana_anterior':
+            segunda_atual = hoje - timedelta(days=hoje.weekday())
+            dt_fim = segunda_atual - timedelta(days=1)
+            dt_inicio = dt_fim - timedelta(days=6)
         elif periodo_str == 'mes_atual':
             dt_inicio = date(hoje.year, hoje.month, 1)
             _, ultimo_dia = calendar.monthrange(hoje.year, hoje.month)
@@ -62,6 +72,8 @@ class ReportService:
                     dt_fim = datetime.strptime(data_fim_str, '%Y-%m-%d').date()
                 except ValueError:
                     dt_fim = hoje
+            if dt_inicio > dt_fim:
+                dt_inicio, dt_fim = dt_fim, dt_inicio
 
         start_dt, end_dt = get_operational_datetime_range(dt_inicio, dt_fim)
 
@@ -818,6 +830,9 @@ class ReportService:
                 'produto__codigo_barras',
                 'produto__sku',
                 'produto__categoria__nome',
+                'produto__fornecedor_principal_id',
+                'produto__fornecedor_principal__nome_fantasia',
+                'produto__fornecedor_principal__razao_social',
                 'produto__preco_custo',
                 'produto__preco_venda',
                 'produto__estoque_atual',
@@ -855,6 +870,11 @@ class ReportService:
             custo_medio = (custo / qtd).quantize(Decimal('0.01')) if qtd > Decimal('0.00') else Decimal('0.00')
 
             codigo = item['produto__sku'] or item['produto__codigo_barras'] or '-'
+            fornecedor_nome = (
+                item['produto__fornecedor_principal__nome_fantasia']
+                or item['produto__fornecedor_principal__razao_social']
+                or '-'
+            )
 
             estoque_atual = item['produto__estoque_atual'] if item['produto__estoque_atual'] is not None else Decimal('0.000')
             estoque_minimo = item['produto__estoque_minimo'] if item['produto__estoque_minimo'] is not None else Decimal('0.000')
@@ -877,6 +897,8 @@ class ReportService:
                 'codigo_barras': item['produto__codigo_barras'],
                 'sku': item['produto__sku'],
                 'categoria': item['produto__categoria__nome'] or 'Sem Categoria',
+                'fornecedor_id': item['produto__fornecedor_principal_id'],
+                'fornecedor_nome': fornecedor_nome,
                 'preco_custo_unitario': custo_medio if custo_medio > Decimal('0.00') else (item['produto__preco_custo'] or Decimal('0.00')),
                 'preco_venda_unitario': preco_medio if preco_medio > Decimal('0.00') else (item['produto__preco_venda'] or Decimal('0.00')),
                 'quantidade': qtd,

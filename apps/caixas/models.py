@@ -57,6 +57,18 @@ class SessaoCaixa(TenantModelMixin):
         return f"Sessão #{self.id} - {self.caixa.nome} ({op})"
 
     @property
+    def dia_operacional_abertura(self):
+        from apps.core.operational_day import get_operational_date
+        return get_operational_date(self.data_abertura)
+
+    @property
+    def is_sessao_dia_anterior(self) -> bool:
+        from apps.core.operational_day import get_operational_date, get_operational_today
+        if self.status != 'ABERTA':
+            return False
+        return get_operational_date(self.data_abertura) < get_operational_today()
+
+    @property
     def nome_operador_exibicao(self):
         return self.nome_operador or self.operador.get_full_name() or self.operador.username
 

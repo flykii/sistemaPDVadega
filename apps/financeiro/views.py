@@ -185,7 +185,7 @@ def contas_pagar_list(request):
     categoria_id = request.GET.get('categoria', '')
     fornecedor_id = request.GET.get('fornecedor', '')
     query = request.GET.get('q', '').strip()
-    periodo = request.GET.get('periodo', 'mes_atual')
+    periodo = request.GET.get('periodo', 'todos')
     data_inicio = request.GET.get('data_inicio', '')
     data_fim = request.GET.get('data_fim', '')
 
@@ -214,7 +214,7 @@ def contas_pagar_list(request):
 
     contas_qs = (
         ContaPagar.objects.filter(empresa=empresa)
-        .select_related('fornecedor', 'categoria', 'despesa_recorrente', 'usuario')
+        .select_related('fornecedor', 'categoria', 'despesa_recorrente', 'usuario', 'compra')
         .prefetch_related('pagamentos_detalhes')
         .order_by('data_vencimento', '-id')
     )
@@ -226,12 +226,16 @@ def contas_pagar_list(request):
         contas_qs = contas_qs.filter(fornecedor_id=fornecedor_id)
 
     if query:
-        contas_qs = contas_qs.filter(
+        q_filter = (
             Q(descricao__icontains=query) |
             Q(fornecedor__nome_fantasia__icontains=query) |
             Q(fornecedor__razao_social__icontains=query) |
-            Q(categoria__nome__icontains=query)
+            Q(categoria__nome__icontains=query) |
+            Q(compra__numero_nota__icontains=query)
         )
+        if query.isdigit():
+            q_filter = q_filter | Q(compra_id=int(query)) | Q(id=int(query))
+        contas_qs = contas_qs.filter(q_filter)
 
     if data_inicio:
         contas_qs = contas_qs.filter(data_vencimento__gte=data_inicio)

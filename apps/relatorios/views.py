@@ -10,6 +10,7 @@ from django.db.models import Sum, Count, F, ExpressionWrapper, DecimalField
 from apps.vendas.models import Venda, ItemVenda, PagamentoVenda
 from apps.produtos.models import Produto, Categoria, MovimentacaoEstoque
 from apps.financeiro.models import FluxoCaixa, ContaPagar, ContaReceber
+from apps.clientes.models import Cliente, Fornecedor
 from apps.caixas.models import Caixa, SessaoCaixa
 from apps.usuarios.models import Usuario
 from .services import ReportService
@@ -302,35 +303,34 @@ def relatorio_crediario_view(request):
 
 
 # =========================================================================
-# RELATÓRIO DE REPOSIÇÃO SEMANAL DE ESTOQUE
+# RELATÓRIO DE REPOSIÇÃO DE ESTOQUE
 # =========================================================================
 @login_required
 def relatorio_reposicao_view(request):
     empresa = request.tenant or request.user.empresa
-    semanas = ReportService.get_semanas_ultimos_18_meses()
+    periodo = request.GET.get('periodo', '7dias')
+    data_inicio = request.GET.get('data_inicio', '')
+    data_fim = request.GET.get('data_fim', '')
 
+    # Suporte retrocompatível com ?semana=
     semana_codigo = request.GET.get('semana', '')
-    semana_selecionada = None
-    if semana_codigo:
+    if semana_codigo and not request.GET.get('periodo'):
+        semanas = ReportService.get_semanas_ultimos_18_meses()
         for s in semanas:
             if s['codigo'] == semana_codigo or s['data_inicio_iso'] == semana_codigo:
-                semana_selecionada = s
+                periodo = 'personalizado'
+                data_inicio = s['data_inicio_iso']
+                data_fim = s['data_fim_iso']
                 break
 
-    if not semana_selecionada and semanas:
-        semana_selecionada = semanas[0]
-
-    from apps.core.operational_day import get_operational_datetime_range
-    start_dt, end_dt = get_operational_datetime_range(
-        semana_selecionada['data_inicio'], semana_selecionada['data_fim']
-    )
-
-    dados = ReportService.get_reposicao_report(empresa, start_dt, end_dt)
+    p_info = ReportService.parse_periodo(periodo, data_inicio, data_fim)
+    dados = ReportService.get_reposicao_report(empresa, p_info['start_datetime'], p_info['end_datetime'])
+    fornecedores = Fornecedor.objects.filter(empresa=empresa, ativo=True).order_by('nome_fantasia', 'razao_social')
 
     return render(request, 'relatorios/relatorio_reposicao.html', {
-        'semanas': semanas,
-        'semana_selecionada': semana_selecionada,
+        'p_info': p_info,
         'dados': dados,
+        'fornecedores': fornecedores,
     })
 
 
@@ -433,36 +433,35 @@ def exportar_relatorio_csv_view(request, relatorio_tipo):
             ])
 
     elif relatorio_tipo == 'reposicao':
-        semanas = ReportService.get_semanas_ultimos_18_meses()
+        periodo = request.GET.get('periodo', '7dias')
+        data_inicio = request.GET.get('data_inicio', '')
+        data_fim = request.GET.get('data_fim', '')
         semana_codigo = request.GET.get('semana', '')
-        semana_selecionada = None
-        if semana_codigo:
+        if semana_codigo and not request.GET.get('periodo'):
+            semanas = ReportService.get_semanas_ultimos_18_meses()
             for s in semanas:
                 if s['codigo'] == semana_codigo or s['data_inicio_iso'] == semana_codigo:
-                    semana_selecionada = s
+                    periodo = 'personalizado'
+                    data_inicio = s['data_inicio_iso']
+                    data_fim = s['data_fim_iso']
                     break
-        if not semana_selecionada and semanas:
-            semana_selecionada = semanas[0]
 
-        from apps.core.operational_day import get_operational_datetime_range
-        start_dt, end_dt = get_operational_datetime_range(
-            semana_selecionada['data_inicio'], semana_selecionada['data_fim']
-        )
-
-        response['Content-Disposition'] = f'attachment; filename="relatorio_reposicao_{semana_selecionada["codigo"]}_{semana_selecionada["data_inicio_iso"]}_{semana_selecionada["data_fim_iso"]}.csv"'
+        p_info = ReportService.parse_periodo(periodo, data_inicio, data_fim)
+        response['Content-Disposition'] = f'attachment; filename="relatorio_reposicao_{p_info["data_inicio_str"]}_{p_info["data_fim_str"]}.csv"'
 
         writer.writerow([
-            'Posição', 'Produto', 'Código', 'Categoria', 'Custo Unitário (R$)',
+            'Posição', 'Produto', 'Código', 'Categoria', 'Fornecedor Principal', 'Custo Unitário (R$)',
             'Preço Venda Unitário (R$)', 'Qtde. Vendida', 'Total Vendido (R$)',
             'Lucro Obtido (R$)', 'Estoque Atual', 'Estoque Mínimo', 'Status Reposição'
         ])
-        res = ReportService.get_reposicao_report(empresa, start_dt, end_dt)
+        res = ReportService.get_reposicao_report(empresa, p_info['start_datetime'], p_info['end_datetime'])
         for p in res['produtos']:
             writer.writerow([
                 p['posicao'],
                 p['nome'],
                 p['codigo'],
                 p['categoria'],
+                p.get('fornecedor_nome', '-'),
                 f"{p['preco_custo_unitario']:.2f}".replace('.', ','),
                 f"{p['preco_venda_unitario']:.2f}".replace('.', ','),
                 f"{p['quantidade']:.3f}".replace('.', ','),

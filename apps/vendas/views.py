@@ -15,6 +15,13 @@ def pdv_front_view(request):
         messages.warning(request, "Você precisa abrir uma Sessão de Caixa antes de acessar o PDV Rápido.")
         return redirect('caixas_list')
 
+    if sessao_ativa.is_sessao_dia_anterior:
+        messages.error(
+            request,
+            f"Atenção: A Sessão #{sessao_ativa.id} do Caixa '{sessao_ativa.caixa.nome}' foi aberta no dia operacional anterior ({sessao_ativa.dia_operacional_abertura.strftime('%d/%m/%Y')}). É obrigatório realizar o fechamento desta sessão antes de iniciar novas operações no dia de hoje."
+        )
+        return redirect('fechar_caixa', sessao_id=sessao_ativa.id)
+
     from .services import SaleService
     grupos_produtos_rapidos = SaleService.obter_produtos_rapidos_agrupados(empresa)
     clientes = Cliente.objects.filter(empresa=empresa, ativo=True)

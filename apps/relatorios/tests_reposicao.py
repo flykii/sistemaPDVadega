@@ -366,48 +366,56 @@ class RelatorioReposicaoTestCase(TestCase):
         self.assertEqual(len(dados_b['produtos']), 1)
         self.assertEqual(dados_b['produtos'][0]['nome'], "Produto Empresa B")
 
-    # 9. Respeito ao Dia Operacional (Corte às 02:00:00 da manhã)
-    def test_respeito_ao_dia_operacional_corte_2h(self):
+    # 9. Respeito ao Dia Operacional (Corte às 00:00:00)
+    def test_respeito_ao_dia_operacional_corte_00h(self):
         # Segunda-feira da semana de teste: 2026-08-31
         segunda = date(2026, 8, 31)
         domingo = date(2026, 9, 6)
         start_dt, end_dt = get_operational_datetime_range(segunda, domingo)
 
-        # Início operacional da semana 31/08 é 2026-08-31 02:00:00
-        # Fim operacional da semana 31/08 é 2026-09-07 01:59:59.999999 (madrugada de segunda seguinte)
+        # Início operacional da semana 31/08 é 2026-08-31 00:00:00
+        # Fim operacional da semana 31/08 é 2026-09-06 23:59:59.999999
         tz = timezone.get_current_timezone()
 
-        # Venda A: Realizada na segunda-feira 31/08 às 01:30 da manhã -> Pertence ao domingo ANTERIOR (fora desta semana)
+        # Venda A: Realizada no domingo anterior 30/08 às 23:30 -> Fora desta semana
         venda_anterior = SaleService.processar_venda(
             empresa=self.empresa_a, operador=self.operador, sessao_caixa=self.sessao,
             itens_data=[{'produto_id': self.p_cerveja_x.id, 'quantidade': 10, 'preco_venda': 10.00}],
             pagamentos_data=[{'forma': 'DINHEIRO', 'valor': 100.00, 'troco': 0.00}]
         )
-        dt_fora = timezone.make_aware(datetime.combine(segunda, time(1, 30, 0)), tz)
+        dt_fora = timezone.make_aware(datetime(2026, 8, 30, 23, 30, 0), tz)
         Venda.objects.filter(id=venda_anterior.id).update(data_venda=dt_fora)
 
-        # Venda B: Realizada na segunda-feira 31/08 às 02:30 da manhã -> Pertence a ESTA semana operacional
+        # Venda B: Realizada na segunda-feira 31/08 às 00:30 da manhã -> Pertence a ESTA semana operacional
         venda_dentro_inicio = SaleService.processar_venda(
             empresa=self.empresa_a, operador=self.operador, sessao_caixa=self.sessao,
             itens_data=[{'produto_id': self.p_litrinha.id, 'quantidade': 15, 'preco_venda': 4.00}],
             pagamentos_data=[{'forma': 'DINHEIRO', 'valor': 60.00, 'troco': 0.00}]
         )
-        dt_dentro_1 = timezone.make_aware(datetime.combine(segunda, time(2, 30, 0)), tz)
+        dt_dentro_1 = timezone.make_aware(datetime.combine(segunda, time(0, 30, 0)), tz)
         Venda.objects.filter(id=venda_dentro_inicio.id).update(data_venda=dt_dentro_1)
 
-        # Venda C: Realizada na segunda-feira seguinte 07/09 às 01:45 da manhã -> Pertence ao DOMINGO 06/09 (dentro desta semana)
-        proxima_segunda = date(2026, 9, 7)
+        # Venda C: Realizada no domingo 06/09 às 23:45 -> Pertence ao DOMINGO 06/09 (dentro desta semana)
         venda_dentro_fim = SaleService.processar_venda(
             empresa=self.empresa_a, operador=self.operador, sessao_caixa=self.sessao,
             itens_data=[{'produto_id': self.p_litrinha.id, 'quantidade': 5, 'preco_venda': 4.00}],
             pagamentos_data=[{'forma': 'DINHEIRO', 'valor': 20.00, 'troco': 0.00}]
         )
-        dt_dentro_2 = timezone.make_aware(datetime.combine(proxima_segunda, time(1, 45, 0)), tz)
+        dt_dentro_2 = timezone.make_aware(datetime.combine(domingo, time(23, 45, 0)), tz)
         Venda.objects.filter(id=venda_dentro_fim.id).update(data_venda=dt_dentro_2)
+
+        # Venda D: Realizada na segunda seguinte 07/09 às 00:05 -> Fora desta semana
+        venda_posterior = SaleService.processar_venda(
+            empresa=self.empresa_a, operador=self.operador, sessao_caixa=self.sessao,
+            itens_data=[{'produto_id': self.p_cerveja_x.id, 'quantidade': 8, 'preco_venda': 10.00}],
+            pagamentos_data=[{'forma': 'DINHEIRO', 'valor': 80.00, 'troco': 0.00}]
+        )
+        dt_posterior = timezone.make_aware(datetime(2026, 9, 7, 0, 5, 0), tz)
+        Venda.objects.filter(id=venda_posterior.id).update(data_venda=dt_posterior)
 
         dados = ReportService.get_reposicao_report(self.empresa_a, start_dt, end_dt)
 
-        # Apenas as vendas B e C devem estar computadas (total 20 Litrinhas). Venda A (Cerveja X) ficou de fora.
+        # Apenas as vendas B e C devem estar computadas (total 20 Litrinhas). Vendas A e D (Cerveja X) ficaram de fora.
         self.assertEqual(dados['total_itens_vendidos'], Decimal('20.000'))
         self.assertEqual(len(dados['produtos']), 1)
         self.assertEqual(dados['produtos'][0]['nome'], "Boa Litrinha")
@@ -433,30 +441,25 @@ class RelatorioReposicaoTestCase(TestCase):
 
     # 11. Requisição HTTP da View `relatorio_reposicao_view` (Template e Contexto)
     def test_view_relatorio_reposicao_http(self):
-        # 1. Sem parâmetro (usa semana atual)
+        # 1. Sem parâmetro (usa período padrão de 7 dias)
         url = reverse('relatorio_reposicao')
         response = self.client.get(url)
         self.assertEqual(response.status_code, 200)
         self.assertTemplateUsed(response, 'relatorios/relatorio_reposicao.html')
-        self.assertIn('semanas', response.context)
-        self.assertIn('semana_selecionada', response.context)
+        self.assertIn('p_info', response.context)
         self.assertIn('dados', response.context)
+        self.assertIn('fornecedores', response.context)
         self.assertContains(response, 'RELATÓRIO DE REPOSIÇÃO')
-        self.assertContains(response, 'MINI DASHBOARD DE VENDAS')
+        self.assertContains(response, 'DESEMPENHO DE VENDAS NO PERÍODO')
 
-        # 2. Com parâmetro de semana específica
-        semanas = ReportService.get_semanas_ultimos_18_meses()
-        semana_especifica = semanas[2]
-        response2 = self.client.get(f"{url}?semana={semana_especifica['codigo']}")
+        # 2. Com parâmetro de período específico
+        response2 = self.client.get(f"{url}?periodo=30dias")
         self.assertEqual(response2.status_code, 200)
-        self.assertEqual(response2.context['semana_selecionada']['codigo'], semana_especifica['codigo'])
+        self.assertEqual(response2.context['p_info']['periodo'], '30dias')
 
     # 12. Exportação CSV do Relatório de Reposição
     def test_exportacao_csv_reposicao(self):
-        # Cria uma venda na semana atual
-        semanas = ReportService.get_semanas_ultimos_18_meses()
-        sem_atual = semanas[0]
-
+        # Cria uma venda
         SaleService.processar_venda(
             empresa=self.empresa_a, operador=self.operador, sessao_caixa=self.sessao,
             itens_data=[{'produto_id': self.p_litrinha.id, 'quantidade': 82, 'preco_venda': 4.00}],
@@ -464,14 +467,14 @@ class RelatorioReposicaoTestCase(TestCase):
         )
 
         url = reverse('exportar_relatorio_csv', kwargs={'relatorio_tipo': 'reposicao'})
-        response = self.client.get(f"{url}?semana={sem_atual['codigo']}")
+        response = self.client.get(f"{url}?periodo=7dias")
 
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response['Content-Type'], 'text/csv; charset=utf-8-sig')
         self.assertIn('attachment; filename="relatorio_reposicao_', response['Content-Disposition'])
 
         content = response.content.decode('utf-8-sig')
-        self.assertIn('Posição;Produto;Código;Categoria;Custo Unitário (R$);Preço Venda Unitário (R$);Qtde. Vendida;Total Vendido (R$);Lucro Obtido (R$);Estoque Atual;Estoque Mínimo;Status Reposição', content)
+        self.assertIn('Posição;Produto;Código;Categoria;Fornecedor Principal;Custo Unitário (R$);Preço Venda Unitário (R$);Qtde. Vendida;Total Vendido (R$);Lucro Obtido (R$);Estoque Atual;Estoque Mínimo;Status Reposição', content)
         self.assertIn('Boa Litrinha', content)
         self.assertIn('82,000', content)
         self.assertIn('328,00', content)

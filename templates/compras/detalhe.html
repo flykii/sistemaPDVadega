@@ -1,30 +1,43 @@
 {% extends 'base.html' %}
 
-{% block title %}Detalhes da Compra #{{ compra.id }} - PDV Enterprise{% endblock %}
+{% block title %}Detalhes do Pedido de Compra #{{ compra.id }} - PDV Enterprise{% endblock %}
 
 {% block content %}
 <div class="container-fluid py-3">
-    <div class="d-flex justify-content-between align-items-center mb-4">
+    <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
         <div>
             <a href="{% url 'compras_list' %}" class="btn btn-outline-secondary btn-sm mb-2">
-                <i class="bi bi-arrow-left me-1"></i> Voltar às Compras
+                <i class="bi bi-arrow-left me-1"></i> Voltar aos Pedidos
             </a>
             <h2 class="fw-bold text-dark mb-0">
-                <i class="bi bi-receipt-cutoff text-primary me-2"></i>Detalhes da Compra #{{ compra.numero_nota|default:compra.id }}
+                <i class="bi bi-receipt-cutoff text-primary me-2"></i>Pedido de Compra #{{ compra.numero_nota|default:compra.id }}
             </h2>
-            <p class="text-muted mb-0">Data da Entrada: <strong>{{ compra.data_compra|date:"d/m/Y H:i" }}</strong></p>
+            <p class="text-muted mb-0">Data do Pedido: <strong>{{ compra.data_compra|date:"d/m/Y H:i" }}</strong></p>
         </div>
-        <div>
-            <button onclick="window.print()" class="btn btn-outline-dark fw-bold">
-                <i class="bi bi-printer me-1"></i> Imprimir Nota
+        <div class="d-flex gap-2 align-items-center">
+            <span class="badge {{ compra.status_badge_class }} fs-6 px-3 py-2">{{ compra.get_status_display }}</span>
+            {% if compra.status == 'PENDENTE' or compra.status == 'PARCIAL' %}
+            <a href="{% url 'compra_receber' compra.id %}" class="btn btn-success fw-bold">
+                <i class="bi bi-box-arrow-in-down me-1"></i> Receber Mercadoria
+            </a>
+            {% endif %}
+            {% if compra.status != 'CANCELADA' %}
+            <button type="button" class="btn btn-outline-danger btn-sm fw-bold" data-bs-toggle="modal" data-bs-target="#modalCancelarCompra">
+                <i class="bi bi-x-circle me-1"></i> Cancelar Pedido
+            </button>
+            {% endif %}
+            <button onclick="window.print()" class="btn btn-outline-dark btn-sm fw-bold">
+                <i class="bi bi-printer me-1"></i> Imprimir
             </button>
         </div>
     </div>
 
+    <!-- Cards de Informações -->
     <div class="row g-4 mb-4">
-        <div class="col-12 col-md-6">
+        <!-- Fornecedor -->
+        <div class="col-12 col-md-4">
             <div class="card card-custom p-4 shadow-sm border-0 h-100">
-                <h5 class="fw-bold text-primary mb-3"><i class="bi bi-truck me-2"></i>Dados do Fornecedor</h5>
+                <h5 class="fw-bold text-primary mb-3"><i class="bi bi-truck me-2"></i>Fornecedor</h5>
                 {% if compra.fornecedor %}
                     <p class="mb-1"><strong>Razão Social:</strong> {{ compra.fornecedor.razao_social|default:"Não informado" }}</p>
                     <p class="mb-1"><strong>Nome Fantasia:</strong> {{ compra.fornecedor.nome_fantasia|default:"-" }}</p>
@@ -32,29 +45,56 @@
                     <p class="mb-1"><strong>Telefone:</strong> {{ compra.fornecedor.telefone|default:"-" }}</p>
                     <p class="mb-0"><strong>E-mail:</strong> {{ compra.fornecedor.email|default:"-" }}</p>
                 {% else %}
-                    <p class="text-muted mb-0">Nenhum fornecedor vinculado a esta entrada.</p>
+                    <p class="text-muted mb-0">Nenhum fornecedor vinculado a este pedido.</p>
                 {% endif %}
             </div>
         </div>
 
-        <div class="col-12 col-md-6">
+        <!-- Resumo do Pedido -->
+        <div class="col-12 col-md-4">
             <div class="card card-custom p-4 shadow-sm border-0 h-100">
-                <h5 class="fw-bold text-dark mb-3"><i class="bi bi-cash-stack text-success me-2"></i>Resumo Financeiro</h5>
-                <p class="mb-1"><strong>Número do Documento / NF:</strong> {{ compra.numero_nota|default:"Sem NF" }}</p>
-                <p class="mb-1"><strong>Status da Entrada:</strong> <span class="badge bg-success">Concluída</span></p>
-                {% if compra.observacoes %}<p class="mb-1"><strong>Observações:</strong> {{ compra.observacoes }}</p>{% endif %}
-                <div class="alert alert-success mt-3 mb-0 d-flex justify-content-between align-items-center">
-                    <span class="fw-bold fs-6">VALOR TOTAL DA COMPRA</span>
-                    <strong class="fs-4 text-success">R$ {{ compra.total|floatformat:2 }}</strong>
-                </div>
+                <h5 class="fw-bold text-dark mb-3"><i class="bi bi-box-seam text-secondary me-2"></i>Balanço do Pedido</h5>
+                <p class="mb-1"><strong>Número NF / Doc:</strong> {{ compra.numero_nota|default:"Sem número" }}</p>
+                <p class="mb-1"><strong>Total de Itens Pedidos:</strong> {{ compra.total_itens_pedidos|floatformat:0 }} un</p>
+                <p class="mb-1"><strong>Total Já Recebido:</strong> <span class="text-success fw-bold">{{ compra.total_itens_recebidos|floatformat:0 }} un</span></p>
+                <p class="mb-1"><strong>Saldo Pendente:</strong> <span class="text-danger fw-bold">{{ compra.total_itens_pendentes|floatformat:0 }} un</span></p>
+                {% if compra.observacoes %}<p class="mb-0 small text-muted mt-2"><strong>Obs:</strong> {{ compra.observacoes }}</p>{% endif %}
+            </div>
+        </div>
+
+        <!-- Conta a Pagar Vinculada -->
+        <div class="col-12 col-md-4">
+            <div class="card card-custom p-4 shadow-sm border-0 h-100 bg-light">
+                <h5 class="fw-bold text-success mb-3"><i class="bi bi-cash-coin me-2"></i>Conta a Pagar Vinculada</h5>
+                {% with conta=compra.contas_pagar.first %}
+                {% if conta %}
+                    <p class="mb-1"><strong>Valor da Fatura:</strong> <span class="text-success fw-bold fs-5">R$ {{ conta.valor|floatformat:2 }}</span></p>
+                    <p class="mb-1"><strong>Data de Vencimento:</strong> <strong>{{ conta.data_vencimento|date:"d/m/Y" }}</strong></p>
+                    <p class="mb-2"><strong>Status Financeiro:</strong> 
+                        {% if conta.status == 'PAGA' or conta.status == 'PAGO' %}
+                            <span class="badge bg-success">Paga</span>
+                        {% elif conta.status == 'CANCELADA' %}
+                            <span class="badge bg-danger">Cancelada</span>
+                        {% else %}
+                            <span class="badge bg-warning text-dark">Pendente / Aberta</span>
+                        {% endif %}
+                    </p>
+                    <a href="{% url 'contas_pagar_list' %}?q={{ compra.id }}" class="btn btn-sm btn-outline-success fw-bold mt-auto">
+                        <i class="bi bi-box-arrow-up-right me-1"></i> Ver no Financeiro
+                    </a>
+                {% else %}
+                    <p class="text-muted mb-0">Nenhuma conta a pagar vinculada.</p>
+                {% endif %}
+                {% endwith %}
             </div>
         </div>
     </div>
 
-    <!-- Tabela de Itens Comprados -->
+    <!-- Tabela de Itens Pedidos -->
     <div class="card card-custom p-0 border-0 shadow-sm rounded-4 overflow-hidden mb-4">
-        <div class="p-3 bg-light border-bottom">
-            <h5 class="fw-bold text-dark mb-0"><i class="bi bi-box-seam me-2 text-primary"></i>Itens Registrados na Entrada</h5>
+        <div class="p-3 bg-light border-bottom d-flex justify-content-between align-items-center">
+            <h5 class="fw-bold text-dark mb-0"><i class="bi bi-list-check me-2 text-primary"></i>Itens do Pedido de Compra</h5>
+            <span class="badge bg-secondary">{{ compra.itens.count }} itens</span>
         </div>
         <div class="table-responsive">
             <table class="table table-hover align-middle mb-0">
@@ -62,8 +102,10 @@
                     <tr>
                         <th class="ps-4">Produto</th>
                         <th>Código EAN</th>
-                        <th class="text-center">Quantidade Comprada</th>
-                        <th class="text-end">Custo Unitário (R$)</th>
+                        <th class="text-center">Qtd. Pedida</th>
+                        <th class="text-center text-success">Qtd. Recebida</th>
+                        <th class="text-center text-danger">Qtd. Pendente</th>
+                        <th class="text-end">Custo Unit. (R$)</th>
                         <th class="text-end pe-4">Subtotal (R$)</th>
                     </tr>
                 </thead>
@@ -72,10 +114,17 @@
                     <tr>
                         <td class="ps-4">
                             <strong class="text-dark">{{ item.produto.nome }}</strong>
-                            <small class="d-block text-muted">{{ item.produto.categoria.nome|default:"Geral" }}</small>
+                            <small class="d-block text-muted">{{ item.produto.categoria.nome|default:"Geral" }} | Estoque Atual: {{ item.produto.estoque_atual|floatformat:0 }} {{ item.produto.unidade_medida }}</small>
                         </td>
-                        <td><code>{{ item.produto.codigo_barras }}</code></td>
-                        <td class="text-center fw-bold">{{ item.quantidade }} {{ item.produto.unidade_medida }}</td>
+                        <td><code>{{ item.produto.codigo_barras|default:"-" }}</code></td>
+                        <td class="text-center fw-bold">{{ item.quantidade|floatformat:0 }} {{ item.produto.unidade_medida }}</td>
+                        <td class="text-center fw-bold text-success">{{ item.quantidade_recebida|floatformat:0 }} {{ item.produto.unidade_medida }}</td>
+                        <td class="text-center fw-bold {% if item.quantidade_pendente > 0 %}text-danger{% else %}text-muted{% endif %}">
+                            {{ item.quantidade_pendente|floatformat:0 }} {{ item.produto.unidade_medida }}
+                            {% if item.excedente > 0 %}
+                                <small class="d-block text-info">(+{{ item.excedente|floatformat:0 }} excedente)</small>
+                            {% endif %}
+                        </td>
                         <td class="text-end">R$ {{ item.preco_custo_unitario|floatformat:2 }}</td>
                         <td class="text-end pe-4 fw-bold text-success">R$ {{ item.subtotal|floatformat:2 }}</td>
                     </tr>
@@ -84,5 +133,93 @@
             </table>
         </div>
     </div>
+
+    <!-- Histórico de Recebimentos Físicos -->
+    <div class="card card-custom p-0 border-0 shadow-sm rounded-4 overflow-hidden mb-4">
+        <div class="p-3 bg-light border-bottom d-flex justify-content-between align-items-center">
+            <h5 class="fw-bold text-dark mb-0"><i class="bi bi-clock-history me-2 text-success"></i>Histórico de Entregas e Recebimentos Físicos</h5>
+            <span class="badge bg-success">{{ compra.recebimentos.count }} remessas recebidas</span>
+        </div>
+        <div class="p-4">
+            {% for rec in compra.recebimentos.all %}
+            <div class="border rounded-3 p-3 mb-3 bg-white shadow-sm">
+                <div class="d-flex justify-content-between align-items-center border-bottom pb-2 mb-2 flex-wrap gap-2">
+                    <div>
+                        <strong class="text-success fs-6"><i class="bi bi-box-seam me-1"></i>Remessa de Entrega #{{ rec.id }}</strong>
+                        <span class="text-muted ms-2"><i class="bi bi-calendar-event me-1"></i>{{ rec.data_recebimento|date:"d/m/Y H:i" }}</span>
+                        {% if rec.usuario %}<span class="text-muted ms-2"><i class="bi bi-person me-1"></i>Conferido por: <strong>{{ rec.usuario.username }}</strong></span>{% endif %}
+                    </div>
+                    {% if rec.observacao %}
+                    <span class="badge bg-light text-dark border"><i class="bi bi-chat-text me-1"></i>{{ rec.observacao }}</span>
+                    {% endif %}
+                </div>
+                <div class="table-responsive">
+                    <table class="table table-sm table-borderless align-middle mb-0">
+                        <thead class="text-muted small">
+                            <tr>
+                                <th>Produto Entregue</th>
+                                <th class="text-center">Qtd. Entregue nesta Remessa</th>
+                                <th class="text-end">Custo Unitário Praticado</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for item_rec in rec.itens.all %}
+                            <tr>
+                                <td><strong>{{ item_rec.produto.nome }}</strong></td>
+                                <td class="text-center fw-bold text-success">+{{ item_rec.quantidade_recebida|floatformat:0 }} {{ item_rec.produto.unidade_medida }}</td>
+                                <td class="text-end">R$ {{ item_rec.preco_custo|floatformat:2 }}</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            {% empty %}
+            <div class="text-center py-4 text-muted">
+                <i class="bi bi-truck fs-2 d-block mb-2 text-muted"></i>
+                <p class="mb-0">Nenhuma mercadoria foi recebida ainda para este pedido.</p>
+                {% if compra.status == 'PENDENTE' %}
+                <a href="{% url 'compra_receber' compra.id %}" class="btn btn-sm btn-success fw-bold mt-2">
+                    <i class="bi bi-box-arrow-in-down me-1"></i> Realizar Primeira Conferência / Recebimento
+                </a>
+                {% endif %}
+            </div>
+            {% endfor %}
+        </div>
+    </div>
 </div>
+
+<!-- Modal Cancelar Compra -->
+{% if compra.status != 'CANCELADA' %}
+<div class="modal fade" id="modalCancelarCompra" tabindex="-1">
+    <div class="modal-dialog">
+        <form method="post" action="{% url 'compra_cancelar' compra.id %}">
+            {% csrf_token %}
+            <div class="modal-content">
+                <div class="modal-header bg-danger text-white">
+                    <h5 class="modal-title fw-bold"><i class="bi bi-exclamation-triangle-fill me-2"></i>Cancelar Pedido de Compra #{{ compra.id }}</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <p>Tem certeza que deseja cancelar este pedido de compra?</p>
+                    {% if compra.total_itens_recebidos > 0 %}
+                    <div class="alert alert-warning small">
+                        <i class="bi bi-exclamation-circle-fill me-1"></i> <strong>Atenção:</strong> Já foram recebidas <strong>{{ compra.total_itens_recebidos|floatformat:0 }} unidades</strong> desta compra. Ao cancelar, o estoque dessas mercadorias será estornado automaticamente.
+                    </div>
+                    {% endif %}
+                    <div class="mb-3">
+                        <label for="motivo_cancelamento" class="form-label fw-bold">Motivo do Cancelamento</label>
+                        <textarea name="motivo" id="motivo_cancelamento" class="form-control" rows="3" placeholder="Informe a justificativa do cancelamento..." required></textarea>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Fechar</button>
+                    <button type="submit" class="btn btn-danger fw-bold">Confirmar Cancelamento</button>
+                </div>
+            </div>
+        </form>
+    </div>
+</div>
+{% endif %}
 {% endblock %}
+

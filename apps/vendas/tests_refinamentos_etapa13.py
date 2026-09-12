@@ -20,41 +20,37 @@ from apps.core.operational_day import (
 
 
 class OperationalDayRefinementTests(TestCase):
-    """Testes rigorosos para a virada operacional às 02:00 da manhã."""
+    """Testes rigorosos para a virada operacional às 00:00 (dia civil exato 00:00:00 até 23:59:59)."""
 
-    def test_operational_date_cutoff_before_and_after_02am(self):
-        # 1. 01:59:00 do dia 10/05/2026 -> Pertence ao dia operacional 09/05/2026
-        dt_1 = datetime(2026, 5, 10, 1, 59, 0)
+    def test_operational_date_cutoff_00h(self):
+        # 1. 23:59:59 do dia 09/05/2026 -> Pertence ao dia operacional 09/05/2026
+        dt_1 = datetime(2026, 5, 9, 23, 59, 59, 999999)
         self.assertEqual(get_operational_date(dt_1), date(2026, 5, 9))
 
-        # 2. 01:59:59 do dia 10/05/2026 -> Pertence ao dia operacional 09/05/2026
-        dt_2 = datetime(2026, 5, 10, 1, 59, 59, 999999)
-        self.assertEqual(get_operational_date(dt_2), date(2026, 5, 9))
+        # 2. 00:00:00 do dia 10/05/2026 -> Inicia o dia operacional 10/05/2026
+        dt_2 = datetime(2026, 5, 10, 0, 0, 0)
+        self.assertEqual(get_operational_date(dt_2), date(2026, 5, 10))
 
-        # 3. 02:00:00 do dia 10/05/2026 -> Inicia o dia operacional 10/05/2026
-        dt_3 = datetime(2026, 5, 10, 2, 0, 0)
+        # 3. 00:00:01 do dia 10/05/2026 -> Pertence ao dia operacional 10/05/2026
+        dt_3 = datetime(2026, 5, 10, 0, 0, 1)
         self.assertEqual(get_operational_date(dt_3), date(2026, 5, 10))
 
-        # 4. 02:00:01 do dia 10/05/2026 -> Pertence ao dia operacional 10/05/2026
-        dt_4 = datetime(2026, 5, 10, 2, 0, 1)
+        # 4. 15:30:00 do dia 10/05/2026 -> Pertence ao dia operacional 10/05/2026
+        dt_4 = datetime(2026, 5, 10, 15, 30, 0)
         self.assertEqual(get_operational_date(dt_4), date(2026, 5, 10))
-
-        # 5. 15:30:00 do dia 10/05/2026 -> Pertence ao dia operacional 10/05/2026
-        dt_5 = datetime(2026, 5, 10, 15, 30, 0)
-        self.assertEqual(get_operational_date(dt_5), date(2026, 5, 10))
 
     def test_operational_datetime_range(self):
         d_ini = date(2026, 6, 1)
         d_fim = date(2026, 6, 1)
         start_dt, end_dt = get_operational_datetime_range(d_ini, d_fim)
 
-        # Início no dia 01/06 às 02:00:00
+        # Início no dia 01/06 às 00:00:00
         self.assertEqual(start_dt.date(), date(2026, 6, 1))
-        self.assertEqual(start_dt.time(), time(2, 0, 0))
+        self.assertEqual(start_dt.time(), time(0, 0, 0))
 
-        # Fim no dia 02/06 às 01:59:59
-        self.assertEqual(end_dt.date(), date(2026, 6, 2))
-        self.assertEqual(end_dt.hour, 1)
+        # Fim no dia 01/06 às 23:59:59
+        self.assertEqual(end_dt.date(), date(2026, 6, 1))
+        self.assertEqual(end_dt.hour, 23)
         self.assertEqual(end_dt.minute, 59)
         self.assertEqual(end_dt.second, 59)
 
@@ -65,7 +61,7 @@ class OperationalDayRefinementTests(TestCase):
         sessao = CashService.abrir_caixa(caixa, operador, Decimal('100.00'))
         produto = Produto.objects.create(empresa=empresa, nome="Prod A", preco_custo=Decimal('5.00'), preco_venda=Decimal('10.00'), estoque_atual=Decimal('100.00'))
 
-        # Venda 1: Feita em 10/05/2026 às 01:30 (pertence ao dia operacional 09/05/2026)
+        # Venda 1: Feita em 09/05/2026 às 23:30 (pertence ao dia operacional 09/05/2026)
         venda_1 = SaleService.processar_venda(
             empresa=empresa,
             operador=operador,
@@ -75,7 +71,7 @@ class OperationalDayRefinementTests(TestCase):
             offline_uuid='UUID-V1'
         )
         tz = timezone.get_current_timezone() if timezone.is_aware(timezone.now()) else None
-        dt_v1 = datetime(2026, 5, 10, 1, 30, 0)
+        dt_v1 = datetime(2026, 5, 9, 23, 30, 0)
         if tz:
             dt_v1 = timezone.make_aware(dt_v1, tz)
         Venda.objects.filter(id=venda_1.id).update(data_venda=dt_v1)
@@ -94,13 +90,13 @@ class OperationalDayRefinementTests(TestCase):
             dt_v2 = timezone.make_aware(dt_v2, tz)
         Venda.objects.filter(id=venda_2.id).update(data_venda=dt_v2)
 
-        # Relatório do dia operacional 09/05/2026 (das 09/05 02:00 até 10/05 01:59:59)
+        # Relatório do dia operacional 09/05/2026 (das 09/05 00:00:00 até 09/05 23:59:59)
         start_09, end_09 = get_operational_datetime_range(date(2026, 5, 9), date(2026, 5, 9))
         rep_09 = ReportService.get_vendas_report(empresa, start_09, end_09)
         self.assertEqual(rep_09['qtd_vendas'], 1)
         self.assertEqual(rep_09['faturamento_liquido'], Decimal('10.00'))
 
-        # Relatório do dia operacional 10/05/2026 (das 10/05 02:00 até 11/05 01:59:59)
+        # Relatório do dia operacional 10/05/2026 (das 10/05 00:00:00 até 10/05 23:59:59)
         start_10, end_10 = get_operational_datetime_range(date(2026, 5, 10), date(2026, 5, 10))
         rep_10 = ReportService.get_vendas_report(empresa, start_10, end_10)
         self.assertEqual(rep_10['qtd_vendas'], 1)
