@@ -86,7 +86,7 @@ def vendas_historico_view(request):
     data_fim_str = request.GET.get('data_fim', '').strip()
 
     agora = timezone.now()
-    hoje = agora.date()
+    hoje = timezone.localdate()
 
     if periodo == 'hoje':
         inicio_dt = timezone.make_aware(datetime.combine(hoje, time.min))

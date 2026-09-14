@@ -1,3 +1,4 @@
+import json
 from decimal import Decimal
 from datetime import date, timedelta
 from django.test import TestCase, Client
@@ -776,3 +777,57 @@ class PrazosVencimentoCompraTestCase(TestCase):
         fornecedores_json = response.context['fornecedores_json']
         self.assertIn('"prazo_dias": 28', fornecedores_json)
         self.assertIn('"prazo_dias": 0', fornecedores_json)
+
+    # Teste 5: Tratamento decimal com vírgula no GET (ex: vindo do Relatório de Reposição)
+    def test_pre_preenchimento_get_com_virgulas_e_ponto(self):
+        # 1. Custo com vírgula (0,08) e quantidade inteira
+        url_1 = reverse('compra_nova') + f"?fornecedor_id={self.fornecedor_28d.id}&produto_id[]={self.produto.id}&quantidade[]=30&preco_custo[]=0,08"
+        response_1 = self.client.get(url_1)
+        self.assertEqual(response_1.status_code, 200)
+        itens_1 = json.loads(response_1.context['itens_iniciais_json'])
+        self.assertEqual(len(itens_1), 1)
+        self.assertEqual(itens_1[0]['quantidade'], 30.0)
+        self.assertEqual(itens_1[0]['preco_custo'], 0.08)
+
+        # 2. Custos variados: 4,20; 12,50; 100,00 e quantidade fracionada com vírgula (1,500)
+        url_2 = reverse('compra_nova') + f"?produto_id[]={self.produto.id}&quantidade[]=1,500&preco_custo[]=4,20"
+        response_2 = self.client.get(url_2)
+        self.assertEqual(response_2.status_code, 200)
+        itens_2 = json.loads(response_2.context['itens_iniciais_json'])
+        self.assertEqual(itens_2[0]['quantidade'], 1.5)
+        self.assertEqual(itens_2[0]['preco_custo'], 4.2)
+
+        # 3. Custo 12,50 e 100,00
+        url_3 = reverse('compra_nova') + f"?produto_id[]={self.produto.id}&quantidade[]=2&preco_custo[]=12,50"
+        response_3 = self.client.get(url_3)
+        self.assertEqual(response_3.status_code, 200)
+        itens_3 = json.loads(response_3.context['itens_iniciais_json'])
+        self.assertEqual(itens_3[0]['preco_custo'], 12.5)
+
+    # Teste 6: Criação POST de compra com valores decimais formatados com vírgula
+    def test_post_nova_compra_com_virgulas_salva_decimal_exato(self):
+        response = self.client.post(reverse('compra_nova'), {
+            'fornecedor_id': self.fornecedor_28d.id,
+            'numero_nota': 'NF-DECIMAL-VIRGULA',
+            'data_vencimento': timezone.now().date().strftime('%Y-%m-%d'),
+            'produto_id[]': [self.produto.id],
+            'quantidade[]': ['10,500'],
+            'preco_custo[]': ['0,08']
+        }, follow=True)
+        self.assertEqual(response.status_code, 200)
+
+        compra = Compra.objects.filter(numero_nota='NF-DECIMAL-VIRGULA').first()
+        self.assertIsNotNone(compra)
+        item = compra.itens.first()
+        self.assertEqual(item.quantidade, Decimal('10.500'))
+        self.assertEqual(item.preco_custo_unitario, Decimal('0.08'))
+        self.assertEqual(item.subtotal, Decimal('0.84'))
+        self.assertEqual(compra.total, Decimal('0.84'))
+
+    # Teste 7: Contexto contém chave de escopo isolada para o localStorage (empresa + usuário)
+    def test_escopo_localStorage_presente_no_contexto(self):
+        response = self.client.get(reverse('compra_nova'))
+        self.assertEqual(response.status_code, 200)
+        self.assertIn('storage_scope_key', response.context)
+        self.assertEqual(response.context['storage_scope_key'], f"pdv_compra_draft_{self.empresa.id}_{self.usuario.id}")
+

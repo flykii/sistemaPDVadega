@@ -206,6 +206,7 @@ class PDVApp {
                 if (!this.isTransitioningToConfirm) {
                     this.resetModalPagamento();
                 }
+                this.isTransitioningToConfirm = false;
             });
         }
 
@@ -215,6 +216,7 @@ class PDVApp {
                 if (!this.isTransitioningToPayment && !this.isProcessingSale) {
                     this.resetModalPagamento();
                 }
+                this.isTransitioningToPayment = false;
             });
         }
 
@@ -1350,18 +1352,16 @@ class PDVApp {
             remaining = this.getRemainingToPay();
         }
 
-        // Se após a validação ainda restar saldo
+        let errorMsg = null;
         if (remaining > 0.001) {
-            alert(`Ainda resta um saldo de R$ ${remaining.toFixed(2).replace('.', ',')} a ser pago.`);
-            return;
-        }
-
-        const temCrediario = this.payments.some(p => p.forma === 'CREDIARIO');
-        const cliSelect = document.getElementById('modal-cliente-select') || document.getElementById('cliente-select');
-        if (temCrediario && (!cliSelect || !cliSelect.value)) {
-            alert('Vendas contendo parcelas no Crediário / Fiado exigem a seleção de um Cliente.');
-            this.toggleCrediarioBox(true);
-            return;
+            errorMsg = `Ainda resta um saldo de R$ ${remaining.toFixed(2).replace('.', ',')} a ser pago.`;
+        } else {
+            const temCrediario = this.payments.some(p => p.forma === 'CREDIARIO');
+            const cliSelect = document.getElementById('modal-cliente-select') || document.getElementById('cliente-select');
+            if (temCrediario && (!cliSelect || !cliSelect.value)) {
+                errorMsg = 'Vendas no Crediário / Fiado exigem a seleção de um Cliente.';
+                this.toggleCrediarioBox(true);
+            }
         }
 
         const nomesFormas = {
@@ -1377,6 +1377,22 @@ class PDVApp {
         const trocoBox = document.getElementById('confirm-modal-troco-box');
         const trocoEl = document.getElementById('confirm-modal-troco');
         const countEl = document.getElementById('confirm-modal-items-count');
+
+        const errorBox = document.getElementById('confirm-modal-error-box');
+        const errorText = document.getElementById('confirm-modal-error-text');
+        const btnConfirm = document.getElementById('btn-efetivar-confirmacao');
+
+        if (errorBox && errorText) {
+            if (errorMsg) {
+                errorText.innerText = errorMsg;
+                errorBox.classList.remove('d-none');
+            } else {
+                errorBox.classList.add('d-none');
+            }
+        }
+        if (btnConfirm) {
+            btnConfirm.disabled = !!errorMsg;
+        }
 
         if (totalEl) totalEl.innerText = `R$ ${totalVenda.toFixed(2).replace('.', ',')}`;
         if (countEl) countEl.innerText = this.cart.reduce((acc, i) => acc + i.quantidade, 0);
@@ -1416,9 +1432,7 @@ class PDVApp {
             const confirmModal = bootstrap.Modal.getInstance(confirmModalEl) || new bootstrap.Modal(confirmModalEl);
             confirmModal.show();
             setTimeout(() => {
-                this.isTransitioningToConfirm = false;
-                const btnConfirm = document.getElementById('btn-efetivar-confirmacao');
-                if (btnConfirm) btnConfirm.focus();
+                if (btnConfirm && !btnConfirm.disabled) btnConfirm.focus();
             }, 300);
         }
     }
@@ -1434,9 +1448,6 @@ class PDVApp {
             const payModal = bootstrap.Modal.getInstance(payModalEl) || new bootstrap.Modal(payModalEl);
             payModal.show();
             this.renderPaymentModal();
-            setTimeout(() => {
-                this.isTransitioningToPayment = false;
-            }, 300);
         }
     }
 
@@ -1454,9 +1465,21 @@ class PDVApp {
             return;
         }
 
+        const errorBox = document.getElementById('confirm-modal-error-box');
+        const errorText = document.getElementById('confirm-modal-error-text');
+        
+        const showError = (msg) => {
+            if (errorBox && errorText) {
+                errorText.innerText = msg;
+                errorBox.classList.remove('d-none');
+            } else {
+                alert(msg);
+            }
+        };
+
         const remaining = this.getRemainingToPay();
         if (remaining > 0.001) {
-            alert(`Ainda resta um saldo de R$ ${remaining.toFixed(2)} a ser pago.`);
+            showError(`Ainda resta um saldo de R$ ${remaining.toFixed(2).replace('.', ',')} a ser pago.`);
             return;
         }
 
@@ -1469,10 +1492,13 @@ class PDVApp {
         }
 
         if (temCrediario && !clienteId) {
-            alert('Vendas contendo parcelas no Crediário / Fiado exigem a seleção de um Cliente.');
+            showError('Vendas no Crediário / Fiado exigem a seleção de um Cliente.');
             if (cliSelect) cliSelect.focus();
             return;
         }
+
+        // Se passou, oculta possíveis erros
+        if (errorBox) errorBox.classList.add('d-none');
 
         this.isProcessingSale = true;
         const btnConfirm = document.getElementById('btn-efetivar-confirmacao');

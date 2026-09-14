@@ -4,14 +4,30 @@
 
 {% block content %}
 <div class="container-fluid py-3">
-    <div class="d-flex justify-content-between align-items-center mb-4">
+    <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
         <div>
             <h2 class="fw-bold text-dark mb-0"><i class="bi bi-cart-plus-fill text-primary me-2"></i>Novo Pedido de Compra</h2>
             <p class="text-muted mb-0">Registre o pedido de compra com os itens e o vencimento da fatura. A entrada no estoque ocorrerá na etapa de recebimento.</p>
         </div>
-        <a href="{% url 'compras_list' %}" class="btn btn-outline-secondary fw-bold">
-            <i class="bi bi-arrow-left me-1"></i> Voltar aos Pedidos
-        </a>
+        <div class="d-flex gap-2">
+            <button type="button" class="btn btn-outline-danger fw-bold" onclick="descartarRascunho()" id="btn-descartar-topo" title="Limpar formulário e apagar rascunho em andamento">
+                <i class="bi bi-trash me-1"></i> Descartar Rascunho
+            </button>
+            <a href="{% url 'compras_list' %}" class="btn btn-outline-secondary fw-bold">
+                <i class="bi bi-arrow-left me-1"></i> Voltar aos Pedidos
+            </a>
+        </div>
+    </div>
+
+    <!-- Barra informativa de rascunho recuperado -->
+    <div id="alerta-rascunho" class="alert alert-warning py-2 px-3 small d-flex justify-content-between align-items-center mb-3 shadow-sm rounded-3" style="display:none;">
+        <div>
+            <i class="bi bi-clock-history me-1 fs-6"></i>
+            <strong>Pedido em andamento recuperado:</strong> Os dados deste formulário foram restaurados automaticamente de onde você parou.
+        </div>
+        <button type="button" class="btn btn-sm btn-outline-danger py-0 px-2 fw-bold" onclick="descartarRascunho()">
+            <i class="bi bi-trash me-1"></i> Limpar / Iniciar do Zero
+        </button>
     </div>
 
     <form method="post" id="form-compra">
@@ -24,7 +40,7 @@
 
                     <div class="mb-3">
                         <label for="fornecedor_id" class="form-label fw-bold">Fornecedor</label>
-                        <select name="fornecedor_id" id="fornecedor_id" class="form-select form-select-lg" onchange="aoMudarFornecedor(this)">
+                        <select name="fornecedor_id" id="fornecedor_id" class="form-select form-select-lg" onchange="aoMudarFornecedor(this); dispararAutoSave();">
                             <option value="">-- Selecione o Fornecedor --</option>
                             {% for f in fornecedores %}
                                 <option value="{{ f.id }}" {% if f.id == fornecedor_selecionado_id %}selected{% endif %}>
@@ -39,18 +55,18 @@
 
                     <div class="mb-3">
                         <label for="numero_nota" class="form-label fw-bold">Número da Nota Fiscal / Pedido</label>
-                        <input type="text" name="numero_nota" id="numero_nota" class="form-control" placeholder="Ex: NF-e 12345 ou Pedido #001">
+                        <input type="text" name="numero_nota" id="numero_nota" class="form-control" placeholder="Ex: NF-e 12345 ou Pedido #001" oninput="dispararAutoSave()">
                     </div>
 
                     <div class="mb-3">
                         <label for="data_vencimento" class="form-label fw-bold">Data de Vencimento da Fatura</label>
-                        <input type="date" name="data_vencimento" id="data_vencimento" class="form-control" value="{{ data_vencimento_inicial }}" oninput="aoEditarVencimentoManualmente()">
+                        <input type="date" name="data_vencimento" id="data_vencimento" class="form-control" value="{{ data_vencimento_inicial }}" oninput="aoEditarVencimentoManualmente(); dispararAutoSave();">
                         <small class="text-muted" id="hint-vencimento">Data para lançamento no Contas a Pagar (calculada pelo prazo do fornecedor ou editável)</small>
                     </div>
 
                     <div class="mb-3">
                         <label for="observacoes" class="form-label fw-bold">Observações / Condições</label>
-                        <textarea name="observacoes" id="observacoes" class="form-control" rows="3" placeholder="Informações de pagamento, vencimento, entrega..."></textarea>
+                        <textarea name="observacoes" id="observacoes" class="form-control" rows="3" placeholder="Informações de pagamento, vencimento, entrega..." oninput="dispararAutoSave()"></textarea>
                     </div>
 
                     <div class="card bg-light p-3 border mt-auto">
@@ -68,7 +84,7 @@
                             <h5 class="fw-bold text-dark mb-0"><i class="bi bi-box-seam text-primary me-2"></i>Itens do Pedido</h5>
                             <small class="text-muted">Produtos a encomendar com quantidade pedida e custo estimado</small>
                         </div>
-                        <button type="button" class="btn btn-success btn-sm fw-bold" onclick="adicionarLinhaItem()">
+                        <button type="button" class="btn btn-success btn-sm fw-bold" onclick="adicionarLinhaItem(); dispararAutoSave();">
                             <i class="bi bi-plus-circle me-1"></i> Adicionar Item
                         </button>
                     </div>
@@ -94,16 +110,53 @@
                         <i class="bi bi-info-circle-fill me-1"></i> <strong>Aviso importante:</strong> O salvamento deste pedido não alterará o saldo de estoque nem o custo dos produtos até que a conferência e o recebimento físico sejam confirmados.
                     </div>
 
-                    <div class="mt-4 d-flex justify-content-end gap-2">
-                        <a href="{% url 'compras_list' %}" class="btn btn-secondary px-4 py-2 fw-bold">Cancelar</a>
-                        <button type="submit" class="btn btn-primary px-4 py-2 fw-bold fs-5 shadow">
-                            <i class="bi bi-check2-circle me-1"></i> Salvar Pedido de Compra
+                    <div class="mt-4 d-flex justify-content-between align-items-center flex-wrap gap-2">
+                        <button type="button" class="btn btn-outline-danger px-3 py-2 fw-bold" onclick="descartarRascunho()">
+                            <i class="bi bi-trash me-1"></i> Limpar Formulário
                         </button>
+                        <div class="d-flex gap-2">
+                            <a href="{% url 'compras_list' %}" class="btn btn-secondary px-4 py-2 fw-bold">Cancelar</a>
+                            <button type="submit" class="btn btn-primary px-4 py-2 fw-bold fs-5 shadow">
+                                <i class="bi bi-check2-circle me-1"></i> Salvar Pedido de Compra
+                            </button>
+                        </div>
                     </div>
                 </div>
             </div>
         </div>
     </form>
+</div>
+
+<!-- Modal de Conflito de Rascunho x Novos Produtos do Relatório -->
+<div class="modal fade" id="modalConflitoRascunho" tabindex="-1" data-bs-backdrop="static" data-bs-keyboard="false" aria-labelledby="modalConflitoLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content border-0 shadow rounded-4">
+            <div class="modal-header bg-primary text-white">
+                <h5 class="modal-title fw-bold" id="modalConflitoLabel">
+                    <i class="bi bi-exclamation-triangle-fill me-2"></i>Pedido em Andamento Detectado
+                </h5>
+            </div>
+            <div class="modal-body py-4">
+                <p class="fs-6 text-dark mb-3">
+                    Existe um pedido de compra em andamento previamente preenchido neste navegador.
+                </p>
+                <p class="fs-6 text-muted mb-3">
+                    Você está entrando com novos produtos selecionados no <strong>Relatório de Reposição</strong>. Deseja continuar o pedido anterior ou iniciar um novo pedido com os produtos selecionados?
+                </p>
+                <div class="p-3 bg-light rounded-3 border small text-muted" id="resumo-rascunho-box">
+                    <!-- Resumo dinâmico -->
+                </div>
+            </div>
+            <div class="modal-footer d-flex justify-content-between bg-light">
+                <button type="button" class="btn btn-outline-secondary fw-bold px-3 py-2" onclick="escolherIniciarNovoPedido()">
+                    <i class="bi bi-plus-circle me-1"></i> Iniciar Novo Pedido
+                </button>
+                <button type="button" class="btn btn-primary fw-bold px-3 py-2 shadow-sm" onclick="escolherContinuarPedido()">
+                    <i class="bi bi-arrow-repeat me-1"></i> Continuar Pedido
+                </button>
+            </div>
+        </div>
+    </div>
 </div>
 {% endblock %}
 
@@ -123,7 +176,10 @@
 
     const fornecedoresCadastrados = {{ fornecedores_json|safe }};
     const itensIniciais = {{ itens_iniciais_json|safe }};
+    const STORAGE_KEY = "{{ storage_scope_key|default:'pdv_compra_draft_default' }}";
+
     let vencimentoEditadoManualmente = false;
+    let autoSaveTimeout = null;
 
     function aoEditarVencimentoManualmente() {
         vencimentoEditadoManualmente = true;
@@ -168,21 +224,24 @@
 
         let options = '<option value="">-- Selecione o Produto --</option>';
         produtosDisponiveis.forEach(p => {
-            const sel = (prodId && p.id === prodId) ? 'selected' : '';
+            const sel = (prodId && p.id === parseInt(prodId)) ? 'selected' : '';
             options += `<option value="${p.id}" data-custo="${p.custo}" ${sel}>${p.nome} [${p.codigo_barras}]</option>`;
         });
 
+        const qtdFmt = typeof qtd === 'number' ? qtd : String(qtd).replace(',', '.');
+        const custoFmt = custo !== null ? (typeof custo === 'number' ? custo.toFixed(2) : Number(String(custo).replace(',', '.')).toFixed(2)) : '0.00';
+
         row.innerHTML = `
             <td>
-                <select name="produto_id[]" class="form-select item-prod" required onchange="aoSelecionarProduto(this)">
+                <select name="produto_id[]" class="form-select item-prod" required onchange="aoSelecionarProduto(this); dispararAutoSave();">
                     ${options}
                 </select>
             </td>
             <td>
-                <input type="number" step="0.001" min="0.001" name="quantidade[]" class="form-control item-qtd text-center" value="${qtd}" required oninput="recalcularTotais()">
+                <input type="number" step="0.001" min="0.001" name="quantidade[]" class="form-control item-qtd text-center" value="${qtdFmt}" required oninput="recalcularTotais(); dispararAutoSave();">
             </td>
             <td>
-                <input type="number" step="0.01" min="0" name="preco_custo[]" class="form-control item-custo text-end" value="${custo !== null ? Number(custo).toFixed(2) : '0.00'}" required oninput="recalcularTotais()">
+                <input type="number" step="0.01" min="0" name="preco_custo[]" class="form-control item-custo text-end" value="${custoFmt}" required oninput="recalcularTotais(); dispararAutoSave();">
             </td>
             <td class="text-end fw-bold item-subtotal text-success">
                 R$ 0,00
@@ -203,6 +262,7 @@
         if (tbody.children.length > 1) {
             btn.closest('tr').remove();
             recalcularTotais();
+            dispararAutoSave();
         } else {
             alert('A compra precisa ter pelo menos um item.');
         }
@@ -224,23 +284,224 @@
         const rows = document.querySelectorAll('#tbody-itens tr');
 
         rows.forEach(tr => {
-            const qtd = parseFloat(tr.querySelector('.item-qtd').value) || 0;
-            const custo = parseFloat(tr.querySelector('.item-custo').value) || 0;
+            const qtdStr = (tr.querySelector('.item-qtd')?.value || '0').replace(',', '.');
+            const custoStr = (tr.querySelector('.item-custo')?.value || '0').replace(',', '.');
+            const qtd = parseFloat(qtdStr) || 0;
+            const custo = parseFloat(custoStr) || 0;
             const subtotal = qtd * custo;
             total += subtotal;
 
-            tr.querySelector('.item-subtotal').innerText = `R$ ${subtotal.toFixed(2).replace('.', ',')}`;
+            const elSub = tr.querySelector('.item-subtotal');
+            if (elSub) {
+                elSub.innerText = `R$ ${subtotal.toFixed(2).replace('.', ',')}`;
+            }
         });
 
-        document.getElementById('display-total-compra').innerText = `R$ ${total.toFixed(2).replace('.', ',')}`;
+        const displayTotal = document.getElementById('display-total-compra');
+        if (displayTotal) {
+            displayTotal.innerText = `R$ ${total.toFixed(2).replace('.', ',')}`;
+        }
     }
 
-    document.addEventListener("DOMContentLoaded", function() {
+    // =========================================================================
+    // PERSISTÊNCIA EM LOCALSTORAGE (AUTO-SAVE / RESTAURAÇÃO / LIMPEZA)
+    // =========================================================================
+
+    function coletarDadosFormulario() {
+        const fornSelect = document.getElementById('fornecedor_id');
+        const notaInput = document.getElementById('numero_nota');
+        const vencInput = document.getElementById('data_vencimento');
+        const obsInput = document.getElementById('observacoes');
+
+        const rows = document.querySelectorAll('#tbody-itens tr');
+        const itens = [];
+        rows.forEach(tr => {
+            const prodSelect = tr.querySelector('.item-prod');
+            const qtdInput = tr.querySelector('.item-qtd');
+            const custoInput = tr.querySelector('.item-custo');
+
+            const prodId = prodSelect ? prodSelect.value : '';
+            const qtd = qtdInput ? qtdInput.value : '1';
+            const custo = custoInput ? custoInput.value : '0.00';
+
+            if (prodId || rows.length > 1) {
+                itens.push({
+                    produto_id: prodId ? parseInt(prodId) : '',
+                    quantidade: qtd,
+                    preco_custo: custo
+                });
+            }
+        });
+
+        return {
+            fornecedor_id: fornSelect ? fornSelect.value : '',
+            numero_nota: notaInput ? notaInput.value : '',
+            data_vencimento: vencInput ? vencInput.value : '',
+            vencimento_manual: vencimentoEditadoManualmente,
+            observacoes: obsInput ? obsInput.value : '',
+            itens: itens,
+            updated_at: new Date().toISOString()
+        };
+    }
+
+    function salvarRascunho() {
+        try {
+            const dados = coletarDadosFormulario();
+            const temConteudo = dados.fornecedor_id || dados.numero_nota || dados.observacoes ||
+                                (dados.itens.length > 0 && dados.itens.some(i => i.produto_id));
+            if (temConteudo) {
+                localStorage.setItem(STORAGE_KEY, JSON.stringify(dados));
+            }
+        } catch (e) {
+            console.warn('Erro ao salvar rascunho de compra no localStorage:', e);
+        }
+    }
+
+    function dispararAutoSave() {
+        if (autoSaveTimeout) clearTimeout(autoSaveTimeout);
+        autoSaveTimeout = setTimeout(() => {
+            salvarRascunho();
+        }, 300);
+    }
+
+    function obterRascunho() {
+        try {
+            const raw = localStorage.getItem(STORAGE_KEY);
+            if (!raw) return null;
+            const data = JSON.parse(raw);
+            if (data && (data.fornecedor_id || data.numero_nota || data.observacoes || (data.itens && data.itens.some(i => i.produto_id)))) {
+                return data;
+            }
+        } catch (e) {
+            console.warn('Erro ao ler rascunho do localStorage:', e);
+        }
+        return null;
+    }
+
+    function restaurarRascunho(rascunho) {
+        if (!rascunho) return;
+
+        const fornSelect = document.getElementById('fornecedor_id');
+        if (fornSelect && rascunho.fornecedor_id) {
+            fornSelect.value = rascunho.fornecedor_id;
+        }
+
+        const notaInput = document.getElementById('numero_nota');
+        if (notaInput && rascunho.numero_nota !== undefined) {
+            notaInput.value = rascunho.numero_nota;
+        }
+
+        const vencInput = document.getElementById('data_vencimento');
+        if (vencInput && rascunho.data_vencimento) {
+            vencInput.value = rascunho.data_vencimento;
+            if (rascunho.vencimento_manual) {
+                vencimentoEditadoManualmente = true;
+                const hint = document.getElementById('hint-vencimento');
+                if (hint) hint.innerText = 'Data informada manualmente pelo usuário.';
+            }
+        }
+
+        const obsInput = document.getElementById('observacoes');
+        if (obsInput && rascunho.observacoes !== undefined) {
+            obsInput.value = rascunho.observacoes;
+        }
+
+        const tbody = document.getElementById('tbody-itens');
+        tbody.innerHTML = '';
+
+        if (rascunho.itens && rascunho.itens.length > 0) {
+            rascunho.itens.forEach(item => {
+                adicionarLinhaItem(item.produto_id, item.quantidade, item.preco_custo);
+            });
+        } else {
+            adicionarLinhaItem();
+        }
+
+        const alerta = document.getElementById('alerta-rascunho');
+        if (alerta) alerta.style.display = 'flex';
+        recalcularTotais();
+    }
+
+    function descartarRascunho() {
+        if (confirm('Deseja realmente descartar este pedido em andamento e limpar todos os campos?')) {
+            try {
+                localStorage.removeItem(STORAGE_KEY);
+            } catch (e) {}
+            window.location.href = "{% url 'compra_nova' %}";
+        }
+    }
+
+    function escolherContinuarPedido() {
+        const modalEl = document.getElementById('modalConflitoRascunho');
+        const modal = bootstrap.Modal.getInstance(modalEl);
+        if (modal) modal.hide();
+
+        const rascunho = obterRascunho();
+        restaurarRascunho(rascunho);
+    }
+
+    function escolherIniciarNovoPedido() {
+        const modalEl = document.getElementById('modalConflitoRascunho');
+        const modal = bootstrap.Modal.getInstance(modalEl);
+        if (modal) modal.hide();
+
+        try {
+            localStorage.removeItem(STORAGE_KEY);
+        } catch (e) {}
+
+        const tbody = document.getElementById('tbody-itens');
+        tbody.innerHTML = '';
+
         if (itensIniciais && itensIniciais.length > 0) {
             itensIniciais.forEach(item => {
                 adicionarLinhaItem(item.produto_id, item.quantidade, item.preco_custo);
             });
         } else {
+            adicionarLinhaItem();
+        }
+
+        const alerta = document.getElementById('alerta-rascunho');
+        if (alerta) alerta.style.display = 'none';
+
+        salvarRascunho();
+    }
+
+    function aoSubmeterFormulario() {
+        // Ao salvar com sucesso, limpamos a chave local para o próximo pedido
+        // mas salvamos o estado preventivamente se houver erro de validação
+        salvarRascunho();
+    }
+
+    document.addEventListener("DOMContentLoaded", function() {
+        const rascunhoExistente = obterRascunho();
+        const temNovosItensRelatorio = itensIniciais && itensIniciais.length > 0;
+
+        if (rascunhoExistente && temNovosItensRelatorio) {
+            // Caso Especial: Há rascunho prévio E entrada com novos itens vindos do relatório
+            const resumoBox = document.getElementById('resumo-rascunho-box');
+            if (resumoBox) {
+                const totalItens = rascunhoExistente.itens ? rascunhoExistente.itens.length : 0;
+                resumoBox.innerHTML = `
+                    <strong>Resumo do Rascunho Atual:</strong><br>
+                    - Itens: ${totalItens} produto(s)<br>
+                    - Nota: ${rascunhoExistente.numero_nota || 'Não informada'}<br>
+                    - Vencimento: ${rascunhoExistente.data_vencimento || 'Padrão'}
+                `;
+            }
+            const modalEl = document.getElementById('modalConflitoRascunho');
+            const modal = new bootstrap.Modal(modalEl);
+            modal.show();
+        } else if (rascunhoExistente && !temNovosItensRelatorio) {
+            // Caso Normal: Acesso a /compras/nova/ sem parâmetros -> Restauração silenciosa
+            restaurarRascunho(rascunhoExistente);
+        } else if (!rascunhoExistente && temNovosItensRelatorio) {
+            // Caso Normal: Entrada do relatório sem rascunho prévio
+            itensIniciais.forEach(item => {
+                adicionarLinhaItem(item.produto_id, item.quantidade, item.preco_custo);
+            });
+            salvarRascunho();
+        } else {
+            // Caso Inicial: Formulário limpo
             adicionarLinhaItem();
         }
     });

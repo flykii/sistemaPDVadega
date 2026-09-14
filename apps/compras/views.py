@@ -1,6 +1,6 @@
 import json
 from datetime import timedelta
-from decimal import Decimal
+from decimal import Decimal, InvalidOperation
 from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth.decorators import login_required
 from django.contrib import messages
@@ -10,6 +10,16 @@ from apps.produtos.models import Produto
 from apps.usuarios.permissions import cargo_required
 from .models import Compra, ItemCompra, RecebimentoCompra
 from .services import PurchaseService
+
+def safe_decimal(value, default='0.00'):
+    """Converte input do usuário com segurança para Decimal, tratando vírgulas e pontos."""
+    if value is None or str(value).strip() == '':
+        return Decimal(default)
+    try:
+        cleaned = str(value).strip().replace(',', '.')
+        return Decimal(cleaned)
+    except (InvalidOperation, ValueError):
+        return Decimal(default)
 
 @login_required
 def compras_list(request):
@@ -29,6 +39,7 @@ def nova_compra_view(request):
     empresa = request.tenant or request.user.empresa
     fornecedores = Fornecedor.objects.filter(empresa=empresa, ativo=True).order_by('nome_fantasia', 'razao_social')
     produtos = Produto.objects.filter(empresa=empresa, ativo=True).order_by('nome')
+    storage_scope_key = f"pdv_compra_draft_{empresa.id}_{request.user.id}"
 
     fornecedores_json = json.dumps([
         {
@@ -48,7 +59,7 @@ def nova_compra_view(request):
 
         fornecedor = Fornecedor.objects.filter(id=fornecedor_id, empresa=empresa).first() if fornecedor_id else None
 
-        # Coleta itens dinâmicos do formulário
+        # Coleta itens dinâmicos do formulário com conversão Decimal segura
         produto_ids = request.POST.getlist('produto_id[]')
         quantidades = request.POST.getlist('quantidade[]')
         custos = request.POST.getlist('preco_custo[]')
@@ -58,9 +69,9 @@ def nova_compra_view(request):
             if p_id and q and c:
                 try:
                     p_id_int = int(p_id)
-                    q_val = float(str(q).replace(',', '.'))
-                    c_val = float(str(c).replace(',', '.'))
-                    if q_val > 0 and c_val >= 0:
+                    q_val = safe_decimal(q, '0.000')
+                    c_val = safe_decimal(c, '0.00')
+                    if q_val > Decimal('0.000') and c_val >= Decimal('0.00'):
                         itens_data.append({
                             'produto_id': p_id_int,
                             'quantidade': q_val,
@@ -78,6 +89,7 @@ def nova_compra_view(request):
                 'itens_iniciais_json': json.dumps([]),
                 'fornecedor_selecionado_id': fornecedor_id,
                 'data_vencimento_inicial': data_vencimento,
+                'storage_scope_key': storage_scope_key,
             })
 
         try:
@@ -122,12 +134,14 @@ def nova_compra_view(request):
                 pid = int(pid_raw)
                 p_obj = prods_dict.get(pid)
                 if p_obj:
-                    qtd = float(req_qtds[i]) if i < len(req_qtds) and req_qtds[i] else 1.0
-                    custo = float(req_custos[i]) if i < len(req_custos) and req_custos[i] else float(p_obj.preco_custo or 0)
+                    qtd_raw = req_qtds[i] if i < len(req_qtds) and req_qtds[i] else '1.000'
+                    custo_raw = req_custos[i] if i < len(req_custos) and req_custos[i] else (p_obj.preco_custo or '0.00')
+                    qtd_dec = safe_decimal(qtd_raw, '1.000')
+                    custo_dec = safe_decimal(custo_raw, '0.00')
                     itens_iniciais.append({
                         'produto_id': pid,
-                        'quantidade': qtd,
-                        'preco_custo': custo,
+                        'quantidade': float(qtd_dec),
+                        'preco_custo': float(custo_dec),
                     })
 
     return render(request, 'compras/form.html', {
@@ -137,6 +151,7 @@ def nova_compra_view(request):
         'fornecedor_selecionado_id': int(fornecedor_id_param) if (fornecedor_id_param and fornecedor_id_param.isdigit()) else '',
         'data_vencimento_inicial': data_vencimento_inicial,
         'itens_iniciais_json': json.dumps(itens_iniciais),
+        'storage_scope_key': storage_scope_key,
     })
 
 

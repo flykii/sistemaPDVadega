@@ -88,3 +88,17 @@
     </div>
 </div>
 {% endblock %}
+
+{% block extra_js %}
+<script>
+    document.addEventListener("DOMContentLoaded", function() {
+        const successAlert = document.querySelector('.alert-success');
+        if (successAlert && successAlert.innerText.includes('registrado com sucesso')) {
+            const storageKey = "pdv_compra_draft_{{ request.user.empresa_id }}_{{ request.user.id }}";
+            try {
+                localStorage.removeItem(storageKey);
+            } catch (e) {}
+        }
+    });
+</script>
+{% endblock %}
