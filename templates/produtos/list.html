@@ -25,15 +25,15 @@
 
     <!-- FILTROS E BUSCA -->
     <div class="card card-custom p-3 border-0 shadow-sm mb-4">
-        <form method="get" class="row g-2 align-items-center">
+        <form method="get" class="row g-2 align-items-center" onsubmit="event.preventDefault(); aplicarFiltrosProdutos(); return false;">
             <div class="col-12 col-md-5">
                 <div class="input-group">
                     <span class="input-group-text bg-white"><i class="bi bi-search text-muted"></i></span>
-                    <input type="text" name="q" value="{{ query }}" class="form-control" placeholder="Buscar por Nome, Código de Barras (EAN) ou SKU...">
+                    <input type="text" id="filtro-q" name="q" value="{{ query }}" class="form-control" placeholder="Buscar por Nome, Código de Barras (EAN) ou SKU..." oninput="aplicarFiltrosProdutos()">
                 </div>
             </div>
             <div class="col-12 col-md-3">
-                <select name="categoria" class="form-select" onchange="this.form.submit()">
+                <select id="filtro-categoria" name="categoria" class="form-select" onchange="aplicarFiltrosProdutos()">
                     <option value="">Todas as Categorias</option>
                     {% for cat in categorias %}
                         <option value="{{ cat.id }}" {% if categoria_id|slugify == cat.id|slugify %}selected{% endif %}>{{ cat.nome }}</option>
@@ -41,17 +41,15 @@
                 </select>
             </div>
             <div class="col-12 col-md-2">
-                <select name="estoque" class="form-select" onchange="this.form.submit()">
+                <select id="filtro-estoque" name="estoque" class="form-select" onchange="aplicarFiltrosProdutos()">
                     <option value="">Status Estoque (Todos)</option>
                     <option value="baixo" {% if filtro_estoque == 'baixo' %}selected{% endif %}>⚠️ Estoque Baixo</option>
-                    <option value="zerado" {% if filtro_estoque == 'zerado' %}selected{% endif %}>⛔ Estoque Zerado</option>
+                    <option value="zerado" {% if filtro_estoque == 'zerado' %}selected{% endif %}>🚨 Estoque Zerado</option>
                 </select>
             </div>
             <div class="col-12 col-md-2 d-flex gap-1">
                 <button type="submit" class="btn btn-primary w-100 fw-bold">Filtrar</button>
-                {% if query or categoria_id or filtro_estoque %}
-                    <a href="{% url 'produtos_list' %}" class="btn btn-outline-secondary" title="Limpar Filtros"><i class="bi bi-x-lg"></i></a>
-                {% endif %}
+                <a href="{% url 'produtos_list' %}" class="btn btn-outline-secondary" title="Limpar Filtros"><i class="bi bi-x-lg"></i></a>
             </div>
         </form>
     </div>
@@ -74,9 +72,15 @@
                         <th class="text-end pe-3">Ações</th>
                     </tr>
                 </thead>
-                <tbody>
+                <tbody id="tabela-produtos-body">
                     {% for prod in produtos %}
-                    <tr class="{% if not prod.ativo %}table-secondary text-muted{% elif prod.estoque_zerado %}table-danger-subtle{% elif prod.estoque_baixo %}table-warning-subtle{% endif %}">
+                    <tr class="produto-row {% if not prod.ativo %}table-secondary text-muted{% elif prod.estoque_zerado %}table-danger-subtle{% elif prod.estoque_baixo %}table-warning-subtle{% endif %}"
+                        data-nome="{{ prod.nome|lower }}"
+                        data-codigo="{{ prod.codigo_barras|lower }}"
+                        data-sku="{{ prod.sku|default:''|lower }}"
+                        data-categoria="{{ prod.categoria_id|default:'' }}"
+                        data-estoque-baixo="{% if prod.estoque_baixo and not prod.estoque_zerado %}true{% else %}false{% endif %}"
+                        data-estoque-zerado="{% if prod.estoque_zerado %}true{% else %}false{% endif %}">
                         <td class="ps-3">
                             <code class="fw-bold fs-6 {% if prod.ativo %}text-dark{% else %}text-muted{% endif %}">{{ prod.codigo_barras }}</code>
                             {% if prod.sku %}
@@ -122,7 +126,7 @@
                         </td>
                     </tr>
                     {% empty %}
-                    <tr>
+                    <tr id="tr-nenhum-produto-django">
                         <td colspan="10" class="text-center text-muted py-5">
                             <i class="bi bi-box-seam fs-1 d-block mb-2 text-muted"></i>
                             Nenhum produto encontrado com os filtros selecionados.
@@ -134,4 +138,68 @@
         </div>
     </div>
 </div>
+<script>
+function aplicarFiltrosProdutos() {
+    const termoBusca = document.getElementById('filtro-q').value.toLowerCase().trim();
+    const categoriaId = document.getElementById('filtro-categoria').value;
+    const filtroEstoque = document.getElementById('filtro-estoque').value;
+    
+    const linhas = document.querySelectorAll('#tabela-produtos-body .produto-row');
+    let encontrouAlgum = false;
+    
+    linhas.forEach(linha => {
+        const nome = linha.getAttribute('data-nome') || '';
+        const codigo = linha.getAttribute('data-codigo') || '';
+        const sku = linha.getAttribute('data-sku') || '';
+        const rowCategoria = linha.getAttribute('data-categoria') || '';
+        const estoqueBaixo = linha.getAttribute('data-estoque-baixo') === 'true';
+        const estoqueZerado = linha.getAttribute('data-estoque-zerado') === 'true';
+        
+        let exibir = true;
+        
+        if (termoBusca) {
+            if (!nome.includes(termoBusca) && !codigo.includes(termoBusca) && !sku.includes(termoBusca)) {
+                exibir = false;
+            }
+        }
+        
+        if (exibir && categoriaId) {
+            if (rowCategoria !== categoriaId) {
+                exibir = false;
+            }
+        }
+        
+        if (exibir && filtroEstoque) {
+            if (filtroEstoque === 'baixo' && !estoqueBaixo) {
+                exibir = false;
+            } else if (filtroEstoque === 'zerado' && !estoqueZerado) {
+                exibir = false;
+            }
+        }
+        
+        if (exibir) {
+            linha.style.display = '';
+            encontrouAlgum = true;
+        } else {
+            linha.style.display = 'none';
+        }
+    });
+    
+    let emptyRow = document.getElementById('tr-nenhum-produto-js');
+    if (!emptyRow) {
+        const tbody = document.getElementById('tabela-produtos-body');
+        emptyRow = document.createElement('tr');
+        emptyRow.id = 'tr-nenhum-produto-js';
+        emptyRow.innerHTML = '<td colspan="10" class="text-center text-muted py-5"><i class="bi bi-box-seam fs-1 d-block mb-2 text-muted"></i>Nenhum produto encontrado com os filtros selecionados.</td>';
+        tbody.appendChild(emptyRow);
+    }
+    
+    emptyRow.style.display = encontrouAlgum ? 'none' : '';
+    
+    const emptyRowDjango = document.getElementById('tr-nenhum-produto-django');
+    if (emptyRowDjango) {
+        emptyRowDjango.style.display = 'none';
+    }
+}
+</script>
 {% endblock %}
