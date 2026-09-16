@@ -46,7 +46,10 @@
                     </div>
 
                     <div class="col-12 col-md-4">
-                        <label for="categoria_id" class="form-label fw-bold">Categoria</label>
+                        <div class="d-flex justify-content-between align-items-center mb-2">
+                            <label for="categoria_id" class="form-label fw-bold mb-0">Categoria</label>
+                            <a href="{% url 'categoria_nova' %}?next={{ request.path|urlencode }}" class="small text-decoration-none save-draft-link">+ Cadastrar categoria</a>
+                        </div>
                         <select name="categoria_id" id="categoria_id" class="form-select">
                             <option value="">-- Sem Categoria --</option>
                             {% for cat in categorias %}
@@ -56,7 +59,10 @@
                     </div>
 
                     <div class="col-12 col-md-4">
-                        <label for="fornecedor_id" class="form-label fw-bold">Fornecedor Principal</label>
+                        <div class="d-flex justify-content-between align-items-center mb-2">
+                            <label for="fornecedor_id" class="form-label fw-bold mb-0">Fornecedor Principal</label>
+                            <a href="{% url 'fornecedor_novo' %}?next={{ request.path|urlencode }}" class="small text-decoration-none save-draft-link">+ Cadastrar fornecedor</a>
+                        </div>
                         <select name="fornecedor_id" id="fornecedor_id" class="form-select">
                             <option value="">-- Selecione um Fornecedor --</option>
                             {% for forn in fornecedores %}
@@ -197,6 +203,51 @@
 
     document.addEventListener("DOMContentLoaded", function() {
         atualizarDisplayLucro();
+        
+        const form = document.querySelector('form');
+        
+        // Restore draft if exists
+        const draftDataStr = sessionStorage.getItem('produto_draft');
+        if (draftDataStr) {
+            try {
+                const draft = JSON.parse(draftDataStr);
+                const inputs = form.querySelectorAll('input, select, textarea');
+                inputs.forEach(input => {
+                    if (draft.hasOwnProperty(input.name) && input.name !== 'csrfmiddlewaretoken') {
+                        if (input.type === 'checkbox' || input.type === 'radio') {
+                            input.checked = draft[input.name];
+                        } else {
+                            input.value = draft[input.name];
+                        }
+                    }
+                });
+                atualizarDisplayLucro();
+            } catch (e) {}
+            sessionStorage.removeItem('produto_draft');
+        }
+
+        // Save draft on clicking links
+        document.querySelectorAll('.save-draft-link').forEach(link => {
+            link.addEventListener('click', function(e) {
+                const draft = {};
+                const formData = new FormData(form);
+                for (let [key, value] of formData.entries()) {
+                    if (key !== 'csrfmiddlewaretoken') {
+                        draft[key] = value;
+                    }
+                }
+                const checkboxes = form.querySelectorAll('input[type="checkbox"]');
+                checkboxes.forEach(cb => {
+                    draft[cb.name] = cb.checked;
+                });
+                sessionStorage.setItem('produto_draft', JSON.stringify(draft));
+            });
+        });
+        
+        // Clear draft on normal submit
+        form.addEventListener('submit', function() {
+            sessionStorage.removeItem('produto_draft');
+        });
     });
 </script>
 {% endblock %}

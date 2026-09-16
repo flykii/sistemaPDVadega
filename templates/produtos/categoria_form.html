@@ -13,6 +13,9 @@
 
             <form method="post">
                 {% csrf_token %}
+                {% if next_url %}
+                <input type="hidden" name="next" value="{{ next_url }}">
+                {% endif %}
                 <div class="mb-3">
                     <label for="nome" class="form-label fw-bold">Nome da Categoria *</label>
                     <input type="text" name="nome" id="nome" class="form-control form-control-lg" value="{{ categoria.nome|default:'' }}" placeholder="Ex: Bebidas, Cervejas, Destilados..." required autofocus>

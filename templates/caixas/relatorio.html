@@ -2,6 +2,15 @@
 
 {% block title %}Relatório da Sessão de Caixa #{{ sessao.id }} - PDV Enterprise{% endblock %}
 
+
+{% block extra_css %}
+<style>
+    #accordionVendas .collapsing { transition: none !important; }
+    #accordionVendas tr[aria-expanded="true"] { background-color: #e2e6ea !important; }
+    #accordionVendas .accordion-collapse .bg-light { background-color: #f8f9fa !important; }
+</style>
+{% endblock %}
+
 {% block content %}
 <div class="row justify-content-center my-4">
     <div class="col-12 col-xl-10">
@@ -205,9 +214,9 @@
                             <th class="text-end">Total (R$)</th>
                         </tr>
                     </thead>
-                    <tbody>
+                    <tbody id="accordionVendas">
                         {% for v in vendas %}
-                        <tr>
+                        <tr data-bs-toggle="collapse" data-bs-target="#collapse-{{ v.id }}" aria-expanded="false" aria-controls="collapse-{{ v.id }}" style="cursor: pointer;" class="table-hover venda-row" title="Clique para ver os produtos">
                             <td><code>#{{ v.codigo_venda }}</code></td>
                             <td>{{ v.data_venda|date:"H:i:s" }}</td>
                             <td>{{ v.cliente.nome|default:"Consumidor" }}</td>
@@ -219,6 +228,24 @@
                                 {% endfor %}
                             </td>
                             <td class="text-end fw-bold text-success">R$ {{ v.total }}</td>
+                        </tr>
+                        <tr id="collapse-{{ v.id }}" class="accordion-collapse collapse" data-bs-parent="#accordionVendas">
+                            <td colspan="5" class="p-0 border-0">
+                                <div class="px-4 py-3 bg-light border-bottom shadow-inner">
+                                    <h6 class="fw-bold mb-2 small text-muted text-uppercase"><i class="bi bi-box-seam me-1"></i>Itens da Venda</h6>
+                                    <table class="table table-sm table-borderless mb-0">
+                                        <tbody>
+                                            {% for item in v.itens.all %}
+                                            <tr>
+                                                <td class="text-dark">{{ item.produto.nome }}</td>
+                                                <td class="text-center text-muted">{{ item.quantidade|floatformat:0 }} {{ item.produto.unidade_medida|default:"un" }} <span class="text-black-50 mx-1">x</span> R$ {{ item.preco_venda_unitario|floatformat:2 }}</td>
+                                                <td class="text-end fw-bold text-dark">R$ {{ item.subtotal|floatformat:2 }}</td>
+                                            </tr>
+                                            {% endfor %}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </td>
                         </tr>
                         {% empty %}
                         <tr>
@@ -232,3 +259,4 @@
     </div>
 </div>
 {% endblock %}
+

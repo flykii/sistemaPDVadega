@@ -262,6 +262,10 @@ def fornecedor_form(request, pk=None):
     empresa = request.tenant or request.user.empresa
     fornecedor = get_object_or_404(Fornecedor, pk=pk, empresa=empresa) if pk else None
 
+    next_url = request.GET.get('next') or request.POST.get('next') or ''
+    if next_url and not next_url.startswith('/'):
+        next_url = ''
+
     if request.method == 'POST':
         razao_social = request.POST.get('razao_social', '').strip()
         nome_fantasia = request.POST.get('nome_fantasia', '').strip()
@@ -290,7 +294,7 @@ def fornecedor_form(request, pk=None):
 
         if not razao_social and not nome_fantasia:
             messages.error(request, "Informe a Razão Social ou o Nome Fantasia do fornecedor.")
-            return render(request, 'compras/fornecedor_form.html', {'fornecedor': fornecedor})
+            return render(request, 'compras/fornecedor_form.html', {'fornecedor': fornecedor, 'next_url': next_url})
 
         if not fornecedor:
             fornecedor = Fornecedor(empresa=empresa)
@@ -310,8 +314,13 @@ def fornecedor_form(request, pk=None):
         try:
             fornecedor.save()
             messages.success(request, f"Fornecedor '{fornecedor.nome_fantasia}' salvo com sucesso!")
+            if next_url:
+                return redirect(next_url)
             return redirect('fornecedores_list')
         except Exception as e:
             messages.error(request, f"Erro ao salvar fornecedor: {str(e)}")
 
-    return render(request, 'compras/fornecedor_form.html', {'fornecedor': fornecedor})
+    return render(request, 'compras/fornecedor_form.html', {
+        'fornecedor': fornecedor,
+        'next_url': next_url,
+    })

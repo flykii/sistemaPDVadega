@@ -13,6 +13,9 @@
 
             <form method="post">
                 {% csrf_token %}
+                {% if next_url %}
+                <input type="hidden" name="next" value="{{ next_url }}">
+                {% endif %}
                 <div class="row g-3 mb-3">
                     <div class="col-12 col-md-6">
                         <label for="nome_fantasia" class="form-label fw-bold">Nome Fantasia *</label>

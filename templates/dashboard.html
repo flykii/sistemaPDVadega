@@ -252,9 +252,10 @@
                 <span class="text-muted small fw-bold d-block mb-2 text-uppercase">Maior Capital Parado:</span>
                 <ul class="list-group list-group-flush small">
                     {% for p in estoque_data.maior_capital|slice:":4" %}
-                    <li class="list-group-item d-flex justify-content-between align-items-center px-0 py-1">
-                        <span class="text-truncate" style="max-width: 200px;">{{ p.nome }} ({{ p.estoque_atual|floatformat:0 }} un.)</span>
-                        <strong class="text-dark">R$ {{ p.valor_estoque_custo|floatformat:2 }}</strong>
+                    <li class="list-group-item d-flex justify-content-between align-items-center px-0 py-1 gap-2 overflow-hidden">
+                        <span class="text-truncate flex-grow-1" title="{{ p.nome }}">{{ p.nome }}</span>
+                        <span class="text-muted small text-nowrap">{{ p.estoque_atual|floatformat:0 }} UN</span>
+                        <strong class="text-dark text-nowrap ms-2">R$ {{ p.valor_estoque_custo|floatformat:2 }}</strong>
                     </li>
                     {% empty %}
                     <li class="list-group-item px-0 text-muted">Sem produtos com estoque.</li>
@@ -431,7 +432,7 @@
 
                 <span class="text-muted small fw-bold d-block text-uppercase mb-2">Caixas Atualmente Abertos:</span>
                 <div class="table-responsive mb-3">
-                    <table class="table table-sm align-middle mb-0">
+                    <table class="table table-sm table-hover align-middle mb-0">
                         <thead class="table-light small">
                             <tr>
                                 <th>Terminal</th>
@@ -442,7 +443,7 @@
                         </thead>
                         <tbody>
                             {% for s in caixas_abertos %}
-                            <tr>
+                            <tr onclick="window.location.href='{% url 'relatorio_caixa' s.id %}'" style="cursor: pointer;" title="Ver relatório do caixa">
                                 <td><strong>{{ s.caixa.nome }}</strong></td>
                                 <td>{{ s.operador.username }}</td>
                                 <td><small class="text-muted">{{ s.data_abertura|date:"d/m H:i" }}</small></td>
@@ -457,7 +458,7 @@
 
                 <span class="text-muted small fw-bold d-block text-uppercase mb-2">Últimos Fechamentos & Auditoria de Gaveta:</span>
                 <div class="table-responsive">
-                    <table class="table table-sm align-middle mb-0 small">
+                    <table class="table table-sm table-hover align-middle mb-0 small">
                         <thead class="table-light">
                             <tr>
                                 <th>Caixa</th>
@@ -469,7 +470,7 @@
                         </thead>
                         <tbody>
                             {% for sf in ultimas_sessoes_fechadas %}
-                            <tr>
+                            <tr onclick="window.location.href='{% url 'relatorio_caixa' sf.sessao.id %}'" style="cursor: pointer;" title="Ver relatório do caixa">
                                 <td><strong>{{ sf.sessao.caixa.nome }}</strong></td>
                                 <td>{{ sf.sessao.data_fechamento|date:"d/m H:i" }}</td>
                                 <td class="text-end">R$ {{ sf.saldo_esperado|floatformat:2 }}</td>

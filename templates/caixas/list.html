@@ -39,7 +39,7 @@
     {% for s in sessoes_abertas %}
     <div class="row g-3 mb-4">
         <!-- Cartão do Caixa em Operação (à esquerda) -->
-        <div class="col-12 col-xl-4 col-lg-5">
+        <div class="col-12 col-lg-4">
             <div class="card card-custom p-4 shadow-sm border border-success border-2 rounded-4 h-100 d-flex flex-column justify-content-between">
                 <div>
                     <!-- Header do Card -->
@@ -86,7 +86,7 @@
                         </div>
                     </div>
                 </div>
-
+                <div class="mt-auto">
                     {% if s.is_sessao_dia_anterior %}
                     <div class="alert alert-danger py-2 px-3 small fw-bold mb-2">
                         <i class="bi bi-exclamation-triangle-fill me-1"></i> Caixa do dia anterior ({{ s.dia_operacional_abertura|date:"d/m/Y" }}). Fechamento obrigatório!
@@ -98,7 +98,7 @@
                         <a href="{% url 'pdv_front' %}" class="btn btn-success fw-bold flex-grow-1 py-2 shadow-sm">
                             <i class="bi bi-cart-fill me-1"></i> Ir ao PDV
                         </a>
-                        <a href="{% url 'movimentacao_caixa' s.id %}" class="btn btn-warning text-dark fw-bold py-2 shadow-sm" title="Sangria / Suprimento / Despesa">
+                        <a href="{% url 'movimentacao_caixa' s.id %}" class="btn btn-outline-dark fw-bold flex-grow-1 py-2 shadow-sm">
                             <i class="bi bi-arrow-left-right me-1"></i> Movimentar
                         </a>
                         {% endif %}
@@ -111,10 +111,8 @@
         </div>
 
         <!-- Painel Resumo Financeiro da Sessão Atual (à direita) -->
-        <div class="col-12 col-xl-8 col-lg-7">
-            <div class="row g-3 h-100">
-                <!-- 1. Conferência de Dinheiro Físico (Gaveta) -->
-                <div class="col-12 col-md-6">
+                        <!-- 1. Conferência de Dinheiro Físico (Gaveta) -->
+                <div class="col-12 col-lg-4">
                     <div class="card card-custom p-4 shadow-sm border-0 rounded-4 h-100 bg-white d-flex flex-column justify-content-between">
                         <div>
                             <h6 class="fw-bold text-primary mb-3">
@@ -169,7 +167,7 @@
                 </div>
 
                 <!-- 2. Faturamento por Forma de Pagamento -->
-                <div class="col-12 col-md-6">
+                <div class="col-12 col-lg-4">
                     <div class="card card-custom p-4 shadow-sm border-0 rounded-4 h-100 bg-white d-flex flex-column justify-content-between">
                         <div>
                             <h6 class="fw-bold text-dark mb-3">
@@ -208,8 +206,6 @@
                         </div>
                     </div>
                 </div>
-            </div>
-        </div>
     </div>
     {% empty %}
     <div class="row g-3 mb-5">

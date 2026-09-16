@@ -286,6 +286,10 @@ def categoria_form(request, pk=None):
     empresa = request.tenant or request.user.empresa
     categoria = get_object_or_404(Categoria, pk=pk, empresa=empresa) if pk else None
 
+    next_url = request.GET.get('next') or request.POST.get('next') or ''
+    if next_url and not next_url.startswith('/'):
+        next_url = ''
+
     if request.method == 'POST':
         nome = request.POST.get('nome', '').strip()
         descricao = request.POST.get('descricao', '').strip()
@@ -293,7 +297,7 @@ def categoria_form(request, pk=None):
 
         if not nome:
             messages.error(request, "O nome da categoria é obrigatório.")
-            return render(request, 'produtos/categoria_form.html', {'categoria': categoria})
+            return render(request, 'produtos/categoria_form.html', {'categoria': categoria, 'next_url': next_url})
 
         # Impede categorias duplicadas com mesmo nome na mesma empresa
         duplicada = Categoria.objects.filter(empresa=empresa, nome__iexact=nome)
@@ -301,7 +305,7 @@ def categoria_form(request, pk=None):
             duplicada = duplicada.exclude(id=categoria.id)
         if duplicada.exists():
             messages.error(request, f"Já existe uma categoria cadastrada com o nome '{nome}'.")
-            return render(request, 'produtos/categoria_form.html', {'categoria': categoria})
+            return render(request, 'produtos/categoria_form.html', {'categoria': categoria, 'next_url': next_url})
 
         if not categoria:
             categoria = Categoria(empresa=empresa)
@@ -313,8 +317,13 @@ def categoria_form(request, pk=None):
         try:
             categoria.save()
             messages.success(request, f"Categoria '{categoria.nome}' salva com sucesso!")
+            if next_url:
+                return redirect(next_url)
             return redirect('categorias_list')
         except Exception as e:
             messages.error(request, str(e))
 
-    return render(request, 'produtos/categoria_form.html', {'categoria': categoria})
+    return render(request, 'produtos/categoria_form.html', {
+        'categoria': categoria,
+        'next_url': next_url,
+    })
