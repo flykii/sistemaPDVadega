@@ -12,36 +12,8 @@ def pdv_front_view(request):
     sessao_ativa = SessaoCaixa.objects.filter(empresa=empresa, operador=request.user, status='ABERTA').first() or SessaoCaixa.objects.filter(empresa=empresa, status='ABERTA').first()
 
     if not sessao_ativa:
-        from apps.caixas.models import Caixa
-        from apps.caixas.services import CashService
-        
-        caixa = Caixa.objects.filter(empresa=empresa).first()
-        if not caixa:
-            caixa = Caixa.objects.create(
-                empresa=empresa,
-                nome="Caixa Principal",
-                codigo_identificador="CX01",
-                status='FECHADO',
-                ativo=True
-            )
-            
-        if request.GET.get('iniciar_vendas') == 'true':
-            try:
-                # Tenta abrir o caixa automaticamente para o usuário
-                sessao_ativa = CashService.abrir_caixa(
-                    caixa=caixa,
-                    operador=request.user,
-                    saldo_inicial=0.00,
-                    nome_operador=request.user.get_full_name() or request.user.username
-                )
-                messages.success(request, f"{caixa.nome} aberto automaticamente para iniciar vendas.")
-                return redirect('pdv_front')
-            except Exception as e:
-                messages.error(request, f"Não foi possível abrir o caixa automaticamente: {e}")
-                return redirect('caixas_list')
-        
-        # Renderiza uma tela intermediária com o botão que o usuário pediu
-        return render(request, 'vendas/pdv_fechado.html', {'caixa': caixa})
+        messages.warning(request, "Você precisa abrir uma Sessão de Caixa antes de acessar o PDV Rápido.")
+        return redirect('caixas_list')
 
     if sessao_ativa.is_sessao_dia_anterior:
         messages.error(
