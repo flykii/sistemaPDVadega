@@ -1,0 +1,14 @@
+venv/
+.venv/
+__pycache__/
+*.pyc
+.git/
+.gitignore
+db.sqlite3
+db.sqlite3.backup_pre_divida
+db_backup_antes_ajuste_produtos.sqlite3
+db_backup_antes_etapa_14.sqlite3
+db_backup_antes_refinamento.sqlite3
+staticfiles/
+.env
+.claude/
