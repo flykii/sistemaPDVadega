@@ -12,6 +12,17 @@ from .services import CashService
 def caixas_list(request):
     empresa = request.tenant or request.user.empresa
     caixas = Caixa.objects.filter(empresa=empresa).order_by('nome')
+    
+    # Garante que empresas recém-criadas tenham pelo menos um caixa para exibir o botão
+    if not caixas.exists():
+        Caixa.objects.create(
+            empresa=empresa,
+            nome="Caixa Principal 01",
+            codigo_identificador="CX01",
+            status="FECHADO",
+            ativo=True
+        )
+        caixas = Caixa.objects.filter(empresa=empresa).order_by('nome')
     sessoes_abertas = (
         SessaoCaixa.objects.filter(empresa=empresa, status='ABERTA')
         .select_related('caixa', 'operador')
