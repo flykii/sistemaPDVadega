@@ -26,7 +26,13 @@
             <div class="col-12 col-md-4">
                 <div class="card card-custom p-4 shadow-sm border-0 h-100">
                     <h5 class="fw-bold text-dark mb-3"><i class="bi bi-info-circle text-primary me-2"></i>Dados do Pedido</h5>
-                    <p class="mb-1"><strong>Fornecedor:</strong> {{ compra.fornecedor.nome_fantasia|default:compra.fornecedor.razao_social|default:"Sem Fornecedor" }}</p>
+                    <p class="mb-1"><strong>Fornecedor:</strong> 
+                        {% if compra.fornecedor %}
+                            {% firstof compra.fornecedor.nome_fantasia compra.fornecedor.razao_social "Sem Fornecedor" %}
+                        {% else %}
+                            Sem Fornecedor
+                        {% endif %}
+                    </p>
                     <p class="mb-1"><strong>Documento / NF:</strong> {{ compra.numero_nota|default:"Sem número" }}</p>
                     <p class="mb-1"><strong>Data do Pedido:</strong> {{ compra.data_compra|date:"d/m/Y H:i" }}</p>
                     <p class="mb-0"><strong>Total Previsto:</strong> <span class="text-success fw-bold">R$ {{ compra.total|floatformat:2 }}</span></p>
