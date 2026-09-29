@@ -200,6 +200,15 @@ class ReportService:
         
         margem_lucro_pct = float((lucro_bruto / faturamento_liquido) * 100) if faturamento_liquido > Decimal('0.00') else 0.0
 
+        # Calcula vendas por hora
+        vendas_por_hora = [{'hora': str(h).zfill(2) + 'h', 'total': Decimal('0.00')} for h in range(24)]
+        for v in vendas_qs:
+            from django.utils import timezone
+            h = timezone.localtime(v.data_venda).hour if timezone.is_aware(v.data_venda) else v.data_venda.hour
+            vendas_por_hora[h]['total'] += v.total
+        
+        horario_pico = max(vendas_por_hora, key=lambda x: x['total']) if faturamento_liquido > 0 else None
+
         # Evolução Diária de Vendas no período (para gráficos)
         vendas_list = list(vendas_qs.order_by('data_venda'))
         dias_dict = {}
