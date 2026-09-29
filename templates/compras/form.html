@@ -84,6 +84,18 @@
                             <h5 class="fw-bold text-dark mb-0"><i class="bi bi-box-seam text-primary me-2"></i>Itens do Pedido</h5>
                             <small class="text-muted">Produtos a encomendar com quantidade pedida e custo estimado</small>
                         </div>
+                    </div>
+
+                    <div class="p-3 bg-light rounded border mb-4">
+                        <label class="form-label fw-bold text-dark mb-2"><i class="bi bi-search me-1"></i> Busca Rápida de Produtos</label>
+                        <div class="position-relative">
+                            <div class="input-group shadow-sm">
+                                <span class="input-group-text bg-white"><i class="bi bi-upc-scan text-primary"></i></span>
+                                <input type="text" id="compra-produto-busca" class="form-control form-control-lg fw-bold" placeholder="Digite Nome, Cód. Barras ou SKU e tecle ENTER..." oninput="buscarProdutoCompra()" onkeydown="if(event.key === 'Enter') { event.preventDefault(); adicionarPrimeiroProdutoBusca(); }">
+                            </div>
+                            <div id="compra-busca-dropdown" class="list-group position-absolute w-100 shadow-lg d-none" style="z-index: 1050; max-height: 250px; overflow-y: auto; top: 100%;">
+                            </div>
+                        </div>
                         <button type="button" class="btn btn-success btn-sm fw-bold" onclick="adicionarLinhaItem(); dispararAutoSave();">
                             <i class="bi bi-plus-circle me-1"></i> Adicionar Item
                         </button>
@@ -168,8 +180,10 @@
             id: {{ p.id }},
             nome: "{{ p.nome|escapejs }}",
             codigo_barras: "{{ p.codigo_barras|escapejs }}",
-            custo: {{ p.preco_custo|stringformat:".2f" }},
-            unidade: "{{ p.unidade_medida }}"
+            sku: "{{ p.sku|escapejs }}",
+            custo: {{ p.preco_custo|stringformat:".3f" }},
+            unidade: "{{ p.unidade_medida }}",
+            fornecedor_id: {% if p.fornecedor_principal_id %}{{ p.fornecedor_principal_id }}{% else %}null{% endif %}
         },
         {% endfor %}
     ];
@@ -241,7 +255,7 @@
                 <input type="number" step="0.001" min="0.001" name="quantidade[]" class="form-control item-qtd text-center" value="${qtdFmt}" required oninput="recalcularTotais(); dispararAutoSave();">
             </td>
             <td>
-                <input type="number" step="0.01" min="0" name="preco_custo[]" class="form-control item-custo text-end" value="${custoFmt}" required oninput="recalcularTotais(); dispararAutoSave();">
+                <input type="number" step="0.001" min="0" name="preco_custo[]" class="form-control item-custo text-end" value="${custoFmt}" required oninput="recalcularTotais(); dispararAutoSave();">
             </td>
             <td class="text-end fw-bold item-subtotal text-success">
                 R$ 0,00
@@ -471,6 +485,120 @@
         // mas salvamos o estado preventivamente se houver erro de validação
         salvarRascunho();
     }
+
+    // FUNCIONALIDADE DE BUSCA DE PRODUTOS
+    function buscarProdutoCompra() {
+        const input = document.getElementById('compra-produto-busca');
+        const dropdown = document.getElementById('compra-busca-dropdown');
+        if (!input || !dropdown) return;
+        
+        const term = input.value.trim().toLowerCase();
+        if (term.length < 1) {
+            dropdown.classList.add('d-none');
+            return;
+        }
+
+        const fornecedorId = parseInt(document.getElementById('fornecedor_id').value) || null;
+        
+        let resultados = produtosDisponiveis.filter(p => {
+            const hasMatch = (p.nome.toLowerCase().includes(term)) || 
+                             (p.codigo_barras && p.codigo_barras.toLowerCase() === term) ||
+                             (p.sku && p.sku.toLowerCase().includes(term));
+            return hasMatch;
+        });
+
+        resultados.sort((a, b) => {
+            if (fornecedorId) {
+                if (a.fornecedor_id === fornecedorId && b.fornecedor_id !== fornecedorId) return -1;
+                if (b.fornecedor_id === fornecedorId && a.fornecedor_id !== fornecedorId) return 1;
+            }
+            if (a.codigo_barras && a.codigo_barras.toLowerCase() === term) return -1;
+            if (b.codigo_barras && b.codigo_barras.toLowerCase() === term) return 1;
+            return a.nome.localeCompare(b.nome);
+        });
+
+        resultados = resultados.slice(0, 10);
+
+        dropdown.innerHTML = '';
+        if (resultados.length === 0) {
+            dropdown.innerHTML = '<div class="list-group-item text-muted text-center py-2">Nenhum produto encontrado.</div>';
+            dropdown.classList.remove('d-none');
+            return;
+        }
+
+        resultados.forEach(p => {
+            const item = document.createElement('button');
+            item.type = 'button';
+            item.className = 'list-group-item list-group-item-action py-2';
+            
+            let extraInfo = '';
+            if (p.codigo_barras) extraInfo += `<span class="badge bg-secondary me-1"><i class="bi bi-upc-scan"></i> ${p.codigo_barras}</span>`;
+            if (p.sku) extraInfo += `<span class="badge bg-info text-dark me-1">SKU: ${p.sku}</span>`;
+            
+            let fornBadge = (fornecedorId && p.fornecedor_id === fornecedorId) ? `<span class="badge bg-success-subtle text-success border border-success ms-2"><i class="bi bi-star-fill"></i> Fornecedor</span>` : '';
+
+            item.innerHTML = `
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <strong class="d-block text-dark">${p.nome} ${fornBadge}</strong>
+                        <div class="mt-1">${extraInfo}</div>
+                    </div>
+                    <div class="text-end">
+                        <span class="text-primary fw-bold">R$ ${p.custo}</span>
+                    </div>
+                </div>
+            `;
+            item.onclick = () => {
+                adicionarProdutoDireto(p.id, p.custo);
+                input.value = '';
+                dropdown.classList.add('d-none');
+                input.focus();
+            };
+            dropdown.appendChild(item);
+        });
+        dropdown.classList.remove('d-none');
+    }
+
+    function adicionarPrimeiroProdutoBusca() {
+        const dropdown = document.getElementById('compra-busca-dropdown');
+        if (!dropdown || dropdown.classList.contains('d-none')) return;
+        const primeiroBotao = dropdown.querySelector('button.list-group-item-action');
+        if (primeiroBotao) {
+            primeiroBotao.click();
+        }
+    }
+
+    function adicionarProdutoDireto(prodId, custo) {
+        const rows = document.querySelectorAll('#tbody-itens tr');
+        let emptyRow = null;
+        rows.forEach(r => {
+            const select = r.querySelector('.item-prod');
+            if (select && !select.value) {
+                emptyRow = r;
+            }
+        });
+
+        if (!emptyRow) {
+            adicionarLinhaItem(prodId, 1, custo);
+        } else {
+            const select = emptyRow.querySelector('.item-prod');
+            select.value = prodId;
+            const qtdInput = emptyRow.querySelector('.item-qtd');
+            if (qtdInput) qtdInput.value = '1';
+            const custoInput = emptyRow.querySelector('.item-custo');
+            if (custoInput) custoInput.value = custo;
+        }
+        recalcularTotais();
+        dispararAutoSave();
+    }
+
+    document.addEventListener('click', function(e) {
+        const dropdown = document.getElementById('compra-busca-dropdown');
+        const input = document.getElementById('compra-produto-busca');
+        if (dropdown && !dropdown.contains(e.target) && e.target !== input) {
+            dropdown.classList.add('d-none');
+        }
+    });
 
     document.addEventListener("DOMContentLoaded", function() {
         const rascunhoExistente = obterRascunho();

@@ -31,6 +31,10 @@ def dashboard_view(request):
     vendas_valores = [float(d['total']) for d in vendas_dia]
     lucro_valores = [float(d['lucro']) for d in vendas_dia]
 
+    vendas_hora = data['vendas_atual'].get('vendas_por_hora', [])
+    horas_labels = [d['hora'] for d in vendas_hora]
+    horas_valores = [float(d['total']) for d in vendas_hora]
+
     context = {
         **data,
         'chart_dias_labels': json.dumps(dias_labels),
@@ -38,6 +42,8 @@ def dashboard_view(request):
         'chart_lucro_valores': json.dumps(lucro_valores),
         'chart_pag_labels': json.dumps(data['formas_data']['chart_labels']),
         'chart_pag_valores': json.dumps(data['formas_data']['chart_valores']),
+        'chart_hora_labels': json.dumps(horas_labels),
+        'chart_hora_valores': json.dumps(horas_valores),
     }
 
     return render(request, 'dashboard.html', context)

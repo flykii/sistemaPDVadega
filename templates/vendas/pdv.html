@@ -972,4 +972,27 @@
         }
     }
 </script>
+
+<!-- MODAL: CONFIRMAR IMPRESSÃO DE RECIBO -->
+<div class="modal fade" id="printConfirmModal" tabindex="-1" aria-hidden="true" data-bs-backdrop="static">
+    <div class="modal-dialog modal-dialog-centered modal-sm">
+        <div class="modal-content card-custom border-0 shadow-lg text-center">
+            <div class="modal-body p-4">
+                <i class="bi bi-printer text-primary mb-3" style="font-size: 3rem;"></i>
+                <h4 class="fw-bold text-success mb-2">Venda #<span id="print-modal-codigo"></span></h4>
+                <h5 class="fw-bold mb-3">Concluída!</h5>
+                <p class="text-muted mb-4">Deseja imprimir o comprovante da venda?</p>
+                <div class="d-flex flex-column gap-2">
+                    <button type="button" class="btn btn-primary btn-lg fw-bold" onclick="pdvApp.abrirRecibo(pdvApp._lastVendaId); pdvApp.closeModals();">
+                        <i class="bi bi-printer-fill me-2"></i> SIM ({{ atalhos_pdv.FINALIZAR_COMPRA|default:"F5" }})
+                    </button>
+                    <button type="button" class="btn btn-outline-secondary fw-bold" onclick="pdvApp.closeModals();">
+                        <i class="bi bi-x-circle me-1"></i> NÃO ({% if atalhos_pdv.CANCELAR_FECHAR == 'Escape' %}ESC{% else %}{{ atalhos_pdv.CANCELAR_FECHAR|default:"ESC" }}{% endif %})
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
 {% endblock %}

@@ -68,7 +68,7 @@ class ItemCompra(TenantModelMixin):
     produto = models.ForeignKey(Produto, on_delete=models.PROTECT, related_name='itens_compra')
     quantidade = models.DecimalField('Quantidade Pedida', max_digits=12, decimal_places=3)
     quantidade_recebida = models.DecimalField('Quantidade Recebida', max_digits=12, decimal_places=3, default=Decimal('0.000'))
-    preco_custo_unitario = models.DecimalField('Custo Unitário (R$)', max_digits=12, decimal_places=2)
+    preco_custo_unitario = models.DecimalField('Custo Unitário (R$)', max_digits=12, decimal_places=3)
     subtotal = models.DecimalField('Subtotal (R$)', max_digits=12, decimal_places=2)
 
     class Meta:

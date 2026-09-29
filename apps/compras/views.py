@@ -26,6 +26,7 @@ def compras_list(request):
     empresa = request.tenant or request.user.empresa
     compras = (
         Compra.objects.filter(empresa=empresa)
+        .exclude(status='CANCELADA')
         .select_related('fornecedor')
         .prefetch_related('itens__produto', 'recebimentos')
         .order_by('-data_compra')

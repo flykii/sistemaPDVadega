@@ -124,6 +124,8 @@ class PDVApp {
                 const isPaymentModalOpen = paymentModalEl && paymentModalEl.classList.contains('show');
                 const confirmModalEl = document.getElementById('confirmSaleModal');
                 const isConfirmModalOpen = confirmModalEl && confirmModalEl.classList.contains('show');
+                const printModalEl = document.getElementById('printConfirmModal');
+                const isPrintModalOpen = printModalEl && printModalEl.classList.contains('show');
 
                 const isKeyMatch = (funcCode) => {
                     const configured = this.shortcuts ? this.shortcuts[funcCode] : null;
@@ -148,7 +150,10 @@ class PDVApp {
                     if (cliSelect) cliSelect.focus();
                 } else if (isKeyMatch('FINALIZAR_COMPRA')) {
                     e.preventDefault();
-                    if (isConfirmModalOpen) {
+                    if (isPrintModalOpen) {
+                        this.abrirRecibo(this._lastVendaId);
+                        this.closeModals();
+                    } else if (isConfirmModalOpen) {
                         this.confirmarEGravarVenda();
                     } else if (isPaymentModalOpen) {
                         this.abrirModalConfirmacao();
@@ -156,7 +161,10 @@ class PDVApp {
                         this.abrirModalPagamento();
                     }
                 } else if (isKeyMatch('CANCELAR_FECHAR')) {
-                    if (isConfirmModalOpen) {
+                    if (isPrintModalOpen) {
+                        e.preventDefault();
+                        this.closeModals();
+                    } else if (isConfirmModalOpen) {
                         e.preventDefault();
                         this.cancelarConfirmacaoVenda();
                     } else {
@@ -1562,8 +1570,16 @@ class PDVApp {
                         this.closeModals();
 
                         if (data.codigo_venda) {
-                            if (confirm(`Venda #${data.codigo_venda} finalizada com SUCESSO!\n\nDeseja imprimir o comprovante da venda?`)) {
-                                this.abrirRecibo(data.id);
+                            this._lastVendaId = data.id;
+                            const printModalEl = document.getElementById('printConfirmModal');
+                            if (printModalEl) {
+                                document.getElementById('print-modal-codigo').innerText = data.codigo_venda;
+                                const pm = new bootstrap.Modal(printModalEl);
+                                pm.show();
+                            } else {
+                                if (confirm(`Venda #${data.codigo_venda} finalizada com SUCESSO!\n\nDeseja imprimir o comprovante da venda?`)) {
+                                    this.abrirRecibo(data.id);
+                                }
                             }
                         } else {
                             alert(`Recebimento de Dívida finalizado com SUCESSO!\n\nCliente: ${data.cliente}\nValor Recebido: R$ ${data.valor_pago.toFixed(2)}\nTotal Liquidado: R$ ${data.total_liquidado.toFixed(2)}\nSaldo Restante: R$ ${data.saldo_devedor_restante.toFixed(2)}`);

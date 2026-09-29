@@ -131,11 +131,11 @@ def produto_form(request, pk=None):
         if preco_venda > 0:
             produto.preco_venda = preco_venda
         
-        # Se for edição e o estoque mudou manualmente via form, registra movimentação
-        if not is_novo and produto.estoque_atual != estoque_atual:
-            StockService.adjust_stock(produto, estoque_atual, motivo="Ajuste pelo formulário de edição", usuario=request.user)
-        elif is_novo:
-            produto.estoque_atual = estoque_atual
+        estoque_antigo = produto.estoque_atual if not is_novo else 0
+
+        if is_novo:
+            from decimal import Decimal
+            produto.estoque_atual = Decimal('0.000')
 
         produto.estoque_minimo = estoque_minimo
         produto.estoque_maximo = estoque_maximo
@@ -148,8 +148,11 @@ def produto_form(request, pk=None):
 
         try:
             produto.save()
+            
             if is_novo and estoque_atual > 0:
                 StockService.add_stock(produto, estoque_atual, motivo="Estoque Inicial", usuario=request.user)
+            elif not is_novo and estoque_antigo != estoque_atual:
+                StockService.adjust_stock(produto, estoque_atual, motivo="Ajuste pelo formulario de edicao", usuario=request.user)
 
             messages.success(request, f"Produto '{produto.nome}' salvo com sucesso! Preço Venda: R$ {produto.preco_venda:.2f}")
             if next_url:

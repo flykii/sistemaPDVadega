@@ -238,6 +238,8 @@ class ReportService:
             'lucro_bruto': lucro_bruto,
             'margem_lucro_pct': margem_lucro_pct,
             'vendas_por_dia': vendas_por_dia,
+            'vendas_por_hora': vendas_por_hora,
+            'horario_pico': horario_pico,
         }
 
     # =========================================================================

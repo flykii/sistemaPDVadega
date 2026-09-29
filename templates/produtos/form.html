@@ -97,7 +97,7 @@
                     <div class="row g-3">
                         <div class="col-12 col-md-4">
                             <label for="preco_custo" class="form-label fw-bold">Preço de Custo (R$)</label>
-                            <input type="number" step="0.01" min="0" name="preco_custo" id="preco_custo" class="form-control form-control-lg fw-bold" value="{% if produto %}{{ produto.preco_custo|stringformat:'.2f' }}{% else %}0.00{% endif %}" oninput="calcularPrecoVenda()">
+                            <input type="number" step="0.001" min="0" name="preco_custo" id="preco_custo" class="form-control form-control-lg fw-bold" value="{% if produto %}{{ produto.preco_custo|stringformat:'.3f' }}{% else %}0.000{% endif %}" oninput="calcularPrecoVenda()">
                         </div>
 
                         <div class="col-12 col-md-4">

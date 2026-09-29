@@ -39,7 +39,7 @@ class Produto(TenantModelMixin):
     nome = models.CharField('Nome do Produto', max_length=200)
     descricao = models.TextField('Descrição / Detalhes', blank=True)
     
-    preco_custo = models.DecimalField('Preço de Custo (R$)', max_digits=12, decimal_places=2, default=0.00)
+    preco_custo = models.DecimalField('Preço de Custo (R$)', max_digits=12, decimal_places=3, default=0.00)
     margem_lucro = models.DecimalField('Margem de Lucro Bruto (%)', max_digits=6, decimal_places=2, default=30.00, help_text="Cálculo base: Venda = Custo / (1 - (Margem/100))")
     preco_venda = models.DecimalField('Preço de Venda (R$)', max_digits=12, decimal_places=2, default=0.00)
     
@@ -86,6 +86,8 @@ class Produto(TenantModelMixin):
         return self.estoque_atual * self.preco_custo
 
     def save(self, *args, **kwargs):
+        if self.nome:
+            self.nome = self.nome.upper()
         # Aplica a fórmula exata do usuário se preco_venda não for explicitamente modificado
         if self.preco_custo > 0:
             if self.margem_lucro > 0 and (not self.preco_venda or self.preco_venda <= self.preco_custo):
@@ -108,7 +110,7 @@ class MovimentacaoEstoque(TenantModelMixin):
     quantidade = models.DecimalField('Quantidade', max_digits=12, decimal_places=3)
     estoque_anterior = models.DecimalField('Estoque Anterior', max_digits=12, decimal_places=3, default=0.000)
     estoque_posterior = models.DecimalField('Estoque Posterior', max_digits=12, decimal_places=3, default=0.000)
-    preco_custo_unitario = models.DecimalField('Custo Unitário (R$)', max_digits=12, decimal_places=2, null=True, blank=True)
+    preco_custo_unitario = models.DecimalField('Custo Unitário (R$)', max_digits=12, decimal_places=3, null=True, blank=True)
     motivo = models.CharField('Motivo', max_length=255)
     usuario = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name='movimentacoes_estoque')
     origem_ref = models.CharField('Referência de Origem', max_length=100, blank=True)
