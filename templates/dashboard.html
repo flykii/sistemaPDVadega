@@ -133,10 +133,10 @@
                     <span class="text-info small text-uppercase fw-bold">Pico Vendas</span>
                     <i class="bi bi-clock-history text-info fs-5"></i>
                 </div>
-                {% if horario_pico %}
-                <h3 class="fw-bold text-dark mb-1">{{ horario_pico.hora }}</h3>
+                {% if vendas_atual.horario_pico %}
+                <h3 class="fw-bold text-dark mb-1">{{ vendas_atual.horario_pico.hora }}</h3>
                 <div class="small text-muted">
-                    <span>R$ {{ horario_pico.total|floatformat:2 }}</span>
+                    <span>R$ {{ vendas_atual.horario_pico.total|floatformat:2 }}</span>
                 </div>
                 {% else %}
                 <h3 class="fw-bold text-dark mb-1">--:--</h3>
@@ -612,6 +612,40 @@
 <script>
     document.addEventListener("DOMContentLoaded", function() {
         // Gráfico de Evolução de Vendas e Lucro
+        
+    const labelsHora = {{ chart_hora_labels|safe }};
+    const valoresHora = {{ chart_hora_valores|safe }};
+    
+    // Encontra o pico
+    const maxVal = Math.max(...valoresHora);
+    const bgColors = valoresHora.map(v => (v === maxVal && maxVal > 0) ? '#ffc107' : '#0d6efd');
+
+    const ctxHora = document.getElementById('chartHoras');
+    if (ctxHora && labelsHora.length > 0) {
+        new Chart(ctxHora.getContext('2d'), {
+            type: 'bar',
+            data: {
+                labels: labelsHora,
+                datasets: [{
+                    label: 'Vendas (R$)',
+                    data: valoresHora,
+                    backgroundColor: bgColors,
+                    borderRadius: 4
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: { display: false }
+                },
+                scales: {
+                    y: { beginAtZero: true, ticks: { callback: function(value) { return 'R$ ' + value; } } }
+                }
+            }
+        });
+    }
+
         const labelsDias = {{ chart_dias_labels|safe }};
         const valsVendas = {{ chart_vendas_valores|safe }};
         const valsLucro = {{ chart_lucro_valores|safe }};
