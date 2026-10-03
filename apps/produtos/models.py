@@ -51,6 +51,9 @@ class Produto(TenantModelMixin):
     
     imagem = models.ImageField('Imagem do Produto', upload_to='produtos/', null=True, blank=True)
     ativo = models.BooleanField('Ativo', default=True)
+    
+    is_produto_terceiro = models.BooleanField('Produto de Terceiro', default=False, db_index=True)
+    percentual_repasse = models.DecimalField('Percentual de Repasse (%)', max_digits=5, decimal_places=2, default=Decimal('70.00'), null=True, blank=True)
 
     class Meta:
         verbose_name = 'Produto'
@@ -59,6 +62,21 @@ class Produto(TenantModelMixin):
 
     def __str__(self):
         return f"{self.nome} - R$ {self.preco_venda} [{self.codigo_barras}]"
+
+    @property
+    def valor_repasse_unitario(self) -> Decimal:
+        """Calcula o valor unitário a ser repassado ao terceiro."""
+        if not self.is_produto_terceiro:
+            return Decimal('0.00')
+        pct = (self.percentual_repasse or Decimal('70.00')) / Decimal('100.00')
+        return (self.preco_venda * pct).quantize(Decimal('0.01'))
+
+    @property
+    def lucro_unitario_terceiro(self) -> Decimal:
+        """Calcula o lucro unitário da empresa no produto de terceiro."""
+        if not self.is_produto_terceiro:
+            return self.lucro_real
+        return (self.preco_venda - self.valor_repasse_unitario).quantize(Decimal('0.01'))
 
     @property
     def lucro_real(self) -> Decimal:
@@ -88,8 +106,13 @@ class Produto(TenantModelMixin):
     def save(self, *args, **kwargs):
         if self.nome:
             self.nome = self.nome.upper()
-        # Aplica a fórmula exata do usuário se preco_venda não for explicitamente modificado
-        if self.preco_custo > 0:
+        # Tratamento especial de preço e custo para produto de terceiro
+        if self.is_produto_terceiro:
+            pct = (self.percentual_repasse if self.percentual_repasse is not None else Decimal('70.00')) / Decimal('100.00')
+            self.preco_custo = (self.preco_venda * pct).quantize(Decimal('0.001'))
+            if self.preco_venda > 0:
+                self.margem_lucro = calculate_margin_percent(self.preco_custo, self.preco_venda)
+        elif self.preco_custo > 0:
             if self.margem_lucro > 0 and (not self.preco_venda or self.preco_venda <= self.preco_custo):
                 self.preco_venda = calculate_sale_price(self.preco_custo, self.margem_lucro)
             elif self.preco_venda > 0:

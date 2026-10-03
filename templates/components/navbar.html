@@ -125,6 +125,8 @@
                     <li><a class="dropdown-item" href="{% url 'relatorio_movimentacoes' %}"><i class="bi bi-arrow-left-right me-2"></i>Movimentações de Estoque</a></li>
                     <li><a class="dropdown-item" href="{% url 'relatorio_despesas' %}"><i class="bi bi-arrow-up-right-circle text-danger me-2"></i>Relatório de Despesas</a></li>
                     <li><a class="dropdown-item" href="{% url 'relatorio_crediario' %}"><i class="bi bi-people-fill text-warning me-2"></i>Relatório de Crediário</a></li>
+                    <li><hr class="dropdown-divider"></li>
+                    <li><a class="dropdown-item fw-semibold text-primary" href="{% url 'relatorio_terceiros' %}"><i class="bi bi-box-arrow-up-right me-2"></i>Relatório de Terceiros</a></li>
                     {% if user.pode_visualizar_auditoria %}
                     <li><hr class="dropdown-divider"></li>
                     <li><a class="dropdown-item fw-semibold text-dark" href="{% url 'auditoria' %}"><i class="bi bi-shield-lock text-primary me-2"></i>Trilha de Auditoria</a></li>

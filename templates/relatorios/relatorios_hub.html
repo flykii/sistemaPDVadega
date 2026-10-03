@@ -43,6 +43,9 @@
         <div class="col-6 col-md-3 col-lg">
             <a href="{% url 'relatorio_crediario' %}" class="btn btn-outline-primary w-100 py-2 fw-semibold text-truncate"><i class="bi bi-people-fill me-1"></i> Crediário</a>
         </div>
+        <div class="col-6 col-md-3 col-lg">
+            <a href="{% url 'relatorio_terceiros' %}" class="btn btn-outline-primary w-100 py-2 fw-semibold text-truncate"><i class="bi bi-box-arrow-up-right me-1"></i> Terceiros</a>
+        </div>
         {% if user.pode_visualizar_auditoria %}
         <div class="col-12 col-md-12 mt-2">
             <a href="{% url 'auditoria' %}" class="btn btn-outline-dark w-100 py-2 fw-semibold"><i class="bi bi-shield-lock me-1"></i> Trilha de Auditoria & Logs de Operações Críticas</a>

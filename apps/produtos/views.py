@@ -137,6 +137,11 @@ def produto_form(request, pk=None):
             from decimal import Decimal
             produto.estoque_atual = Decimal('0.000')
 
+        is_produto_terceiro = request.POST.get('is_produto_terceiro') in ['on', 'true', '1']
+        percentual_repasse = safe_decimal(request.POST.get('percentual_repasse'), '70.00') if is_produto_terceiro else (produto.percentual_repasse if produto else Decimal('70.00'))
+
+        produto.is_produto_terceiro = is_produto_terceiro
+        produto.percentual_repasse = percentual_repasse
         produto.estoque_minimo = estoque_minimo
         produto.estoque_maximo = estoque_maximo
         produto.unidade_medida = unidade_medida

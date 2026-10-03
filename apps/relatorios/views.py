@@ -4,16 +4,27 @@ from decimal import Decimal
 from django.shortcuts import render, redirect, get_object_or_404
 from django.http import HttpResponse, HttpResponseForbidden
 from django.contrib.auth.decorators import login_required
+from django.contrib import messages
 from django.utils import timezone
 from django.db.models import Sum, Count, F, ExpressionWrapper, DecimalField
 
 from apps.vendas.models import Venda, ItemVenda, PagamentoVenda
 from apps.produtos.models import Produto, Categoria, MovimentacaoEstoque
+from apps.produtos.services import StockService
 from apps.financeiro.models import FluxoCaixa, ContaPagar, ContaReceber
 from apps.clientes.models import Cliente, Fornecedor
 from apps.caixas.models import Caixa, SessaoCaixa
 from apps.usuarios.models import Usuario
 from .services import ReportService
+
+def safe_decimal(value, default='0.00'):
+    if value is None or value == '':
+        return Decimal(default)
+    try:
+        clean = str(value).strip().replace(',', '.')
+        return Decimal(clean)
+    except Exception:
+        return Decimal(default)
 
 @login_required
 def dashboard_view(request):
@@ -478,6 +489,40 @@ def exportar_relatorio_csv_view(request, relatorio_tipo):
                 p['status_reposicao']
             ])
 
+    elif relatorio_tipo == 'terceiros':
+        p_info = ReportService.parse_periodo(
+            request.GET.get('periodo', 'mes_atual'),
+            request.GET.get('data_inicio', ''),
+            request.GET.get('data_fim', '')
+        )
+        response['Content-Disposition'] = f'attachment; filename="relatorio_terceiros_{p_info["data_inicio_str"]}_{p_info["data_fim_str"]}.csv"'
+
+        writer.writerow([
+            'Produto', 'Terceiro / Fornecedor', 'Preço de Venda (R$)', '% Repasse',
+            'Valor Repasse Unitário (R$)', 'Estoque Atual', 'Valor em Estoque (R$)',
+            'Itens Vendidos', 'Valor Vendido (R$)', 'Total a Repassar (R$)', 'Lucro Obtido (R$)'
+        ])
+        res = ReportService.get_relatorio_terceiros(
+            empresa, p_info['start_datetime'], p_info['end_datetime'],
+            terceiro_id=request.GET.get('terceiro', ''),
+            produto_id=request.GET.get('produto', ''),
+            status_ativo=request.GET.get('status', 'todos')
+        )
+        for linha in res['linhas']:
+            writer.writerow([
+                linha['produto'].nome,
+                linha['terceiro_nome'],
+                f"{linha['preco_venda']:.2f}".replace('.', ','),
+                f"{linha['percentual_repasse']:.1f}%".replace('.', ','),
+                f"{linha['valor_repasse']:.2f}".replace('.', ','),
+                f"{linha['estoque']:.3f}".replace('.', ','),
+                f"{linha['valor_estoque']:.2f}".replace('.', ','),
+                f"{linha['itens_vendidos']:.3f}".replace('.', ','),
+                f"{linha['valor_vendido']:.2f}".replace('.', ','),
+                f"{linha['a_repassar']:.2f}".replace('.', ','),
+                f"{linha['lucro']:.2f}".replace('.', ',')
+            ])
+
     return response
 
 
@@ -541,5 +586,136 @@ def auditoria_view(request):
             'data_inicio': data_inicio,
             'data_fim': data_fim,
         }
+    })
+
+
+# =========================================================================
+# RELATÓRIO DE PRODUTOS DE TERCEIROS E CADASTRO
+# =========================================================================
+@login_required
+def relatorio_terceiros_view(request):
+    empresa = request.tenant or request.user.empresa
+    p_info = ReportService.parse_periodo(
+        request.GET.get('periodo', 'mes_atual'),
+        request.GET.get('data_inicio', ''),
+        request.GET.get('data_fim', '')
+    )
+    terceiro_id = request.GET.get('terceiro', '')
+    produto_id = request.GET.get('produto', '')
+    status_ativo = request.GET.get('status', 'todos')
+
+    dados_relatorio = ReportService.get_relatorio_terceiros(
+        empresa=empresa,
+        start_dt=p_info['start_datetime'],
+        end_dt=p_info['end_datetime'],
+        terceiro_id=terceiro_id,
+        produto_id=produto_id,
+        status_ativo=status_ativo
+    )
+
+    terceiros = Fornecedor.objects.filter(empresa=empresa, ativo=True).order_by('nome_fantasia', 'razao_social')
+    produtos_terceiros = Produto.objects.filter(empresa=empresa, is_produto_terceiro=True).order_by('nome')
+
+    return render(request, 'relatorios/relatorio_terceiros.html', {
+        'p_info': p_info,
+        'dados': dados_relatorio,
+        'terceiros': terceiros,
+        'produtos_terceiros': produtos_terceiros,
+        'terceiro_id': terceiro_id,
+        'produto_id': produto_id,
+        'status_ativo': status_ativo,
+    })
+
+
+@login_required
+def produto_terceiro_form_view(request, pk=None):
+    empresa = request.tenant or request.user.empresa
+    produto = get_object_or_404(Produto, pk=pk, empresa=empresa) if pk else None
+    terceiros = Fornecedor.objects.filter(empresa=empresa, ativo=True).order_by('nome_fantasia', 'razao_social')
+
+    if request.method == 'POST':
+        nome = request.POST.get('nome', '').strip()
+        codigo_barras = request.POST.get('codigo_barras', '').strip()
+        sku = request.POST.get('sku', '').strip()
+        terceiro_id = request.POST.get('fornecedor_id') or request.POST.get('terceiro_id')
+        preco_venda = safe_decimal(request.POST.get('preco_venda'), '0.00')
+        percentual_repasse = safe_decimal(request.POST.get('percentual_repasse'), '70.00')
+        estoque_atual = safe_decimal(request.POST.get('estoque_atual'), '0.000')
+        ativo = request.POST.get('ativo') in ['on', 'true', '1'] or ('ativo' not in request.POST and pk is None)
+
+        if not nome:
+            messages.error(request, "O Nome do produto é obrigatório.")
+            return render(request, 'relatorios/produto_terceiro_form.html', {
+                'produto': produto,
+                'terceiros': terceiros,
+            })
+
+        if preco_venda <= Decimal('0.00'):
+            messages.error(request, "O Preço de venda deve ser maior que zero.")
+            return render(request, 'relatorios/produto_terceiro_form.html', {
+                'produto': produto,
+                'terceiros': terceiros,
+            })
+
+        if percentual_repasse < Decimal('0.00') or percentual_repasse > Decimal('100.00'):
+            messages.error(request, "O Percentual de repasse deve estar entre 0% e 100%.")
+            return render(request, 'relatorios/produto_terceiro_form.html', {
+                'produto': produto,
+                'terceiros': terceiros,
+            })
+
+        # Se não informou código de barras, gera automaticamente um código único
+        if not codigo_barras:
+            import time, random
+            codigo_barras = f"TERC{int(time.time())}{random.randint(10, 99)}"
+
+        # Validação de duplicidade de código de barras
+        duplicado = Produto.objects.filter(empresa=empresa, codigo_barras=codigo_barras)
+        if produto:
+            duplicado = duplicado.exclude(id=produto.id)
+        if duplicado.exists():
+            messages.error(request, f"Já existe um produto cadastrado com o código de barras '{codigo_barras}'.")
+            return render(request, 'relatorios/produto_terceiro_form.html', {
+                'produto': produto,
+                'terceiros': terceiros,
+            })
+
+        terceiro = Fornecedor.objects.filter(id=terceiro_id, empresa=empresa).first() if terceiro_id else None
+
+        is_novo = produto is None
+        if is_novo:
+            produto = Produto(empresa=empresa)
+
+        produto.nome = nome
+        produto.codigo_barras = codigo_barras
+        produto.sku = sku
+        produto.fornecedor_principal = terceiro
+        produto.is_produto_terceiro = True
+        produto.preco_venda = preco_venda
+        produto.percentual_repasse = percentual_repasse
+        produto.ativo = ativo
+        produto.controle_estoque = True
+
+        estoque_antigo = produto.estoque_atual if not is_novo else Decimal('0.000')
+
+        if is_novo:
+            produto.estoque_atual = Decimal('0.000')
+
+        try:
+            produto.save()
+
+            if is_novo and estoque_atual > Decimal('0.000'):
+                StockService.add_stock(produto, estoque_atual, motivo="Estoque Inicial Produto Terceiro", usuario=request.user)
+            elif not is_novo and estoque_antigo != estoque_atual:
+                StockService.adjust_stock(produto, estoque_atual, motivo="Ajuste pelo formulário de terceiro", usuario=request.user)
+
+            messages.success(request, f"Produto de Terceiro '{produto.nome}' salvo com sucesso! Preço Venda: R$ {produto.preco_venda:.2f}, Repasse: {produto.percentual_repasse}% (R$ {produto.valor_repasse_unitario:.2f})")
+            return redirect('relatorio_terceiros')
+        except Exception as e:
+            messages.error(request, f"Erro ao salvar produto de terceiro: {str(e)}")
+
+    return render(request, 'relatorios/produto_terceiro_form.html', {
+        'produto': produto,
+        'terceiros': terceiros,
     })
 

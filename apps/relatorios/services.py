@@ -946,3 +946,139 @@ class ReportService:
             'produto_maior_faturamento': produto_maior_faturamento,
             'tem_vendas': len(produtos) > 0,
         }
+
+    # =========================================================================
+    # 13. RELATÓRIO DE PRODUTOS DE TERCEIROS
+    # =========================================================================
+    @staticmethod
+    def get_relatorio_terceiros(empresa, start_dt, end_dt, terceiro_id=None, produto_id=None, status_ativo='todos'):
+        start_datetime, end_datetime, d_inicio, d_fim = ReportService._normalize_range(start_dt, end_dt)
+
+        produtos_qs = Produto.objects.filter(empresa=empresa, is_produto_terceiro=True).select_related('fornecedor_principal')
+
+        if terceiro_id:
+            try:
+                produtos_qs = produtos_qs.filter(fornecedor_principal_id=int(terceiro_id))
+            except (ValueError, TypeError):
+                pass
+
+        if produto_id:
+            try:
+                produtos_qs = produtos_qs.filter(id=int(produto_id))
+            except (ValueError, TypeError):
+                pass
+
+        if status_ativo == 'ativo':
+            produtos_qs = produtos_qs.filter(ativo=True)
+        elif status_ativo == 'inativo':
+            produtos_qs = produtos_qs.filter(ativo=False)
+
+        # Itens de vendas concluídas no período para esses produtos de terceiros
+        vendas_itens = (
+            ItemVenda.objects.filter(
+                empresa=empresa,
+                venda__status='CONCLUIDA',
+                venda__data_venda__gte=start_datetime,
+                venda__data_venda__lte=end_datetime,
+                produto__in=produtos_qs
+            )
+            .values('produto__id')
+            .annotate(
+                qtd_vendida=Sum('quantidade'),
+                valor_vendido=Sum('subtotal'),
+                repasse_total_vendido=Sum(F('quantidade') * F('preco_custo_unitario'))
+            )
+        )
+
+        vendas_map = {
+            item['produto__id']: {
+                'qtd_vendida': item['qtd_vendida'] or Decimal('0.000'),
+                'valor_vendido': item['valor_vendido'] or Decimal('0.00'),
+                'repasse_total': item['repasse_total_vendido'] or Decimal('0.00'),
+            }
+            for item in vendas_itens
+        }
+
+        linhas_relatorio = []
+
+        total_itens_estoque = Decimal('0.000')
+        valor_total_estoque = Decimal('0.00')
+        valor_total_repasse_estoque = Decimal('0.00')
+        lucro_potencial_estoque = Decimal('0.00')
+
+        total_itens_vendidos = Decimal('0.000')
+        valor_total_vendido = Decimal('0.00')
+        total_a_repassar = Decimal('0.00')
+        lucro_obtido_vendas = Decimal('0.00')
+
+        for prod in produtos_qs.order_by('nome'):
+            v_info = vendas_map.get(prod.id, {
+                'qtd_vendida': Decimal('0.000'),
+                'valor_vendido': Decimal('0.00'),
+                'repasse_total': Decimal('0.00'),
+            })
+
+            preco_venda = prod.preco_venda
+            pct_repasse = prod.percentual_repasse if prod.percentual_repasse is not None else Decimal('70.00')
+            valor_repasse_unit = prod.valor_repasse_unitario
+            lucro_unitario = prod.lucro_unitario_terceiro
+            estoque_atual = prod.estoque_atual
+
+            # Cálculos de estoque
+            val_estoque = (estoque_atual * preco_venda).quantize(Decimal('0.01'))
+            val_repasse_est = (estoque_atual * valor_repasse_unit).quantize(Decimal('0.01'))
+            lucro_est = (val_estoque - val_repasse_est).quantize(Decimal('0.01'))
+
+            total_itens_estoque += estoque_atual
+            valor_total_estoque += val_estoque
+            valor_total_repasse_estoque += val_repasse_est
+            lucro_potencial_estoque += lucro_est
+
+            # Cálculos de vendas no período
+            qtd_vend = v_info['qtd_vendida']
+            val_vend = v_info['valor_vendido']
+            repasse_vend = v_info['repasse_total']
+            if repasse_vend == Decimal('0.00') and val_vend > Decimal('0.00'):
+                repasse_vend = (val_vend * (pct_repasse / Decimal('100.00'))).quantize(Decimal('0.01'))
+            
+            lucro_vend = (val_vend - repasse_vend).quantize(Decimal('0.01'))
+
+            total_itens_vendidos += qtd_vend
+            valor_total_vendido += val_vend
+            total_a_repassar += repasse_vend
+            lucro_obtido_vendas += lucro_vend
+
+            terceiro_nome = "Sem Fornecedor"
+            if prod.fornecedor_principal:
+                terceiro_nome = prod.fornecedor_principal.nome_fantasia or prod.fornecedor_principal.razao_social
+
+            linhas_relatorio.append({
+                'produto': prod,
+                'terceiro_nome': terceiro_nome,
+                'fornecedor': prod.fornecedor_principal,
+                'preco_venda': preco_venda,
+                'percentual_repasse': pct_repasse,
+                'valor_repasse': valor_repasse_unit,
+                'lucro_unitario': lucro_unitario,
+                'estoque': estoque_atual,
+                'valor_estoque': val_estoque,
+                'valor_repasse_estoque': val_repasse_est,
+                'lucro_potencial_estoque': lucro_est,
+                'itens_vendidos': qtd_vend,
+                'valor_vendido': val_vend,
+                'a_repassar': repasse_vend,
+                'lucro': lucro_vend,
+            })
+
+        return {
+            'linhas': linhas_relatorio,
+            'total_itens_estoque': total_itens_estoque,
+            'valor_total_estoque': valor_total_estoque,
+            'valor_total_repasse_estoque': valor_total_repasse_estoque,
+            'lucro_potencial_estoque': lucro_potencial_estoque,
+            'total_itens_vendidos': total_itens_vendidos,
+            'valor_total_vendido': valor_total_vendido,
+            'total_a_repassar': total_a_repassar,
+            'lucro_obtido_vendas': lucro_obtido_vendas,
+            'qtd_produtos': len(linhas_relatorio),
+        }

@@ -139,16 +139,38 @@
                     </div>
 
                     <div class="row g-3">
-                        <div class="col-12 col-md-6">
+                        <div class="col-12 col-md-4">
                             <div class="form-check form-switch pt-2">
                                 <input class="form-check-input" type="checkbox" name="controle_estoque" id="controle_estoque" {% if not produto or produto.controle_estoque %}checked{% endif %}>
-                                <label class="form-check-label fw-bold" for="controle_estoque">Ativar Controle Rígido de Estoque (Impede Venda sem Saldo)</label>
+                                <label class="form-check-label fw-bold" for="controle_estoque">Controle Rígido de Estoque</label>
                             </div>
                         </div>
-                        <div class="col-12 col-md-6">
+                        <div class="col-12 col-md-4">
                             <div class="form-check form-switch pt-2">
                                 <input class="form-check-input" type="checkbox" name="ativo" id="ativo" {% if not produto or produto.ativo %}checked{% endif %}>
                                 <label class="form-check-label fw-bold" for="ativo">Produto Ativo (Disponível no PDV)</label>
+                            </div>
+                        </div>
+                        <div class="col-12 col-md-4">
+                            <div class="form-check form-switch pt-2">
+                                <input class="form-check-input" type="checkbox" name="is_produto_terceiro" id="is_produto_terceiro" {% if produto and produto.is_produto_terceiro %}checked{% endif %} onchange="toggleTerceiroFields()">
+                                <label class="form-check-label fw-bold text-primary" for="is_produto_terceiro">Produto de Terceiro</label>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="row g-3 mt-1 {% if not produto or not produto.is_produto_terceiro %}d-none{% endif %}" id="box-terceiro-repasse">
+                        <div class="col-12 col-md-6">
+                            <div class="p-3 bg-light rounded border border-warning-subtle">
+                                <label for="percentual_repasse" class="form-label fw-bold text-dark">
+                                    <i class="bi bi-percent text-warning me-1"></i>Percentual de Repasse ao Terceiro (%)
+                                </label>
+                                <div class="input-group">
+                                    <input type="number" step="0.01" min="0" max="100" name="percentual_repasse" id="percentual_repasse" 
+                                           class="form-control fw-bold" value="{% if produto and produto.percentual_repasse %}{{ produto.percentual_repasse|stringformat:'.2f' }}{% else %}70.00{% endif %}">
+                                    <span class="input-group-text fw-bold">%</span>
+                                </div>
+                                <div class="form-text">Percentual que será repassado ao terceiro na venda (padrão 70%). O custo unitário é calculado automaticamente.</div>
                             </div>
                         </div>
                     </div>
@@ -249,5 +271,17 @@
             sessionStorage.removeItem('produto_draft');
         });
     });
+
+    function toggleTerceiroFields() {
+        const check = document.getElementById('is_produto_terceiro');
+        const box = document.getElementById('box-terceiro-repasse');
+        if (check && box) {
+            if (check.checked) {
+                box.classList.remove('d-none');
+            } else {
+                box.classList.add('d-none');
+            }
+        }
+    }
 </script>
 {% endblock %}

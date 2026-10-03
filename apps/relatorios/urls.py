@@ -4,7 +4,8 @@ from .views import (
     relatorio_produtos_view, relatorio_categorias_view, relatorio_operadores_view,
     relatorio_caixas_view, relatorio_estoque_view, relatorio_movimentacoes_estoque_view,
     relatorio_despesas_view, relatorio_crediario_view, relatorio_reposicao_view,
-    exportar_relatorio_csv_view, auditoria_view
+    exportar_relatorio_csv_view, auditoria_view,
+    relatorio_terceiros_view, produto_terceiro_form_view
 )
 
 urlpatterns = [
@@ -20,6 +21,9 @@ urlpatterns = [
     path('movimentacoes/', relatorio_movimentacoes_estoque_view, name='relatorio_movimentacoes'),
     path('despesas/', relatorio_despesas_view, name='relatorio_despesas'),
     path('crediario/', relatorio_crediario_view, name='relatorio_crediario'),
+    path('terceiros/', relatorio_terceiros_view, name='relatorio_terceiros'),
+    path('terceiros/produtos/novo/', produto_terceiro_form_view, name='produto_terceiro_novo'),
+    path('terceiros/produtos/<int:pk>/editar/', produto_terceiro_form_view, name='produto_terceiro_editar'),
     path('exportar/<str:relatorio_tipo>/', exportar_relatorio_csv_view, name='exportar_relatorio_csv'),
     path('auditoria/', auditoria_view, name='auditoria'),
 ]

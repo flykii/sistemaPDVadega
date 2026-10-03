@@ -1,0 +1,193 @@
+{% extends 'base.html' %}
+
+{% block title %}{% if produto %}Editar Produto de Terceiro: {{ produto.nome }}{% else %}Novo Produto de Terceiro{% endif %} - PDV Enterprise{% endblock %}
+
+{% block content %}
+<div class="container py-3" style="max-width: 900px;">
+    <!-- Cabeçalho -->
+    <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
+        <div>
+            <h2 class="fw-bold text-dark mb-0">
+                <i class="bi bi-box-arrow-up-right text-primary me-2"></i>
+                {% if produto %}Editar Produto de Terceiro{% else %}Cadastrar Produto de Terceiro{% endif %}
+            </h2>
+            <p class="text-muted mb-0">Produtos fornecidos por terceiros para venda consignada no PDV com repasse percentual.</p>
+        </div>
+        <div>
+            <a href="{% url 'relatorio_terceiros' %}" class="btn btn-outline-secondary fw-semibold">
+                <i class="bi bi-arrow-left me-1"></i> Voltar ao Relatório
+            </a>
+        </div>
+    </div>
+
+    <form method="post" class="card card-custom p-4 border-0 shadow-sm" id="form-produto-terceiro">
+        {% csrf_token %}
+
+        <div class="row g-3 mb-4">
+            <!-- 1. Identificação Básica -->
+            <div class="col-12">
+                <h5 class="fw-bold text-dark border-bottom pb-2 mb-3">
+                    <i class="bi bi-tag-fill text-primary me-2"></i>1. Identificação do Produto
+                </h5>
+            </div>
+
+            <div class="col-12 col-md-8">
+                <label for="nome" class="form-label fw-bold">Nome do Produto <span class="text-danger">*</span></label>
+                <input type="text" name="nome" id="nome" class="form-control form-control-lg fw-bold" 
+                       value="{{ produto.nome|default:'' }}" placeholder="Ex: BOBBIE GOODS + 6 CANETAS" required autofocus>
+                <div class="form-text">Será gravado automaticamente em CAIXA ALTA.</div>
+            </div>
+
+            <div class="col-12 col-md-4">
+                <label for="fornecedor_id" class="form-label fw-bold">Terceiro / Fornecedor <span class="text-danger">*</span></label>
+                <select name="fornecedor_id" id="fornecedor_id" class="form-select form-select-lg" required>
+                    <option value="">Selecione o Terceiro...</option>
+                    {% for t in terceiros %}
+                        <option value="{{ t.id }}" {% if produto.fornecedor_principal_id == t.id %}selected{% endif %}>
+                            {{ t.nome_fantasia|default:t.razao_social }}
+                        </option>
+                    {% endfor %}
+                </select>
+                <div class="form-text">Pessoa ou empresa dona do produto.</div>
+            </div>
+
+            <div class="col-12 col-md-6">
+                <label for="codigo_barras" class="form-label fw-bold">Código de Barras (EAN)</label>
+                <div class="input-group">
+                    <input type="text" name="codigo_barras" id="codigo_barras" class="form-control" 
+                           value="{{ produto.codigo_barras|default:'' }}" placeholder="Código de barras para bipar no PDV">
+                    <button type="button" class="btn btn-outline-secondary" onclick="gerarCodigoAutomatico()" title="Gerar código interno automático">
+                        <i class="bi bi-magic me-1"></i> Gerar
+                    </button>
+                </div>
+                <div class="form-text">Utilizado para bipe rápido no leitor do caixa. Se vazio, será gerado automaticamente.</div>
+            </div>
+
+            <div class="col-12 col-md-6">
+                <label for="sku" class="form-label fw-bold">SKU / Código Interno (Opcional)</label>
+                <input type="text" name="sku" id="sku" class="form-control" 
+                       value="{{ produto.sku|default:'' }}" placeholder="Ex: TERC-001">
+            </div>
+
+            <!-- 2. Regra Comercial e Precificação -->
+            <div class="col-12 mt-4">
+                <h5 class="fw-bold text-dark border-bottom pb-2 mb-3">
+                    <i class="bi bi-cash-coin text-success me-2"></i>2. Regra Comercial & Repasse
+                </h5>
+            </div>
+
+            <div class="col-12 col-md-4">
+                <label for="preco_venda" class="form-label fw-bold">Preço de Venda Final (R$) <span class="text-danger">*</span></label>
+                <div class="input-group input-group-lg">
+                    <span class="input-group-text fw-bold">R$</span>
+                    <input type="number" step="0.01" min="0.01" name="preco_venda" id="preco_venda" 
+                           class="form-control fw-bold text-primary" 
+                           value="{% if produto %}{{ produto.preco_venda|stringformat:'.2f' }}{% else %}25.00{% endif %}" 
+                           required oninput="recalcularValores()">
+                </div>
+                <div class="form-text">Preço cobrado do cliente final no PDV.</div>
+            </div>
+
+            <div class="col-12 col-md-4">
+                <label for="percentual_repasse" class="form-label fw-bold">% de Repasse ao Terceiro <span class="text-danger">*</span></label>
+                <div class="input-group input-group-lg">
+                    <input type="number" step="0.01" min="0" max="100" name="percentual_repasse" id="percentual_repasse" 
+                           class="form-control fw-bold text-warning text-dark" 
+                           value="{% if produto %}{{ produto.percentual_repasse|stringformat:'.2f' }}{% else %}70.00{% endif %}" 
+                           required oninput="recalcularValores()">
+                    <span class="input-group-text fw-bold">%</span>
+                </div>
+                <div class="form-text">Percentual repassado ao parceiro (Padrão 70%).</div>
+            </div>
+
+            <div class="col-12 col-md-4">
+                <label for="estoque_atual" class="form-label fw-bold">Estoque Inicial / Saldo</label>
+                <input type="number" step="0.001" min="0" name="estoque_atual" id="estoque_atual" 
+                       class="form-control form-control-lg fw-bold text-secondary" 
+                       value="{% if produto %}{{ produto.estoque_atual|stringformat:'.3f' }}{% else %}0.000{% endif %}">
+                <div class="form-text">Quantidade física entregue para venda.</div>
+            </div>
+
+            <!-- Painel de Simulação em Tempo Real -->
+            <div class="col-12">
+                <div class="card border border-primary-subtle bg-light p-3 rounded-3">
+                    <div class="d-flex justify-content-between align-items-center mb-2">
+                        <span class="fw-bold text-primary small text-uppercase"><i class="bi bi-calculator me-1"></i> Demonstração do Cálculo Unitário</span>
+                        <span class="badge bg-primary text-white" id="badge-resumo">Preço: R$ 25,00</span>
+                    </div>
+                    <div class="row g-2 text-center">
+                        <div class="col-12 col-md-4">
+                            <div class="bg-white p-2 rounded border">
+                                <small class="text-muted d-block">Preço de Venda Final</small>
+                                <span class="fs-5 fw-bold text-dark" id="display-venda">R$ 25,00</span>
+                            </div>
+                        </div>
+                        <div class="col-12 col-md-4">
+                            <div class="bg-white p-2 rounded border border-danger-subtle">
+                                <small class="text-danger d-block fw-semibold">Repasse ao Terceiro (<span id="display-pct">70%</span>)</small>
+                                <span class="fs-5 fw-bold text-danger" id="display-repasse">R$ 17,50</span>
+                            </div>
+                        </div>
+                        <div class="col-12 col-md-4">
+                            <div class="bg-white p-2 rounded border border-success-subtle">
+                                <small class="text-success d-block fw-semibold">Lucro Retido da Empresa</small>
+                                <span class="fs-5 fw-bold text-success" id="display-lucro">R$ 7,50</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 3. Status -->
+            <div class="col-12 mt-3">
+                <div class="form-check form-switch fs-5">
+                    <input class="form-check-input" type="checkbox" name="ativo" id="ativo" 
+                           {% if produto %}{% if produto.ativo %}checked{% endif %}{% else %}checked{% endif %}>
+                    <label class="form-check-label fs-6 fw-bold" for="ativo">
+                        Produto Ativo para Vendas no PDV
+                    </label>
+                </div>
+            </div>
+        </div>
+
+        <div class="d-flex justify-content-between align-items-center border-top pt-3 mt-3">
+            <a href="{% url 'relatorio_terceiros' %}" class="btn btn-outline-secondary">Cancelar</a>
+            <button type="submit" class="btn btn-primary btn-lg fw-bold px-4">
+                <i class="bi bi-check2-circle me-1"></i> Salvar Produto de Terceiro
+            </button>
+        </div>
+    </form>
+</div>
+
+<script>
+    function recalcularValores() {
+        const inputVenda = document.getElementById('preco_venda');
+        const inputPct = document.getElementById('percentual_repasse');
+        
+        let venda = parseFloat(inputVenda.value) || 0;
+        let pct = parseFloat(inputPct.value) || 0;
+
+        if (pct < 0) pct = 0;
+        if (pct > 100) pct = 100;
+
+        const repasse = venda * (pct / 100.0);
+        const lucro = venda - repasse;
+
+        document.getElementById('display-venda').innerText = 'R$ ' + venda.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+        document.getElementById('display-repasse').innerText = 'R$ ' + repasse.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+        document.getElementById('display-lucro').innerText = 'R$ ' + lucro.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+        document.getElementById('display-pct').innerText = pct.toFixed(1) + '%';
+        document.getElementById('badge-resumo').innerText = 'Preço: R$ ' + venda.toFixed(2);
+    }
+
+    function gerarCodigoAutomatico() {
+        const input = document.getElementById('codigo_barras');
+        const randomCode = '789' + Math.floor(1000000000 + Math.random() * 9000000000);
+        input.value = randomCode;
+    }
+
+    document.addEventListener("DOMContentLoaded", function() {
+        recalcularValores();
+    });
+</script>
+{% endblock %}

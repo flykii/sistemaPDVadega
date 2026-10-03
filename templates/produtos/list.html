@@ -90,9 +90,12 @@
                         <td>
                             <strong class="d-block {% if not prod.ativo %}text-decoration-line-through text-muted{% else %}text-dark{% endif %}">
                                 {{ prod.nome }}
+                                {% if prod.is_produto_terceiro %}
+                                    <span class="badge bg-primary-subtle text-primary border border-primary-subtle ms-1"><i class="bi bi-box-arrow-up-right me-1"></i>Terceiro ({{ prod.percentual_repasse|floatformat:0 }}%)</span>
+                                {% endif %}
                             </strong>
                             {% if prod.fornecedor_principal %}
-                                <small class="text-muted"><i class="bi bi-truck me-1"></i>{{ prod.fornecedor_principal.nome_fantasia }}</small>
+                                <small class="text-muted"><i class="bi bi-truck me-1"></i>{{ prod.fornecedor_principal.nome_fantasia|default:prod.fornecedor_principal.razao_social }}</small>
                             {% endif %}
                         </td>
                         <td><span class="badge bg-light text-dark border">{{ prod.categoria.nome|default:"Sem Categoria" }}</span></td>

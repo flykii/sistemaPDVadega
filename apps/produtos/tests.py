@@ -69,7 +69,7 @@ class ProductStockPurchaseTestCase(TestCase):
             estoque_minimo=Decimal('10.000'),
             unidade_medida='LT'
         )
-        self.assertEqual(prod.nome, "Cerveja Brahma 350ml")
+        self.assertEqual(prod.nome, "CERVEJA BRAHMA 350ML")
         self.assertEqual(prod.preco_venda, Decimal('3.57')) # 2.50 / 0.7 = 3.5714... -> 3.57
         self.assertEqual(prod.status_estoque, 'NORMAL')
 
