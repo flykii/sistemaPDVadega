@@ -124,6 +124,122 @@ class FinancialService:
 
     @staticmethod
     @transaction.atomic
+    def receber_pagamento_cliente_unificado(
+        cliente: Cliente,
+        valor_pago: Decimal | float,
+        forma_pagamento: str = 'DINHEIRO',
+        troco: Decimal | float = Decimal('0.00'),
+        sessao_caixa = None,
+        usuario = None,
+        observacao: str = ''
+    ) -> list:
+        val_pago_dec = Decimal(str(valor_pago)).quantize(Decimal('0.01'))
+        troco_dec = Decimal(str(troco)).quantize(Decimal('0.01'))
+
+        if val_pago_dec <= Decimal('0.00'):
+            raise ValueError("O valor de pagamento deve ser estritamente maior que zero.")
+
+        if troco_dec < Decimal('0.00'):
+            raise ValueError("O valor do troco não pode ser negativo.")
+
+        if forma_pagamento != 'DINHEIRO' and troco_dec > Decimal('0.00'):
+            raise ValueError("Troco só é permitido para pagamentos em DINHEIRO.")
+
+        valor_efetivo = val_pago_dec - troco_dec
+        if valor_efetivo <= Decimal('0.00'):
+            raise ValueError("O valor efetivo destinado à quitação deve ser maior que zero.")
+
+        contas_abertas = list(
+            ContaReceber.objects.select_for_update()
+            .filter(empresa=cliente.empresa, cliente=cliente, status__in=['ABERTA', 'PARCIAL', 'PENDENTE'])
+            .order_by('data_vencimento', 'id')
+        )
+
+        saldo_total = sum((c.saldo for c in contas_abertas), Decimal('0.00'))
+        if not contas_abertas or saldo_total <= Decimal('0.00'):
+            raise ValueError(f"O cliente {cliente.nome} não possui contas pendentes em aberto.")
+
+        if valor_efetivo > (saldo_total + Decimal('0.01')):
+            raise ValueError(
+                f"O valor efetivo recebido (R$ {valor_efetivo:.2f}) não pode ser maior que a dívida total do cliente (R$ {saldo_total:.2f})."
+            )
+
+        pagamentos_criados = []
+        valor_restante = valor_efetivo
+
+        for c_db in contas_abertas:
+            if valor_restante <= Decimal('0.00'):
+                break
+
+            saldo_c = c_db.saldo
+            if saldo_c <= Decimal('0.00'):
+                continue
+
+            abatimento = min(saldo_c, valor_restante)
+
+            pag = PagamentoContaReceber.objects.create(
+                empresa=c_db.empresa,
+                conta_receber=c_db,
+                valor=abatimento,
+                troco=Decimal('0.00'),
+                forma_pagamento=forma_pagamento,
+                sessao_caixa=sessao_caixa,
+                usuario=usuario,
+                observacao=f"Recebimento Unificado: {observacao}".strip()
+            )
+            pagamentos_criados.append(pag)
+
+            c_db.valor_pago += abatimento
+            if c_db.saldo <= Decimal('0.00'):
+                c_db.status = 'QUITADA'
+                c_db.data_pagamento = timezone.now().date()
+            else:
+                c_db.status = 'PARCIAL'
+            c_db.save()
+
+            valor_restante -= abatimento
+
+        cliente_db = Cliente.objects.select_for_update().get(id=cliente.id)
+        cliente_db.saldo_devedor = max(Decimal('0.00'), cliente_db.saldo_devedor - valor_efetivo)
+        cliente_db.save()
+
+        if forma_pagamento == 'DINHEIRO' and sessao_caixa:
+            MovimentacaoCaixa.objects.create(
+                empresa=cliente.empresa,
+                sessao_caixa=sessao_caixa,
+                tipo='SUPRIMENTO',
+                valor=valor_efetivo,
+                motivo=f"Recebimento Dívida Unificada - {cliente.nome}",
+                operador=usuario
+            )
+
+        FluxoCaixa.objects.create(
+            empresa=cliente.empresa,
+            tipo='ENTRADA',
+            categoria='Recebimento Crediário',
+            descricao=f"Recebimento Dívida Unificada ({forma_pagamento}) - {cliente.nome}",
+            valor=valor_efetivo,
+            referencia_origem=f"CLIENTE-{cliente.id}"
+        )
+
+        AuditService.registrar(
+            empresa=cliente.empresa,
+            usuario=usuario,
+            acao='RECEBIMENTO_REGISTRADO',
+            entidade='Cliente',
+            entidade_id=cliente.id,
+            descricao=f"Recebimento unificado de R$ {valor_efetivo:.2f} ({forma_pagamento}) para {cliente.nome}",
+            dados_posteriores={
+                'valor_recebido': str(valor_efetivo),
+                'forma_pagamento': forma_pagamento,
+                'saldo_restante_cliente': str(cliente_db.saldo_devedor)
+            }
+        )
+
+        return pagamentos_criados
+
+    @staticmethod
+    @transaction.atomic
     def baixar_conta_receber(conta: ContaReceber, data_pagamento=None, usuario=None, sessao_caixa=None) -> ContaReceber:
         FinancialService.receber_pagamento_conta(
             conta=conta,

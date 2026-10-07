@@ -53,17 +53,17 @@
                 <div class="row g-3 mb-3">
                     <div class="col-12 col-md-4">
                         <label for="valor" class="form-label fw-bold">Valor da Despesa (R$) *</label>
-                        <input type="number" step="0.01" min="0.01" name="valor" id="valor" class="form-control form-control-lg fw-bold text-danger fs-4" value="{{ conta.valor|default:'' }}" placeholder="0,00" required>
+                        <input type="number" step="0.01" min="0.01" name="valor" id="valor" class="form-control form-control-lg fw-bold text-danger fs-4" value="{% if conta %}{{ conta.valor|stringformat:'.2f' }}{% endif %}" placeholder="0,00" required>
                     </div>
 
                     <div class="col-12 col-md-4">
                         <label for="data_competencia" class="form-label fw-bold">Data da Despesa</label>
-                        <input type="date" name="data_competencia" id="data_competencia" class="form-control form-control-lg" value="{% if conta %}{{ conta.data_competencia|date:'Y-m-d' }}{% else %}{% now 'Y-m-d' %}{% endif %}">
+                        <input type="date" name="data_competencia" id="data_competencia" class="form-control form-control-lg" value="{% if conta and conta.data_competencia %}{{ conta.data_competencia|date:'Y-m-d' }}{% else %}{% now 'Y-m-d' %}{% endif %}">
                     </div>
 
                     <div class="col-12 col-md-4">
                         <label for="data_vencimento" class="form-label fw-bold">Data de Vencimento</label>
-                        <input type="date" name="data_vencimento" id="data_vencimento" class="form-control form-control-lg" value="{% if conta %}{{ conta.data_vencimento|date:'Y-m-d' }}{% else %}{% now 'Y-m-d' %}{% endif %}">
+                        <input type="date" name="data_vencimento" id="data_vencimento" class="form-control form-control-lg" value="{% if conta and conta.data_vencimento %}{{ conta.data_vencimento|date:'Y-m-d' }}{% else %}{% now 'Y-m-d' %}{% endif %}">
                     </div>
                 </div>
 
@@ -82,7 +82,8 @@
                             <div class="col-12 col-md-6">
                                 <label for="forma_pagamento" class="form-label small fw-bold">Forma de Pagamento</label>
                                 <select name="forma_pagamento" id="forma_pagamento" class="form-select">
-                                    <option value="DINHEIRO">💵 Dinheiro (Saída da Gaveta do Caixa)</option>
+                                    <option value="DINHEIRO">💵 Dinheiro do Caixa (Saída da Gaveta)</option>
+                                    <option value="DINHEIRO_EXTERNO">💵 Dinheiro Próprio / Carteira (Fora do Caixa)</option>
                                     <option value="PIX">📱 PIX (Conta Bancária)</option>
                                     <option value="CARTAO_DEBITO">💳 Cartão Débito</option>
                                     <option value="CARTAO_CREDITO">💳 Cartão Crédito</option>

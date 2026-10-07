@@ -43,7 +43,7 @@ def contas_receber_list(request):
     contas_qs = (
         ContaReceber.objects.filter(empresa=empresa)
         .select_related('cliente', 'venda')
-        .prefetch_related('pagamentos_recebidos')
+        .prefetch_related('pagamentos_recebidos', 'venda__itens__produto')
         .order_by('data_vencimento', '-id')
     )
 
@@ -91,8 +91,71 @@ def contas_receber_list(request):
     clientes = Cliente.objects.filter(empresa=empresa, ativo=True).order_by('nome')
     sessao_aberta = SessaoCaixa.objects.filter(empresa=empresa, operador=request.user, status='ABERTA').first()
 
+    # Processamento de recebimento unificado direto da lista
+    if request.method == 'POST':
+        c_id = request.POST.get('cliente_id')
+        if c_id:
+            cliente_obj = get_object_or_404(Cliente, pk=c_id, empresa=empresa)
+            valor_pago = safe_decimal(request.POST.get('valor_pago'), '0.00')
+            forma_pagamento = request.POST.get('forma_pagamento', 'DINHEIRO')
+            troco = safe_decimal(request.POST.get('troco'), '0.00')
+            observacao = request.POST.get('observacao', '').strip()
+            try:
+                FinancialService.receber_pagamento_cliente_unificado(
+                    cliente=cliente_obj,
+                    valor_pago=valor_pago,
+                    forma_pagamento=forma_pagamento,
+                    troco=troco,
+                    sessao_caixa=sessao_aberta if forma_pagamento == 'DINHEIRO' else None,
+                    usuario=request.user,
+                    observacao=observacao or "Recebimento unificado de crediário/fiado"
+                )
+                messages.success(
+                    request,
+                    f"Recebimento de R$ {valor_pago - troco:.2f} registrado com sucesso para {cliente_obj.nome}!"
+                )
+                return redirect('contas_receber_list')
+            except Exception as e:
+                messages.error(request, str(e))
+
+    # Agrupamento unificado por cliente
+    grupos_dict = {}
+    contas_avulsas = []
+
+    for c in contas:
+        if c.cliente_id:
+            cid = c.cliente_id
+            if cid not in grupos_dict:
+                grupos_dict[cid] = {
+                    'cliente': c.cliente,
+                    'contas': [],
+                    'total_original': Decimal('0.00'),
+                    'total_pago': Decimal('0.00'),
+                    'saldo': Decimal('0.00'),
+                    'tem_vencida': False,
+                    'primeiro_vencimento': c.data_vencimento,
+                }
+            g = grupos_dict[cid]
+            g['contas'].append(c)
+            g['total_original'] += c.valor_original
+            g['total_pago'] += c.valor_pago
+            g['saldo'] += c.saldo
+            if c.is_vencida:
+                g['tem_vencida'] = True
+            if c.data_vencimento and (not g['primeiro_vencimento'] or c.data_vencimento < g['primeiro_vencimento']):
+                g['primeiro_vencimento'] = c.data_vencimento
+        else:
+            contas_avulsas.append(c)
+
+    clientes_agrupados = sorted(
+        grupos_dict.values(),
+        key=lambda x: (not x['tem_vencida'], x['saldo'] <= 0, x['primeiro_vencimento'] or date.max)
+    )
+
     return render(request, 'financeiro/contas_receber.html', {
         'contas': contas,
+        'clientes_agrupados': clientes_agrupados,
+        'contas_avulsas': contas_avulsas,
         'clientes': clientes,
         'filtro_status': filtro_status,
         'cliente_id': cliente_id,
@@ -105,6 +168,55 @@ def contas_receber_list(request):
         'qtd_contas_abertas': qtd_contas_abertas,
         'sessao_aberta': sessao_aberta,
     })
+
+
+@login_required
+def receber_cliente_unificado_view(request, cliente_id):
+    empresa = request.tenant or request.user.empresa
+    cliente = get_object_or_404(Cliente, pk=cliente_id, empresa=empresa)
+    sessao_caixa = SessaoCaixa.objects.filter(empresa=empresa, operador=request.user, status='ABERTA').first()
+
+    contas_qs = (
+        ContaReceber.objects.filter(empresa=empresa, cliente=cliente, status__in=['ABERTA', 'PARCIAL', 'PENDENTE'])
+        .select_related('venda')
+        .prefetch_related('venda__itens__produto')
+        .order_by('data_vencimento', 'id')
+    )
+    contas_abertas = [c for c in contas_qs if c.saldo > 0]
+
+    total_saldo = sum((c.saldo for c in contas_abertas), Decimal('0.00'))
+
+    if request.method == 'POST':
+        valor_pago = safe_decimal(request.POST.get('valor_pago'), '0.00')
+        forma_pagamento = request.POST.get('forma_pagamento', 'DINHEIRO')
+        troco = safe_decimal(request.POST.get('troco'), '0.00')
+        observacao = request.POST.get('observacao', '').strip()
+
+        try:
+            FinancialService.receber_pagamento_cliente_unificado(
+                cliente=cliente,
+                valor_pago=valor_pago,
+                forma_pagamento=forma_pagamento,
+                troco=troco,
+                sessao_caixa=sessao_caixa if forma_pagamento == 'DINHEIRO' else None,
+                usuario=request.user,
+                observacao=observacao or "Recebimento unificado de crediário/fiado"
+            )
+            messages.success(
+                request,
+                f"Recebimento unificado de R$ {valor_pago - troco:.2f} registrado com sucesso para {cliente.nome}!"
+            )
+            return redirect('contas_receber_list')
+        except Exception as e:
+            messages.error(request, str(e))
+
+    return render(request, 'financeiro/receber_cliente_unificado.html', {
+        'cliente': cliente,
+        'contas_abertas': contas_abertas,
+        'total_saldo': total_saldo,
+        'sessao_caixa': sessao_caixa,
+    })
+
 
 
 @login_required
@@ -214,8 +326,8 @@ def contas_pagar_list(request):
 
     contas_qs = (
         ContaPagar.objects.filter(empresa=empresa)
-        .select_related('fornecedor', 'categoria', 'despesa_recorrente', 'usuario', 'compra')
-        .prefetch_related('pagamentos_detalhes')
+        .select_related('fornecedor', 'categoria', 'despesa_recorrente', 'usuario', 'compra__fornecedor')
+        .prefetch_related('pagamentos_detalhes__usuario', 'compra__itens__produto')
         .order_by('data_vencimento', '-id')
     )
 

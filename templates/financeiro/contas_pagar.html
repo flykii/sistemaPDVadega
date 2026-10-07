@@ -142,28 +142,33 @@
                         <th class="text-end pe-4">Ações</th>
                     </tr>
                 </thead>
-                <tbody>
+                <tbody id="accordionDespesas">
                     {% for c in contas %}
-                    <tr class="{% if c.status == 'CANCELADA' %}table-secondary text-muted text-decoration-line-through{% elif c.is_vencida %}table-danger-subtle{% elif c.saldo == 0 %}table-light text-muted{% endif %}">
-                        <td class="ps-4">
-                            <strong class="text-dark">#{{ c.id }}</strong> — {{ c.descricao }}
-                            {% if c.despesa_recorrente %}
-                                <span class="badge bg-info-subtle text-dark border border-info ms-1"><i class="bi bi-arrow-repeat me-1"></i>Fixa</span>
-                            {% elif c.compra %}
-                                <span class="badge bg-secondary-subtle text-dark border ms-1"><i class="bi bi-truck me-1"></i>Compra NF</span>
-                            {% endif %}
+                    <tr class="despesa-row {% if c.status == 'CANCELADA' %}table-secondary text-muted text-decoration-line-through{% elif c.is_vencida %}table-danger-subtle{% elif c.saldo == 0 %}table-light text-muted{% endif %}">
+                        <td class="ps-4" style="cursor: pointer;" data-bs-toggle="collapse" data-bs-target="#collapse-despesa-{{ c.id }}" title="Clique para ver os detalhes e itens relacionados">
+                            <div class="d-flex align-items-center gap-2">
+                                <i class="bi bi-chevron-right text-muted small transition-icon"></i>
+                                <div>
+                                    <strong class="text-dark">#{{ c.id }}</strong> — {{ c.descricao }}
+                                    {% if c.despesa_recorrente %}
+                                        <span class="badge bg-info-subtle text-dark border border-info ms-1"><i class="bi bi-arrow-repeat me-1"></i>Fixa</span>
+                                    {% elif c.compra %}
+                                        <span class="badge bg-secondary-subtle text-dark border ms-1"><i class="bi bi-truck me-1"></i>Pedido #{{ c.compra.id }}</span>
+                                    {% endif %}
+                                </div>
+                            </div>
                         </td>
-                        <td>
+                        <td style="cursor: pointer;" data-bs-toggle="collapse" data-bs-target="#collapse-despesa-{{ c.id }}" title="Clique para ver os detalhes e itens relacionados">
                             <span class="badge bg-light text-dark border">{{ c.categoria.nome|default:"Sem Categoria" }}</span>
                         </td>
-                        <td>
+                        <td style="cursor: pointer;" data-bs-toggle="collapse" data-bs-target="#collapse-despesa-{{ c.id }}" title="Clique para ver os detalhes e itens relacionados">
                             {% if c.fornecedor %}
                                 <strong>{{ c.fornecedor.nome_fantasia|default:c.fornecedor.razao_social }}</strong>
                             {% else %}
                                 <span class="text-muted">-</span>
                             {% endif %}
                         </td>
-                        <td>
+                        <td style="cursor: pointer;" data-bs-toggle="collapse" data-bs-target="#collapse-despesa-{{ c.id }}" title="Clique para ver os detalhes e itens relacionados">
                             <strong class="{% if c.is_vencida %}text-danger{% else %}text-dark{% endif %}">
                                 {{ c.data_vencimento|date:"d/m/Y" }}
                             </strong>
@@ -171,12 +176,12 @@
                                 <small class="d-block text-danger fw-bold"><i class="bi bi-clock-history me-1"></i>VENCIDA</small>
                             {% endif %}
                         </td>
-                        <td class="text-end">R$ {{ c.valor_original|floatformat:2 }}</td>
-                        <td class="text-end text-success">R$ {{ c.valor_pago|floatformat:2 }}</td>
-                        <td class="text-end fw-bold {% if c.saldo > 0 %}text-danger fs-6{% else %}text-muted{% endif %}">
+                        <td class="text-end" style="cursor: pointer;" data-bs-toggle="collapse" data-bs-target="#collapse-despesa-{{ c.id }}" title="Clique para ver os detalhes e itens relacionados">R$ {{ c.valor_original|floatformat:2 }}</td>
+                        <td class="text-end text-success" style="cursor: pointer;" data-bs-toggle="collapse" data-bs-target="#collapse-despesa-{{ c.id }}" title="Clique para ver os detalhes e itens relacionados">R$ {{ c.valor_pago|floatformat:2 }}</td>
+                        <td class="text-end fw-bold {% if c.saldo > 0 %}text-danger fs-6{% else %}text-muted{% endif %}" style="cursor: pointer;" data-bs-toggle="collapse" data-bs-target="#collapse-despesa-{{ c.id }}" title="Clique para ver os detalhes e itens relacionados">
                             R$ {{ c.saldo|floatformat:2 }}
                         </td>
-                        <td class="text-center">
+                        <td class="text-center" style="cursor: pointer;" data-bs-toggle="collapse" data-bs-target="#collapse-despesa-{{ c.id }}" title="Clique para ver os detalhes e itens relacionados">
                             {% if c.status == 'CANCELADA' %}
                                 <span class="badge bg-secondary">Cancelada</span>
                             {% elif c.status == 'PAGA' or c.status == 'PAGO' or c.saldo == 0 %}
@@ -189,10 +194,10 @@
                                 <span class="badge bg-primary">Aberta</span>
                             {% endif %}
                         </td>
-                        <td class="text-end pe-4">
+                        <td class="text-end pe-4" style="cursor: default;">
                             <div class="d-flex justify-content-end gap-1">
                                 {% if c.status != 'CANCELADA' and c.saldo > 0 %}
-                                    <a href="{% url 'pagar_despesa' c.id %}" class="btn btn-sm btn-success fw-bold" title="Pagar Despesa">
+                                    <a href="{% url 'pagar_despesa' c.id %}" class="btn btn-sm btn-success fw-bold px-3 shadow-sm" title="Ir para tela de pagamento">
                                         <i class="bi bi-cash-coin me-1"></i> Pagar
                                     </a>
                                 {% endif %}
@@ -205,6 +210,104 @@
                                         </form>
                                     {% endif %}
                                 {% endif %}
+                            </div>
+                        </td>
+                    </tr>
+                    <!-- Detalhes Expansíveis da Despesa e Itens do Pedido Relacionado -->
+                    <tr id="collapse-despesa-{{ c.id }}" class="accordion-collapse collapse" data-bs-parent="#accordionDespesas">
+                        <td colspan="9" class="p-0 border-0">
+                            <div class="px-4 py-3 bg-light border-bottom shadow-inner">
+                                <div class="row g-3">
+                                    <div class="col-12 col-md-6">
+                                        <h6 class="fw-bold mb-2 small text-muted text-uppercase"><i class="bi bi-info-circle me-1"></i>Detalhes da Despesa #{{ c.id }}</h6>
+                                        <div class="card p-3 bg-white border-0 shadow-sm rounded-3">
+                                            <p class="mb-1"><strong>Descrição:</strong> {{ c.descricao }}</p>
+                                            <p class="mb-1"><strong>Categoria:</strong> {{ c.categoria.nome|default:"Sem Categoria" }}</p>
+                                            <p class="mb-1"><strong>Fornecedor:</strong> {% if c.fornecedor %}{{ c.fornecedor.nome_fantasia|default:c.fornecedor.razao_social }}{% else %}Avulso{% endif %}</p>
+                                            <p class="mb-1"><strong>Data da Despesa:</strong> {{ c.data_competencia|date:"d/m/Y" }} | <strong>Vencimento:</strong> {{ c.data_vencimento|date:"d/m/Y" }}</p>
+                                            {% if c.data_pagamento %}
+                                                <p class="mb-1 text-success"><strong>Data Quitação:</strong> {{ c.data_pagamento|date:"d/m/Y" }} (Forma: {{ c.forma_pagamento|default:"-" }})</p>
+                                            {% endif %}
+                                            {% if c.usuario %}
+                                                <p class="mb-1 text-muted small"><strong>Lançado por:</strong> {{ c.usuario.get_full_name|default:c.usuario.username }}</p>
+                                            {% endif %}
+                                            {% if c.observacoes %}
+                                                <p class="mb-0 mt-2 p-2 bg-light rounded text-muted small"><strong>Observações / Comprovante:</strong> {{ c.observacoes }}</p>
+                                            {% endif %}
+                                        </div>
+                                    </div>
+
+                                    <div class="col-12 col-md-6">
+                                        {% if c.compra %}
+                                            <div class="d-flex justify-content-between align-items-center mb-2">
+                                                <h6 class="fw-bold mb-0 small text-primary text-uppercase">
+                                                    <i class="bi bi-truck me-1"></i>Itens do Pedido de Compra #{{ c.compra.id }} {% if c.compra.numero_nota %}(NF: {{ c.compra.numero_nota }}){% endif %}
+                                                </h6>
+                                                <a href="{% url 'compra_detalhe' c.compra.id %}" class="btn btn-outline-primary btn-sm py-0 fw-bold" style="font-size: 0.75rem;">
+                                                    <i class="bi bi-box-arrow-up-right me-1"></i>Ver Pedido
+                                                </a>
+                                            </div>
+                                            <div class="card p-2 bg-white border-0 shadow-sm rounded-3">
+                                                <div class="table-responsive">
+                                                    <table class="table table-sm table-borderless align-middle mb-0" style="font-size: 0.85rem;">
+                                                        <thead class="border-bottom text-muted">
+                                                            <tr>
+                                                                <th>Produto</th>
+                                                                <th class="text-center">Qtd</th>
+                                                                <th class="text-end">Custo Unit.</th>
+                                                                <th class="text-end">Subtotal</th>
+                                                            </tr>
+                                                        </thead>
+                                                        <tbody>
+                                                            {% for item in c.compra.itens.all %}
+                                                            <tr>
+                                                                <td class="text-dark fw-semibold">{{ item.produto.nome }}</td>
+                                                                <td class="text-center">{{ item.quantidade|floatformat:0 }} {{ item.produto.unidade_medida|default:"un" }}</td>
+                                                                <td class="text-end text-muted">R$ {{ item.preco_custo_unitario|floatformat:2 }}</td>
+                                                                <td class="text-end fw-bold text-dark">R$ {{ item.subtotal|floatformat:2 }}</td>
+                                                            </tr>
+                                                            {% empty %}
+                                                            <tr>
+                                                                <td colspan="4" class="text-muted text-center py-2">Nenhum item registrado no pedido.</td>
+                                                            </tr>
+                                                            {% endfor %}
+                                                        </tbody>
+                                                        <tfoot class="border-top">
+                                                            <tr>
+                                                                <th colspan="3" class="text-end fw-bold">Total do Pedido:</th>
+                                                                <th class="text-end fw-bold text-primary">R$ {{ c.compra.total|floatformat:2 }}</th>
+                                                            </tr>
+                                                        </tfoot>
+                                                    </table>
+                                                </div>
+                                            </div>
+                                        {% else %}
+                                            <h6 class="fw-bold mb-2 small text-muted text-uppercase"><i class="bi bi-journal-text me-1"></i>Origem da Despesa</h6>
+                                            <div class="card p-3 bg-white border-0 shadow-sm rounded-3 text-muted small">
+                                                {% if c.despesa_recorrente %}
+                                                    <p class="mb-1"><strong>Despesa Recorrente / Fixa:</strong> {{ c.despesa_recorrente.descricao }}</p>
+                                                    <p class="mb-0">Periodicidade: {{ c.despesa_recorrente.get_periodicidade_display }} | Vencimento todo dia {{ c.despesa_recorrente.dia_vencimento }}</p>
+                                                {% else %}
+                                                    <p class="mb-0">Despesa operacional avulsa lançada diretamente no financeiro.</p>
+                                                {% endif %}
+                                            </div>
+                                        {% endif %}
+
+                                        {% if c.pagamentos_detalhes.all %}
+                                            <h6 class="fw-bold mb-2 mt-3 small text-success text-uppercase"><i class="bi bi-cash-coin me-1"></i>Histórico de Baixas / Pagamentos</h6>
+                                            <div class="card p-2 bg-white border-0 shadow-sm rounded-3">
+                                                <ul class="list-group list-group-flush small">
+                                                    {% for pag in c.pagamentos_detalhes.all %}
+                                                        <li class="list-group-item d-flex justify-content-between align-items-center px-2 py-1">
+                                                            <span>{{ pag.data_pagamento|date:"d/m/Y" }} — <span class="badge bg-light text-dark border">{{ pag.get_forma_pagamento_display }}</span></span>
+                                                            <strong class="text-success">R$ {{ pag.valor|floatformat:2 }}</strong>
+                                                        </li>
+                                                    {% endfor %}
+                                                </ul>
+                                            </div>
+                                        {% endif %}
+                                    </div>
+                                </div>
                             </div>
                         </td>
                     </tr>

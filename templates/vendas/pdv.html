@@ -192,6 +192,29 @@
                 <span><kbd id="kbd-shortcut-fechar">{% if atalhos_pdv.CANCELAR_FECHAR == 'Escape' %}ESC{% else %}{{ atalhos_pdv.CANCELAR_FECHAR|default:"ESC" }}{% endif %}</kbd> Fechar</span>
             </div>
         </div>
+
+        <!-- 6. Área de Anotação Rápida -->
+        <div class="card card-custom p-2 shadow-sm border-0 mt-1 anotacao-rapida-card" style="background-color: #1e293b; border: 1px solid #334155 !important;">
+            <div class="d-flex justify-content-between align-items-center mb-1 px-1">
+                <span class="small fw-bold text-warning text-uppercase d-flex align-items-center gap-1" style="font-size: 0.78rem; letter-spacing: 0.5px;">
+                    <i class="bi bi-journal-text text-warning"></i> Anotação Rápida
+                </span>
+                <span id="anotacoes-count-badge" class="badge rounded-pill bg-dark border border-secondary text-light px-2" style="font-size: 0.7rem;">0</span>
+            </div>
+
+            <!-- Campo de entrada + Botão OK -->
+            <div class="input-group input-group-sm mb-1">
+                <input type="text" id="anotacao-rapida-input" class="form-control form-control-sm bg-dark text-white border-secondary" placeholder="Anotar algo e teclar Enter..." autocomplete="off" style="font-size: 0.8rem;">
+                <button class="btn btn-warning btn-sm fw-bold px-3 text-dark d-flex align-items-center gap-1" type="button" id="btn-ok-anotacao" onclick="adicionarAnotacaoRapida()" title="Adicionar anotação (ou tecle Enter)">
+                    <i class="bi bi-check-lg"></i> OK
+                </button>
+            </div>
+
+            <!-- Lista de anotações adicionadas -->
+            <div id="anotacoes-rapidas-lista" class="d-flex flex-column gap-1 pe-1" style="max-height: 140px; min-height: 38px; overflow-y: auto;">
+                <!-- Preenchido dinamicamente via JS -->
+            </div>
+        </div>
     </div>
 </div>
 
@@ -994,5 +1017,387 @@
         </div>
     </div>
 </div>
+
+<!-- ======================================================== -->
+<!-- MODAL: ANOTAÇÃO RÁPIDA (VISUALIZAR / EDITAR / CONCLUIR)  -->
+<!-- ======================================================== -->
+<div class="modal fade" id="anotacaoRapidaModal" tabindex="-1" aria-labelledby="anotacaoRapidaModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content card-custom border-0 shadow-lg">
+            <div class="modal-header bg-dark text-white py-2 px-3">
+                <h5 class="modal-title fw-bold fs-6 d-flex align-items-center gap-2" id="anotacaoRapidaModalLabel">
+                    <i class="bi bi-journal-text text-warning"></i> Anotação Rápida
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Fechar"></button>
+            </div>
+            <div class="modal-body p-3">
+                <div class="d-flex justify-content-between align-items-center mb-2">
+                    <small class="text-muted d-flex align-items-center gap-1" id="anotacao-modal-data">
+                        <i class="bi bi-clock"></i> <span></span>
+                    </small>
+                    <span id="anotacao-modo-badge" class="badge bg-secondary-subtle text-secondary small">Visualização</span>
+                </div>
+
+                <!-- Modo Visualização -->
+                <div id="anotacao-view-box" class="p-3 rounded bg-light border text-dark d-flex flex-column" style="min-height: 95px; max-height: 280px; overflow-y: auto; font-size: 0.95rem; line-height: 1.5; justify-content: center;">
+                    <div id="anotacao-modal-texto-view" class="text-break" style="white-space: pre-wrap; word-break: break-word;"></div>
+                </div>
+
+                <!-- Modo Edição (inline no próprio modal) -->
+                <div id="anotacao-edit-box" class="d-none">
+                    <textarea id="anotacao-modal-textarea" class="form-control" rows="4" placeholder="Altere a mensagem da anotação..." style="font-size: 0.95rem; resize: vertical; min-height: 95px; max-height: 280px;"></textarea>
+                    <small class="text-muted mt-1 d-block">Edite o texto acima e clique em <strong>SALVAR ALTERAÇÃO</strong> ou <strong>CANCELAR</strong>.</small>
+                </div>
+            </div>
+            <div class="modal-footer d-flex justify-content-between py-2 px-3 bg-light">
+                <!-- Botão CONCLUIR: Apaga a mensagem com confirmação e fecha o modal (apenas em visualização) -->
+                <button type="button" class="btn btn-success fw-bold d-flex align-items-center gap-1 px-3 shadow-sm" id="btn-concluir-modal-anotacao" onclick="concluirAnotacaoRapida()">
+                    <i class="bi bi-check2-circle"></i> CONCLUIR
+                </button>
+
+                <!-- Grupo de ações à direita -->
+                <div class="d-flex gap-2 ms-auto" id="anotacao-modal-acoes-direita">
+                    <!-- Botões de Modo Edição (visíveis apenas ao editar) -->
+                    <button type="button" class="btn btn-secondary fw-bold d-flex align-items-center gap-1 px-3 shadow-sm d-none" id="btn-cancelar-edicao-anotacao" onclick="cancelarEdicaoAnotacaoRapida()">
+                        <i class="bi bi-x-circle"></i> CANCELAR
+                    </button>
+                    <button type="button" class="btn btn-warning fw-bold d-flex align-items-center gap-1 px-3 shadow-sm text-dark d-none" id="btn-salvar-modal-anotacao" onclick="salvarEdicaoAnotacaoRapida()">
+                        <i class="bi bi-check-lg"></i> SALVAR ALTERAÇÃO
+                    </button>
+
+                    <!-- Botões de Modo Visualização (visíveis por padrão) -->
+                    <button type="button" class="btn btn-primary fw-bold d-flex align-items-center gap-1 px-3 shadow-sm" id="btn-editar-modal-anotacao" onclick="ativarEdicaoAnotacaoRapida()">
+                        <i class="bi bi-pencil-square"></i> <span id="btn-editar-texto">EDITAR</span>
+                    </button>
+                    <button type="button" class="btn btn-secondary fw-bold d-flex align-items-center gap-1 px-3 shadow-sm" id="btn-fechar-modal-anotacao" data-bs-dismiss="modal">
+                        <i class="bi bi-x-lg"></i> FECHAR
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+.anotacao-item-row {
+    user-select: none;
+}
+.anotacao-item-row:hover {
+    border-color: #f59e0b !important;
+    background-color: #0f172a !important;
+}
+#anotacoes-rapidas-lista::-webkit-scrollbar {
+    width: 4px;
+}
+#anotacoes-rapidas-lista::-webkit-scrollbar-thumb {
+    background: #475569;
+    border-radius: 4px;
+}
+#anotacoes-rapidas-lista::-webkit-scrollbar-thumb:hover {
+    background: #64748b;
+}
+</style>
+
+<script>
+(function() {
+    // Chave de armazenamento por empresa para isolamento multiempresa
+    const STORAGE_KEY = 'pdv_anotacoes_rapidas_' + ('{{ user.empresa_id|default:"default" }}');
+    let anotacoes = [];
+    let anotacaoAtivaId = null;
+    let modoEdicao = false;
+
+    // Elementos DOM do card lateral
+    const inputAnotacao = document.getElementById('anotacao-rapida-input');
+    const containerLista = document.getElementById('anotacoes-rapidas-lista');
+    const badgeCount = document.getElementById('anotacoes-count-badge');
+
+    // Elementos do Modal
+    const modalEl = document.getElementById('anotacaoRapidaModal');
+    let bsModalInstance = null;
+    const viewContainer = document.getElementById('anotacao-view-box');
+    const editContainer = document.getElementById('anotacao-edit-box');
+    const viewTexto = document.getElementById('anotacao-modal-texto-view');
+    const textareaModal = document.getElementById('anotacao-modal-textarea');
+    const dataModal = document.getElementById('anotacao-modal-data');
+    const modoBadge = document.getElementById('anotacao-modo-badge');
+    const btnConcluir = document.getElementById('btn-concluir-modal-anotacao');
+    const btnEditar = document.getElementById('btn-editar-modal-anotacao');
+    const btnFechar = document.getElementById('btn-fechar-modal-anotacao');
+    const btnSalvar = document.getElementById('btn-salvar-modal-anotacao');
+    const btnCancelar = document.getElementById('btn-cancelar-edicao-anotacao');
+
+    // Carregar anotações salvas
+    function carregarAnotacoes() {
+        try {
+            const data = localStorage.getItem(STORAGE_KEY);
+            anotacoes = data ? JSON.parse(data) : [];
+            if (!Array.isArray(anotacoes)) anotacoes = [];
+        } catch (e) {
+            console.error('Erro ao ler anotações rápidas:', e);
+            anotacoes = [];
+        }
+        renderizarLista();
+    }
+
+    // Salvar anotações no Storage
+    function salvarAnotacoes() {
+        try {
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(anotacoes));
+        } catch (e) {
+            console.error('Erro ao gravar anotações rápidas:', e);
+        }
+        renderizarLista();
+    }
+
+    // Renderizar lista na barra lateral
+    function renderizarLista() {
+        if (!containerLista) return;
+        if (badgeCount) badgeCount.textContent = anotacoes.length;
+
+        if (anotacoes.length === 0) {
+            containerLista.innerHTML = `
+                <div class="text-center text-muted py-2 small opacity-75" style="font-size: 0.75rem;">
+                    <i class="bi bi-pencil-square d-block mb-1 opacity-50"></i> Nenhuma anotação pendente
+                </div>
+            `;
+            return;
+        }
+
+        let html = '';
+        anotacoes.forEach(item => {
+            const safeText = escapeHtml(item.texto);
+            html += `
+                <div class="anotacao-item-row p-1 px-2 rounded border d-flex align-items-center justify-content-between"
+                     style="background-color: #0f172a; border-color: #334155 !important; cursor: pointer; transition: all 0.15s ease;"
+                     onclick="window.abrirModalAnotacaoRapida('${item.id}')"
+                     title="Clique para abrir, editar ou concluir">
+                    <div class="d-flex align-items-center gap-2 text-truncate me-2" style="min-width: 0;">
+                        <i class="bi bi-sticky text-warning flex-shrink-0" style="font-size: 0.75rem;"></i>
+                        <span class="text-light small text-truncate" style="font-size: 0.78rem;">${safeText}</span>
+                    </div>
+                    <span class="text-secondary small flex-shrink-0" style="font-size: 0.68rem;">${item.hora || ''}</span>
+                </div>
+            `;
+        });
+        containerLista.innerHTML = html;
+    }
+
+    function escapeHtml(text) {
+        if (!text) return '';
+        const div = document.createElement('div');
+        div.textContent = text;
+        return div.innerHTML;
+    }
+
+    // Adicionar anotação (ao teclar Enter ou clicar no botão OK)
+    window.adicionarAnotacaoRapida = function() {
+        if (!inputAnotacao) return;
+        const texto = inputAnotacao.value.trim();
+        if (!texto) {
+            inputAnotacao.focus();
+            return;
+        }
+
+        const agora = new Date();
+        const nova = {
+            id: 'note_' + Date.now() + '_' + Math.floor(Math.random() * 1000),
+            texto: texto,
+            hora: agora.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }),
+            dataHoraCompleta: agora.toLocaleString('pt-BR')
+        };
+
+        anotacoes.unshift(nova);
+        salvarAnotacoes();
+        inputAnotacao.value = '';
+        inputAnotacao.focus();
+    };
+
+    // Prevenir conflitos de atalhos e capturar Enter no input
+    if (inputAnotacao) {
+        inputAnotacao.addEventListener('keydown', function(e) {
+            e.stopPropagation();
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                window.adicionarAnotacaoRapida();
+            }
+        });
+        inputAnotacao.addEventListener('keyup', function(e) {
+            e.stopPropagation();
+        });
+    }
+
+    // Alternar para Modo Visualização
+    function alternarModoVisualizacao() {
+        modoEdicao = false;
+        if (viewContainer) viewContainer.classList.remove('d-none');
+        if (editContainer) editContainer.classList.add('d-none');
+
+        if (modoBadge) {
+            modoBadge.textContent = 'Visualização';
+            modoBadge.className = 'badge bg-secondary-subtle text-secondary small';
+        }
+
+        // Em modo visualização: exibe Concluir, Editar e Fechar; oculta Salvar e Cancelar
+        if (btnConcluir) btnConcluir.classList.remove('d-none');
+        if (btnEditar) btnEditar.classList.remove('d-none');
+        if (btnFechar) btnFechar.classList.remove('d-none');
+        if (btnSalvar) btnSalvar.classList.add('d-none');
+        if (btnCancelar) btnCancelar.classList.add('d-none');
+    }
+
+    // Alternar para Modo Edição
+    function alternarModoEdicao() {
+        modoEdicao = true;
+        if (viewContainer) viewContainer.classList.add('d-none');
+        if (editContainer) editContainer.classList.remove('d-none');
+
+        if (modoBadge) {
+            modoBadge.textContent = 'Modo Edição';
+            modoBadge.className = 'badge bg-warning-subtle text-warning-emphasis small';
+        }
+
+        // Em modo edição: Concluir e Fechar NÃO aparecem; somente Salvar Alteração e Cancelar
+        if (btnConcluir) btnConcluir.classList.add('d-none');
+        if (btnEditar) btnEditar.classList.add('d-none');
+        if (btnFechar) btnFechar.classList.add('d-none');
+        if (btnSalvar) btnSalvar.classList.remove('d-none');
+        if (btnCancelar) btnCancelar.classList.remove('d-none');
+
+        if (textareaModal) {
+            textareaModal.focus();
+            textareaModal.setSelectionRange(textareaModal.value.length, textareaModal.value.length);
+        }
+    }
+
+    // Ajuste dinâmico de alinhamento vertical do parágrafo
+    // Se for texto curto, centraliza verticalmente no meio do box ("Se for só ela, é no meio mesmo")
+    // Conforme vai tendo mais texto/linhas, alinha no topo ("começa mais em cima")
+    function ajustarAlinhamentoTexto(texto) {
+        if (!viewContainer) return;
+        const limpo = (texto || '').trim();
+        const linhas = limpo.split('\n').length;
+        if (limpo.length <= 90 && linhas <= 2) {
+            viewContainer.style.justifyContent = 'center';
+        } else {
+            viewContainer.style.justifyContent = 'flex-start';
+        }
+    }
+
+    // Abrir Modal ao clicar em um item da lista
+    window.abrirModalAnotacaoRapida = function(id) {
+        const item = anotacoes.find(a => a.id === id);
+        if (!item) return;
+
+        anotacaoAtivaId = id;
+
+        // Preenche os dados no modal em modo Visualização
+        if (viewTexto) viewTexto.textContent = item.texto;
+        ajustarAlinhamentoTexto(item.texto);
+
+        if (dataModal) {
+            const dataTexto = item.dataHoraCompleta || ('Hoje às ' + item.hora);
+            dataModal.innerHTML = `<i class="bi bi-clock me-1"></i> Criado em: ${dataTexto}`;
+        }
+
+        alternarModoVisualizacao();
+
+        if (modalEl) {
+            if (!bsModalInstance) {
+                bsModalInstance = bootstrap.Modal.getOrCreateInstance(modalEl);
+            }
+            bsModalInstance.show();
+        }
+    };
+
+    // Ativar Modo Edição da Anotação
+    window.ativarEdicaoAnotacaoRapida = function() {
+        const item = anotacoes.find(a => a.id === anotacaoAtivaId);
+        if (!item) return;
+
+        if (textareaModal) {
+            textareaModal.value = item.texto;
+        }
+        alternarModoEdicao();
+    };
+    window.toggleEditarAnotacaoRapida = window.ativarEdicaoAnotacaoRapida;
+
+    // Cancelar Edição (descarta alterações e volta ao modo visualização)
+    window.cancelarEdicaoAnotacaoRapida = function() {
+        const item = anotacoes.find(a => a.id === anotacaoAtivaId);
+        if (item && textareaModal) {
+            textareaModal.value = item.texto;
+        }
+        alternarModoVisualizacao();
+    };
+
+    // Salvar Alteração realizada na Anotação
+    window.salvarEdicaoAnotacaoRapida = function() {
+        const item = anotacoes.find(a => a.id === anotacaoAtivaId);
+        if (!item) return;
+
+        const novoTexto = textareaModal ? textareaModal.value.trim() : '';
+        if (!novoTexto) {
+            alert('A mensagem da anotação não pode ficar vazia.');
+            if (textareaModal) textareaModal.focus();
+            return;
+        }
+
+        item.texto = novoTexto;
+        salvarAnotacoes();
+
+        if (viewTexto) viewTexto.textContent = item.texto;
+        ajustarAlinhamentoTexto(item.texto);
+
+        alternarModoVisualizacao();
+    };
+
+    // Prevenir conflitos no textarea do modal e atalhos de salvar (Ctrl+Enter) ou cancelar (Esc)
+    if (textareaModal) {
+        textareaModal.addEventListener('keydown', function(e) {
+            e.stopPropagation();
+            if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
+                e.preventDefault();
+                window.salvarEdicaoAnotacaoRapida();
+            } else if (e.key === 'Escape') {
+                e.preventDefault();
+                window.cancelarEdicaoAnotacaoRapida();
+            }
+        });
+        textareaModal.addEventListener('keyup', function(e) {
+            e.stopPropagation();
+        });
+    }
+
+    // Botão Concluir: pede confirmação, apaga a anotação e fecha o modal
+    window.concluirAnotacaoRapida = function() {
+        if (!anotacaoAtivaId) return;
+
+        if (confirm('Deseja realmente concluir e apagar esta anotação?')) {
+            anotacoes = anotacoes.filter(a => a.id !== anotacaoAtivaId);
+            salvarAnotacoes();
+            anotacaoAtivaId = null;
+
+            if (modalEl) {
+                const modal = bootstrap.Modal.getInstance(modalEl);
+                if (modal) modal.hide();
+            }
+        }
+    };
+
+    // Quando o modal fecha (por botão ou clique fora), reseta o estado interno
+    if (modalEl) {
+        modalEl.addEventListener('hidden.bs.modal', function() {
+            anotacaoAtivaId = null;
+            alternarModoVisualizacao();
+        });
+    }
+
+    // Inicialização ao carregar o DOM
+    document.addEventListener('DOMContentLoaded', carregarAnotacoes);
+    if (document.readyState === 'interactive' || document.readyState === 'complete') {
+        carregarAnotacoes();
+    }
+})();
+</script>
 
 {% endblock %}

@@ -182,6 +182,7 @@ def cliente_ficha(request, pk):
     contas = (
         ContaReceber.objects.filter(empresa=empresa, cliente=cliente)
         .select_related('venda')
+        .prefetch_related('venda__itens__produto')
         .order_by('data_vencimento', '-id')
     )
 
@@ -197,7 +198,9 @@ def cliente_ficha(request, pk):
         .order_by('-data_hora')
     )
 
-    # Processamento de recebimento rápido de conta na ficha do cliente
+    sessao_caixa = SessaoCaixa.objects.filter(empresa=empresa, operador=request.user, status='ABERTA').first()
+
+    # Processamento de recebimento de dívida na ficha do cliente (unificado ou por título)
     if request.method == 'POST':
         conta_id = request.POST.get('conta_id')
         valor_pago = safe_decimal(request.POST.get('valor_pago'), '0.00')
@@ -205,20 +208,30 @@ def cliente_ficha(request, pk):
         troco = safe_decimal(request.POST.get('troco'), '0.00')
         observacao = request.POST.get('observacao', '').strip()
 
-        conta = get_object_or_404(ContaReceber, id=conta_id, empresa=empresa, cliente=cliente)
-        sessao_caixa = SessaoCaixa.objects.filter(empresa=empresa, operador=request.user, status='ABERTA').first()
-
         try:
-            FinancialService.receber_pagamento_conta(
-                conta=conta,
-                valor_pago=valor_pago,
-                forma_pagamento=forma_pagamento,
-                troco=troco,
-                sessao_caixa=sessao_caixa,
-                usuario=request.user,
-                observacao=observacao
-            )
-            messages.success(request, f"Pagamento de R$ {valor_pago - troco:.2f} registrado com sucesso para a conta #{conta.id}!")
+            if conta_id:
+                conta = get_object_or_404(ContaReceber, id=conta_id, empresa=empresa, cliente=cliente)
+                FinancialService.receber_pagamento_conta(
+                    conta=conta,
+                    valor_pago=valor_pago,
+                    forma_pagamento=forma_pagamento,
+                    troco=troco,
+                    sessao_caixa=sessao_caixa,
+                    usuario=request.user,
+                    observacao=observacao
+                )
+                messages.success(request, f"Pagamento de R$ {valor_pago - troco:.2f} registrado com sucesso para a conta #{conta.id}!")
+            else:
+                FinancialService.receber_pagamento_cliente_unificado(
+                    cliente=cliente,
+                    valor_pago=valor_pago,
+                    forma_pagamento=forma_pagamento,
+                    troco=troco,
+                    sessao_caixa=sessao_caixa,
+                    usuario=request.user,
+                    observacao=observacao or "Recebimento unificado de dívida do cliente"
+                )
+                messages.success(request, f"Recebimento de R$ {valor_pago - troco:.2f} registrado com sucesso para {cliente.nome}!")
             return redirect('cliente_ficha', pk=cliente.id)
         except Exception as e:
             messages.error(request, str(e))
@@ -228,5 +241,6 @@ def cliente_ficha(request, pk):
         'contas': contas,
         'vendas': vendas,
         'pagamentos_recebidos': pagamentos_recebidos,
+        'sessao_caixa': sessao_caixa,
     })
 

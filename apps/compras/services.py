@@ -200,6 +200,9 @@ class PurchaseService:
 
             # Atualiza o item de compra
             item_db.quantidade_recebida += q_rec
+            if custo_unit != item_db.preco_custo_unitario:
+                item_db.preco_custo_unitario = custo_unit
+                item_db.subtotal = (item_db.quantidade * custo_unit).quantize(Decimal('0.01'))
             item_db.save()
 
             # Cria o registro do item desta remessa
@@ -230,8 +233,9 @@ class PurchaseService:
             if compra_db.fornecedor and not produto_db.fornecedor_principal_id:
                 Produto.objects.filter(id=produto_db.id, fornecedor_principal__isnull=True).update(fornecedor_principal=compra_db.fornecedor)
 
-        # Atualiza status da compra
+        # Atualiza status e total da compra
         compra_db.refresh_from_db()
+        compra_db.total = sum((i.subtotal for i in compra_db.itens.all()), Decimal('0.00'))
         if encerrar_compra or compra_db.is_totalmente_recebida:
             compra_db.status = 'CONCLUIDA'
         else:

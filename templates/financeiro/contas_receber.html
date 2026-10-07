@@ -103,87 +103,183 @@
         </form>
     </div>
 
-    <!-- Tabela de Contas a Receber -->
+    <!-- Tabela Unificada de Contas a Receber por Cliente -->
     <div class="card card-custom p-0 border-0 shadow-sm rounded-4 overflow-hidden mb-4">
         <div class="table-responsive">
             <table class="table table-hover align-middle mb-0">
                 <thead class="table-light">
                     <tr>
-                        <th class="ps-4">Título / ID</th>
-                        <th>Cliente</th>
-                        <th>Venda Origem</th>
-                        <th>Vencimento</th>
-                        <th class="text-end">Valor Original</th>
-                        <th class="text-end">Valor Pago</th>
-                        <th class="text-end">Saldo Devedor</th>
+                        <th class="ps-4">Cliente</th>
+                        <th class="text-center">Compras / Títulos</th>
+                        <th>Primeiro Vencimento</th>
+                        <th class="text-end">Total Comprado</th>
+                        <th class="text-end">Total Já Pago</th>
+                        <th class="text-end">Saldo Devedor Unificado</th>
                         <th class="text-center">Status</th>
                         <th class="text-end pe-4">Ações</th>
                     </tr>
                 </thead>
-                <tbody>
-                    {% for c in contas %}
-                    <tr class="{% if c.is_vencida %}table-danger-subtle{% elif c.saldo == 0 %}table-light text-muted{% endif %}">
-                        <td class="ps-4">
-                            <strong class="text-dark">#{{ c.id }}</strong>
-                            <small class="d-block text-muted">{{ c.descricao }}</small>
+                <tbody id="accordionClientes">
+                    {% for g in clientes_agrupados %}
+                    <tr class="{% if g.tem_vencida %}table-danger-subtle{% elif g.saldo == 0 %}table-light text-muted{% endif %}">
+                        <td class="ps-4" style="cursor: pointer;" data-bs-toggle="collapse" data-bs-target="#collapse-cliente-{{ g.cliente.id }}" title="Clique para ver as compras e itens">
+                            <div class="d-flex align-items-center">
+                                <i class="bi bi-chevron-down text-muted me-2 small"></i>
+                                <div>
+                                    <strong class="text-dark fs-6">{{ g.cliente.nome }}</strong>
+                                    {% if g.cliente.telefone or g.cliente.celular %}
+                                        <small class="d-block text-muted">
+                                            <i class="bi bi-telephone me-1"></i>{{ g.cliente.celular|default:g.cliente.telefone }}
+                                        </small>
+                                    {% endif %}
+                                </div>
+                            </div>
                         </td>
-                        <td>
-                            {% if c.cliente %}
-                                <a href="{% url 'cliente_ficha' c.cliente.id %}" class="fw-bold text-decoration-none text-primary">
-                                    {{ c.cliente.nome }}
-                                </a>
-                            {% else %}
-                                <span class="text-muted">Sem Cliente</span>
-                            {% endif %}
+                        <td class="text-center" style="cursor: pointer;" data-bs-toggle="collapse" data-bs-target="#collapse-cliente-{{ g.cliente.id }}">
+                            <span class="badge bg-light text-dark border">
+                                <i class="bi bi-receipt me-1"></i>{{ g.contas|length }} título(s)
+                            </span>
                         </td>
-                        <td>
-                            {% if c.venda %}
-                                <a href="{% url 'venda_detalhe' c.venda.id %}" class="badge bg-light text-dark border text-decoration-none">
-                                    {{ c.venda.codigo_venda }}
-                                </a>
-                            {% else %}
-                                <span class="text-muted">-</span>
-                            {% endif %}
-                        </td>
-                        <td>
-                            <strong class="{% if c.is_vencida %}text-danger{% else %}text-dark{% endif %}">
-                                {{ c.data_vencimento|date:"d/m/Y" }}
+                        <td style="cursor: pointer;" data-bs-toggle="collapse" data-bs-target="#collapse-cliente-{{ g.cliente.id }}">
+                            <strong class="{% if g.tem_vencida %}text-danger{% else %}text-dark{% endif %}">
+                                {{ g.primeiro_vencimento|date:"d/m/Y"|default:"-" }}
                             </strong>
-                            {% if c.is_vencida %}
+                            {% if g.tem_vencida %}
                                 <small class="d-block text-danger fw-bold"><i class="bi bi-clock-history me-1"></i>VENCIDO</small>
                             {% endif %}
                         </td>
-                        <td class="text-end">R$ {{ c.valor_original|floatformat:2 }}</td>
-                        <td class="text-end text-success">R$ {{ c.valor_pago|floatformat:2 }}</td>
-                        <td class="text-end fw-bold {% if c.saldo > 0 %}text-danger fs-6{% else %}text-muted{% endif %}">
-                            R$ {{ c.saldo|floatformat:2 }}
+                        <td class="text-end">R$ {{ g.total_original|floatformat:2 }}</td>
+                        <td class="text-end text-success">R$ {{ g.total_pago|floatformat:2 }}</td>
+                        <td class="text-end fw-bold {% if g.saldo > 0 %}text-danger fs-6{% else %}text-muted{% endif %}">
+                            R$ {{ g.saldo|floatformat:2 }}
                         </td>
                         <td class="text-center">
-                            {% if c.status == 'QUITADA' or c.saldo == 0 %}
-                                <span class="badge bg-success">Quitada</span>
-                            {% elif c.is_vencida %}
-                                <span class="badge bg-danger">Vencida</span>
-                            {% elif c.valor_pago > 0 %}
+                            {% if g.saldo == 0 %}
+                                <span class="badge bg-success">Quitado</span>
+                            {% elif g.tem_vencida %}
+                                <span class="badge bg-danger">Vencido</span>
+                            {% elif g.total_pago > 0 %}
                                 <span class="badge bg-warning text-dark">Parcial</span>
                             {% else %}
-                                <span class="badge bg-primary">Aberta</span>
+                                <span class="badge bg-primary">Em Aberto</span>
                             {% endif %}
+                        </td>
+                        <td class="text-end pe-4">
+                            <div class="d-flex gap-1 justify-content-end">
+                                {% if g.saldo > 0 %}
+                                    <button type="button" class="btn btn-sm btn-success fw-bold" onclick="abrirModalReceber('{{ g.cliente.id }}', '{{ g.cliente.nome|escapejs }}', '{{ g.saldo|stringformat:'.2f' }}')" title="Receber valor total de todas as compras unificado">
+                                        <i class="bi bi-cash-stack me-1"></i> Receber Total
+                                    </button>
+                                {% else %}
+                                    <span class="text-success small fw-bold me-2"><i class="bi bi-check-circle-fill me-1"></i>Liquidado</span>
+                                {% endif %}
+                                <a href="{% url 'cliente_ficha' g.cliente.id %}" class="btn btn-sm btn-outline-primary" title="Abrir Ficha do Cliente">
+                                    <i class="bi bi-person-lines-fill"></i>
+                                </a>
+                            </div>
+                        </td>
+                    </tr>
+                    <!-- Accordion com as Compras e os Itens de Cada Compra do Cliente -->
+                    <tr id="collapse-cliente-{{ g.cliente.id }}" class="accordion-collapse collapse" data-bs-parent="#accordionClientes">
+                        <td colspan="8" class="p-0 border-0">
+                            <div class="px-4 py-3 bg-light border-bottom shadow-inner">
+                                <div class="d-flex justify-content-between align-items-center mb-3">
+                                    <h6 class="fw-bold mb-0 text-dark small text-uppercase">
+                                        <i class="bi bi-journal-text me-1 text-primary"></i>
+                                        Compras & Títulos Unificados de <strong>{{ g.cliente.nome }}</strong>
+                                    </h6>
+                                    <a href="{% url 'receber_cliente_unificado' g.cliente.id %}" class="btn btn-sm btn-outline-success fw-bold" style="font-size: 0.8rem;">
+                                        <i class="bi bi-cash-stack me-1"></i> Tela Completa de Recebimento
+                                    </a>
+                                </div>
+
+                                {% for c in g.contas %}
+                                <div class="card border mb-3 shadow-none bg-white">
+                                    <div class="card-header bg-white py-2 d-flex justify-content-between align-items-center flex-wrap gap-2">
+                                        <div>
+                                            <strong class="text-dark">#Conta {{ c.id }}</strong>
+                                            {% if c.venda %}
+                                                — <span class="badge bg-light text-primary border">Venda {{ c.venda.codigo_venda }}</span>
+                                                <small class="text-muted ms-1">({{ c.venda.data_venda|date:"d/m/Y H:i" }})</small>
+                                            {% else %}
+                                                — <span class="text-muted">{{ c.descricao }}</span>
+                                            {% endif %}
+                                        </div>
+                                        <div class="d-flex gap-3 align-items-center small">
+                                            <span>Vencimento: <strong class="{% if c.is_vencida %}text-danger{% else %}text-dark{% endif %}">{{ c.data_vencimento|date:"d/m/Y" }}</strong></span>
+                                            <span>Original: <strong>R$ {{ c.valor_original|floatformat:2 }}</strong></span>
+                                            <span>Pago: <strong class="text-success">R$ {{ c.valor_pago|floatformat:2 }}</strong></span>
+                                            <span>Saldo: <strong class="text-danger">R$ {{ c.saldo|floatformat:2 }}</strong></span>
+                                        </div>
+                                    </div>
+                                    {% if c.venda and c.venda.itens.all %}
+                                    <div class="card-body p-2">
+                                        <table class="table table-sm table-borderless mb-0">
+                                            <thead class="text-muted small border-bottom">
+                                                <tr>
+                                                    <th>Produto</th>
+                                                    <th class="text-center">Quantidade</th>
+                                                    <th class="text-end">Preço Unitário</th>
+                                                    <th class="text-end">Subtotal</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                {% for item in c.venda.itens.all %}
+                                                <tr>
+                                                    <td class="text-dark">
+                                                        {{ item.produto.nome }}
+                                                        {% if item.produto.is_produto_terceiro %}
+                                                            <span class="badge bg-info text-dark ms-1" style="font-size: 0.7rem;">Terceiro</span>
+                                                        {% endif %}
+                                                    </td>
+                                                    <td class="text-center text-muted">
+                                                        {{ item.quantidade|floatformat:2 }} {{ item.produto.unidade_medida|default:"un" }}
+                                                    </td>
+                                                    <td class="text-end text-muted">R$ {{ item.preco_venda_unitario|floatformat:2 }}</td>
+                                                    <td class="text-end fw-bold text-dark">R$ {{ item.subtotal|floatformat:2 }}</td>
+                                                </tr>
+                                                {% endfor %}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                    {% endif %}
+                                </div>
+                                {% endfor %}
+                            </div>
+                        </td>
+                    </tr>
+                    {% empty %}
+                        {% if not contas_avulsas %}
+                        <tr>
+                            <td colspan="8" class="text-center text-muted py-5">
+                                <i class="bi bi-wallet2 fs-1 d-block mb-2 text-muted"></i>
+                                Nenhuma conta a receber encontrada com os filtros atuais.
+                            </td>
+                        </tr>
+                        {% endif %}
+                    {% endfor %}
+
+                    <!-- Seção de Títulos Avulsos Sem Cliente (se houver) -->
+                    {% for c in contas_avulsas %}
+                    <tr class="table-light">
+                        <td class="ps-4">
+                            <strong class="text-secondary">Título Avulso #{{ c.id }}</strong>
+                            <small class="d-block text-muted">{{ c.descricao }}</small>
+                        </td>
+                        <td class="text-center"><span class="badge bg-secondary">Avulso</span></td>
+                        <td>{{ c.data_vencimento|date:"d/m/Y" }}</td>
+                        <td class="text-end">R$ {{ c.valor_original|floatformat:2 }}</td>
+                        <td class="text-end text-success">R$ {{ c.valor_pago|floatformat:2 }}</td>
+                        <td class="text-end fw-bold text-danger">R$ {{ c.saldo|floatformat:2 }}</td>
+                        <td class="text-center">
+                            {% if c.saldo == 0 %}<span class="badge bg-success">Quitada</span>{% else %}<span class="badge bg-primary">Aberta</span>{% endif %}
                         </td>
                         <td class="text-end pe-4">
                             {% if c.saldo > 0 %}
                                 <a href="{% url 'receber_conta_pagar' c.id %}" class="btn btn-sm btn-success fw-bold">
-                                    <i class="bi bi-cash-stack me-1"></i> Receber
+                                    <i class="bi bi-cash me-1"></i> Receber
                                 </a>
-                            {% else %}
-                                <span class="text-success small fw-bold"><i class="bi bi-check-circle-fill me-1"></i>Liquidada</span>
                             {% endif %}
-                        </td>
-                    </tr>
-                    {% empty %}
-                    <tr>
-                        <td colspan="9" class="text-center text-muted py-5">
-                            <i class="bi bi-wallet2 fs-1 d-block mb-2 text-muted"></i>
-                            Nenhuma conta a receber encontrada com os filtros atuais.
                         </td>
                     </tr>
                     {% endfor %}
@@ -192,4 +288,130 @@
         </div>
     </div>
 </div>
+
+<!-- MODAL RECEBER UNIFICADO FINANCEIRO -->
+<div class="modal fade" id="modalReceberUnificadoFinanceiro" tabindex="-1" aria-labelledby="modalReceberUnificadoFinanceiroLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content border-0 shadow">
+            <div class="modal-header bg-success text-white">
+                <h5 class="modal-title fw-bold" id="modalReceberUnificadoFinanceiroLabel">
+                    <i class="bi bi-cash-stack me-2"></i>Receber Dívida Unificada de Cliente
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Fechar"></button>
+            </div>
+            <form method="post" id="formReceberUnificado">
+                {% csrf_token %}
+                <input type="hidden" name="cliente_id" id="modal_cliente_id">
+                <div class="modal-body p-4">
+                    <div class="card bg-light border-0 p-3 mb-3 rounded-3">
+                        <div class="d-flex justify-content-between mb-1">
+                            <span class="text-muted">Cliente:</span>
+                            <strong class="text-dark fs-6" id="modal_cliente_nome"></strong>
+                        </div>
+                        <div class="d-flex justify-content-between align-items-center">
+                            <span class="fw-bold">Total a Receber (Unificado):</span>
+                            <span class="fs-4 fw-bold text-danger" id="modal_saldo_display"></span>
+                        </div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="modal_forma_pagamento" class="form-label fw-bold">Forma de Pagamento *</label>
+                        <select name="forma_pagamento" id="modal_forma_pagamento" class="form-select form-select-lg" required onchange="aoMudarFormaModal()">
+                            <option value="DINHEIRO">💵 Dinheiro (Entra na Gaveta do Caixa)</option>
+                            <option value="PIX">📱 PIX</option>
+                            <option value="CARTAO_DEBITO">💳 Cartão de Débito</option>
+                            <option value="CARTAO_CREDITO">💳 Cartão de Crédito</option>
+                        </select>
+                    </div>
+
+                    <div class="row g-3 mb-3">
+                        <div class="col-12 col-md-6">
+                            <label for="modal_valor_pago" class="form-label fw-bold">Valor Pago (R$) *</label>
+                            <input type="number" step="0.01" min="0.01" max="999999" name="valor_pago" id="modal_valor_pago" class="form-control form-control-lg fw-bold text-success fs-5" required oninput="calcularTrocoModal()">
+                        </div>
+                        <div class="col-12 col-md-6" id="modal_group_troco">
+                            <label for="modal_troco" class="form-label fw-bold">Troco (R$)</label>
+                            <input type="number" step="0.01" min="0" name="troco" id="modal_troco" class="form-control form-control-lg fw-bold text-muted fs-5" value="0.00" readonly>
+                        </div>
+                    </div>
+
+                    <div class="alert alert-info py-2 mb-3 d-flex justify-content-between align-items-center">
+                        <span class="small">Valor Efetivo Abatido da Dívida:</span>
+                        <strong class="text-primary" id="modal_display_efetivo"></strong>
+                    </div>
+
+                    {% if sessao_aberta %}
+                        <div class="alert alert-success py-2 mb-3 small">
+                            <i class="bi bi-shop me-1"></i> Caixa Físico Aberto: <strong>{{ sessao_aberta.caixa.nome }}</strong> (Operador: {{ request.user.username }})
+                        </div>
+                    {% else %}
+                        <div class="alert alert-warning py-2 mb-3 small">
+                            <i class="bi bi-exclamation-triangle me-1"></i> Nenhuma sessão de caixa aberta. O valor será registrado no Fluxo de Caixa Geral.
+                        </div>
+                    {% endif %}
+
+                    <div class="mb-2">
+                        <label for="modal_observacao" class="form-label fw-bold small">Observações</label>
+                        <input type="text" name="observacao" id="modal_observacao" class="form-control" placeholder="Ex: Quitação unificada de crediário / fiado">
+                    </div>
+                </div>
+                <div class="modal-footer bg-light border-0">
+                    <button type="button" class="btn btn-secondary fw-bold" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="submit" class="btn btn-success fw-bold px-4">
+                        <i class="bi bi-check-circle me-1"></i> Confirmar Recebimento Unificado
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
 {% endblock %}
+
+{% block extra_js %}
+<script>
+    let saldoClienteAtual = 0;
+
+    function abrirModalReceber(clienteId, clienteNome, saldoStr) {
+        saldoClienteAtual = parseFloat(saldoStr) || 0;
+        document.getElementById('modal_cliente_id').value = clienteId;
+        document.getElementById('modal_cliente_nome').innerText = clienteNome;
+        document.getElementById('modal_saldo_display').innerText = 'R$ ' + saldoClienteAtual.toLocaleString('pt-BR', {minimumFractionDigits: 2, maximumFractionDigits: 2});
+        document.getElementById('modal_valor_pago').value = saldoClienteAtual.toFixed(2);
+        document.getElementById('modal_troco').value = '0.00';
+        document.getElementById('modal_display_efetivo').innerText = 'R$ ' + saldoClienteAtual.toLocaleString('pt-BR', {minimumFractionDigits: 2, maximumFractionDigits: 2});
+
+        aoMudarFormaModal();
+
+        const modal = new bootstrap.Modal(document.getElementById('modalReceberUnificadoFinanceiro'));
+        modal.show();
+    }
+
+    function aoMudarFormaModal() {
+        const forma = document.getElementById('modal_forma_pagamento').value;
+        const gTroco = document.getElementById('modal_group_troco');
+        if (forma !== 'DINHEIRO') {
+            gTroco.classList.add('d-none');
+            document.getElementById('modal_troco').value = '0.00';
+        } else {
+            gTroco.classList.remove('d-none');
+            calcularTrocoModal();
+        }
+    }
+
+    function calcularTrocoModal() {
+        const forma = document.getElementById('modal_forma_pagamento').value;
+        const inputValor = document.getElementById('modal_valor_pago');
+        const valorPago = parseFloat(inputValor.value) || 0;
+        let troco = 0;
+
+        if (forma === 'DINHEIRO' && valorPago > saldoClienteAtual) {
+            troco = valorPago - saldoClienteAtual;
+        }
+
+        document.getElementById('modal_troco').value = troco.toFixed(2);
+        const efetivo = Math.min(valorPago - troco, saldoClienteAtual);
+        document.getElementById('modal_display_efetivo').innerText = 'R$ ' + Math.max(0, efetivo).toLocaleString('pt-BR', {minimumFractionDigits: 2, maximumFractionDigits: 2});
+    }
+</script>
+{% endblock %}
+

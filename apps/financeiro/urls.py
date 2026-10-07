@@ -1,6 +1,7 @@
 from django.urls import path
 from .views import (
-    contas_receber_list, receber_conta_view, baixar_conta_receber_view, cancelar_conta_receber_view,
+    contas_receber_list, receber_conta_view, receber_cliente_unificado_view,
+    baixar_conta_receber_view, cancelar_conta_receber_view,
     contas_pagar_list, despesa_form, pagar_despesa_view, cancelar_despesa_view,
     baixar_conta_pagar_view, despesas_recorrentes_list, despesa_recorrente_form,
     gerar_previsoes_view, categorias_despesa_list, categoria_despesa_form,
@@ -10,6 +11,7 @@ from .views import (
 urlpatterns = [
     # Contas a Receber (Crediário)
     path('receber/', contas_receber_list, name='contas_receber_list'),
+    path('receber/cliente/<int:cliente_id>/', receber_cliente_unificado_view, name='receber_cliente_unificado'),
     path('receber/<int:pk>/pagar/', receber_conta_view, name='receber_conta_pagar'),
     path('receber/<int:pk>/baixar/', baixar_conta_receber_view, name='baixar_conta_receber'),
     path('receber/<int:pk>/cancelar/', cancelar_conta_receber_view, name='cancelar_conta_receber'),

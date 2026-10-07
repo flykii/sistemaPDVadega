@@ -216,6 +216,7 @@ class ContaPagar(TenantModelMixin):
 class PagamentoContaPagar(TenantModelMixin):
     FORMA_CHOICES = [
         ('DINHEIRO', 'Dinheiro (Caixa Físico)'),
+        ('DINHEIRO_EXTERNO', 'Dinheiro Próprio (Fora do Caixa)'),
         ('PIX', 'PIX'),
         ('CARTAO_DEBITO', 'Cartão Débito'),
         ('CARTAO_CREDITO', 'Cartão Crédito'),

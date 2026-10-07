@@ -1,0 +1,172 @@
+{% extends 'base.html' %}
+
+{% block title %}Receber Crediário Unificado: {{ cliente.nome }} - PDV Enterprise{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center my-4">
+    <div class="col-12 col-lg-8">
+        <div class="card card-custom p-4 shadow-sm border-0">
+            <div class="d-flex justify-content-between align-items-center mb-3">
+                <div>
+                    <h3 class="fw-bold text-dark mb-1">
+                        <i class="bi bi-cash-stack text-success me-2"></i>Recebimento Unificado de Crediário
+                    </h3>
+                    <p class="text-muted mb-0">Cliente: <strong>{{ cliente.nome }}</strong> ({{ contas_abertas|length }} compras / títulos em aberto)</p>
+                </div>
+                <a href="{% url 'contas_receber_list' %}" class="btn btn-outline-secondary btn-sm">
+                    <i class="bi bi-arrow-left me-1"></i> Voltar
+                </a>
+            </div>
+
+            <!-- Resumo da Dívida Consolidada -->
+            <div class="card bg-light p-3 border mb-4 rounded-3">
+                <div class="d-flex justify-content-between mb-1">
+                    <span class="text-muted">Total de Compras / Títulos em Aberto:</span>
+                    <strong>{{ contas_abertas|length }} títulos</strong>
+                </div>
+                <div class="d-flex justify-content-between mb-1">
+                    <span class="text-muted">Limite de Crédito Cadastrado:</span>
+                    <span>R$ {{ cliente.limite_credito|floatformat:2 }}</span>
+                </div>
+                <hr class="my-2">
+                <div class="d-flex justify-content-between align-items-center">
+                    <span class="fw-bold fs-6">Dívida Total Unificada:</span>
+                    <strong class="fs-3 text-danger" id="saldo-total-unificado" data-saldo="{{ total_saldo|stringformat:'.2f' }}">
+                        R$ {{ total_saldo|floatformat:2 }}
+                    </strong>
+                </div>
+            </div>
+
+            <!-- Tabela dos Títulos / Compras Que Serão Amortizados -->
+            <div class="mb-4">
+                <h6 class="fw-bold text-dark mb-2">
+                    <i class="bi bi-receipt me-1 text-primary"></i>Títulos a serem quitados / amortizados:
+                </h6>
+                <div class="table-responsive border rounded">
+                    <table class="table table-sm table-hover align-middle mb-0">
+                        <thead class="table-light small">
+                            <tr>
+                                <th>Conta / Venda</th>
+                                <th>Vencimento</th>
+                                <th class="text-end">Original</th>
+                                <th class="text-end">Já Pago</th>
+                                <th class="text-end">Saldo Devedor</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for c in contas_abertas %}
+                            <tr>
+                                <td>
+                                    <strong>#{{ c.id }}</strong>
+                                    {% if c.venda %}
+                                        <span class="badge bg-light text-dark border ms-1">Venda {{ c.venda.codigo_venda }}</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    <span class="{% if c.is_vencida %}text-danger fw-bold{% else %}text-muted{% endif %}">
+                                        {{ c.data_vencimento|date:"d/m/Y" }}
+                                    </span>
+                                </td>
+                                <td class="text-end text-muted">R$ {{ c.valor_original|floatformat:2 }}</td>
+                                <td class="text-end text-success">R$ {{ c.valor_pago|floatformat:2 }}</td>
+                                <td class="text-end fw-bold text-danger">R$ {{ c.saldo|floatformat:2 }}</td>
+                            </tr>
+                            {% empty %}
+                            <tr>
+                                <td colspan="5" class="text-center text-muted py-3">Nenhum título em aberto para este cliente.</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- Formulário de Pagamento -->
+            <form method="post" id="form-recebimento-unificado">
+                {% csrf_token %}
+                <div class="mb-3">
+                    <label for="forma_pagamento" class="form-label fw-bold">Forma de Pagamento *</label>
+                    <select name="forma_pagamento" id="forma_pagamento" class="form-select form-select-lg" required onchange="aoMudarForma()">
+                        <option value="DINHEIRO">💵 Dinheiro (Aumenta Gaveta do Caixa)</option>
+                        <option value="PIX">📱 PIX (Não altera saldo físico da gaveta)</option>
+                        <option value="CARTAO_DEBITO">💳 Cartão de Débito</option>
+                        <option value="CARTAO_CREDITO">💳 Cartão de Crédito</option>
+                    </select>
+                </div>
+
+                <div class="row g-3 mb-3">
+                    <div class="col-12 col-md-6">
+                        <label for="valor_pago" class="form-label fw-bold">Valor Entregue / Pago (R$) *</label>
+                        <input type="number" step="0.01" min="0.01" max="999999" name="valor_pago" id="valor_pago" class="form-control form-control-lg fw-bold text-success fs-4" value="{{ total_saldo|stringformat:'.2f' }}" required oninput="calcularTrocoRecebimento()">
+                    </div>
+
+                    <div class="col-12 col-md-6" id="group-troco">
+                        <label for="troco" class="form-label fw-bold">Troco a Devolver (R$)</label>
+                        <input type="number" step="0.01" min="0" name="troco" id="troco" class="form-control form-control-lg fw-bold text-muted fs-4" value="0.00" readonly>
+                    </div>
+                </div>
+
+                <div class="alert alert-info py-2 mb-3 d-flex justify-content-between align-items-center">
+                    <span>Valor Efetivo Abatido da Dívida Unificada:</span>
+                    <strong class="fs-5 text-primary" id="display-valor-efetivo">R$ {{ total_saldo|floatformat:2 }}</strong>
+                </div>
+
+                {% if sessao_caixa %}
+                    <div class="alert alert-success py-2 mb-3 small">
+                        <i class="bi bi-shop me-1"></i> Caixa Físico Aberto: <strong>{{ sessao_caixa.caixa.nome }}</strong> (Operador: {{ request.user.username }})
+                    </div>
+                {% else %}
+                    <div class="alert alert-warning py-2 mb-3 small">
+                        <i class="bi bi-exclamation-triangle me-1"></i> Nenhuma sessão de caixa aberta. O recebimento será lançado no Fluxo de Caixa Geral.
+                    </div>
+                {% endif %}
+
+                <div class="mb-4">
+                    <label for="observacao" class="form-label fw-bold">Observações / Comprovante</label>
+                    <input type="text" name="observacao" id="observacao" class="form-control" placeholder="Ex: Pagamento total unificado de crediário...">
+                </div>
+
+                <div class="d-flex gap-2">
+                    <a href="{% url 'contas_receber_list' %}" class="btn btn-secondary w-50 py-3 fw-bold">Cancelar</a>
+                    <button type="submit" class="btn btn-success w-50 py-3 fw-bold fs-5 shadow">
+                        <i class="bi bi-check2-circle me-1"></i> Confirmar Recebimento Unificado
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    const saldoTotal = parseFloat(document.getElementById('saldo-total-unificado')?.getAttribute('data-saldo')) || 0;
+
+    function aoMudarForma() {
+        const forma = document.getElementById('forma_pagamento').value;
+        const gTroco = document.getElementById('group-troco');
+        if (forma !== 'DINHEIRO') {
+            gTroco.classList.add('d-none');
+            document.getElementById('troco').value = '0.00';
+        } else {
+            gTroco.classList.remove('d-none');
+            calcularTrocoRecebimento();
+        }
+    }
+
+    function calcularTrocoRecebimento() {
+        const forma = document.getElementById('forma_pagamento').value;
+        const inputValor = document.getElementById('valor_pago');
+        const valorPago = parseFloat(inputValor.value) || 0;
+        let troco = 0;
+
+        if (forma === 'DINHEIRO' && valorPago > saldoTotal) {
+            troco = valorPago - saldoTotal;
+        }
+
+        document.getElementById('troco').value = troco.toFixed(2);
+        const valorEfetivo = Math.min(valorPago - troco, saldoTotal);
+        document.getElementById('display-valor-efetivo').innerText = 'R$ ' + Math.max(0, valorEfetivo).toLocaleString('pt-BR', {minimumFractionDigits: 2, maximumFractionDigits: 2});
+    }
+</script>
+{% endblock %}

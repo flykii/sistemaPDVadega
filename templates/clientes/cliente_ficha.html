@@ -15,7 +15,12 @@
             </h2>
             <p class="text-muted mb-0">Extrato detalhado de crediário, histórico de compras e pagamentos recebidos.</p>
         </div>
-        <div class="d-flex gap-2">
+        <div class="d-flex gap-2 align-items-center">
+            {% if cliente.saldo_devedor > 0 %}
+            <button type="button" class="btn btn-success fw-bold shadow-sm" data-bs-toggle="modal" data-bs-target="#modalReceberTotalCliente">
+                <i class="bi bi-cash-stack me-1"></i> Receber Dívida Completa (R$ {{ cliente.saldo_devedor|floatformat:2 }})
+            </button>
+            {% endif %}
             <a href="{% url 'cliente_editar' cliente.id %}" class="btn btn-outline-primary fw-bold">
                 <i class="bi bi-pencil me-1"></i> Editar Dados
             </a>
@@ -35,8 +40,15 @@
         </div>
         <div class="col-12 col-md-3">
             <div class="card p-3 border-0 shadow-sm border-start border-danger border-4 bg-light">
-                <span class="text-danger small text-uppercase fw-bold">Saldo Devedor Atual</span>
-                <h3 class="fw-bold text-danger mb-0">R$ {{ cliente.saldo_devedor|floatformat:2 }}</h3>
+                <div class="d-flex justify-content-between align-items-center">
+                    <span class="text-danger small text-uppercase fw-bold">Saldo Devedor Atual</span>
+                    {% if cliente.saldo_devedor > 0 %}
+                    <button type="button" class="btn btn-sm btn-success fw-bold py-0 px-2" data-bs-toggle="modal" data-bs-target="#modalReceberTotalCliente" title="Receber dívida completa">
+                        <i class="bi bi-cash me-1"></i> Receber
+                    </button>
+                    {% endif %}
+                </div>
+                <h3 class="fw-bold text-danger mb-0 mt-1">R$ {{ cliente.saldo_devedor|floatformat:2 }}</h3>
             </div>
         </div>
         <div class="col-12 col-md-3">
@@ -80,6 +92,15 @@
     <div class="tab-content" id="clienteTabContent">
         <!-- ABA 1: CONTAS A RECEBER -->
         <div class="tab-pane fade show active" id="contas" role="tabpanel">
+            <div class="d-flex justify-content-between align-items-center mb-3">
+                <span class="text-muted small"><i class="bi bi-info-circle me-1"></i>Clique em uma linha para ver os itens detalhados da compra.</span>
+                {% if cliente.saldo_devedor > 0 %}
+                <button type="button" class="btn btn-success fw-bold btn-sm shadow-sm" data-bs-toggle="modal" data-bs-target="#modalReceberTotalCliente">
+                    <i class="bi bi-cash-stack me-1"></i> Receber Dívida Completa (R$ {{ cliente.saldo_devedor|floatformat:2 }})
+                </button>
+                {% endif %}
+            </div>
+
             <div class="card card-custom p-0 border-0 shadow-sm rounded-4 overflow-hidden mb-4">
                 <div class="table-responsive">
                     <table class="table table-hover align-middle mb-0">
@@ -92,12 +113,12 @@
                                 <th class="text-end">Valor Pago</th>
                                 <th class="text-end">Saldo Devedor</th>
                                 <th class="text-center">Status</th>
-                                <th class="text-end pe-4">Ação</th>
+                                <th class="text-center pe-4">Itens da Compra</th>
                             </tr>
                         </thead>
-                        <tbody>
+                        <tbody id="accordionContas">
                             {% for c in contas %}
-                            <tr class="{% if c.is_vencida %}table-danger-subtle{% elif c.saldo == 0 %}table-light text-muted{% endif %}">
+                            <tr data-bs-toggle="collapse" data-bs-target="#collapse-conta-{{ c.id }}" aria-expanded="false" aria-controls="collapse-conta-{{ c.id }}" style="cursor: pointer;" class="{% if c.is_vencida %}table-danger-subtle{% elif c.saldo == 0 %}table-light text-muted{% endif %}" title="Clique para ver os produtos comprados nesta venda">
                                 <td class="ps-4">
                                     <strong class="text-dark">#{{ c.id }}</strong>
                                     <small class="d-block {% if c.is_vencida %}text-danger fw-bold{% else %}text-muted{% endif %}">
@@ -106,9 +127,9 @@
                                 </td>
                                 <td>
                                     {% if c.venda %}
-                                        <a href="{% url 'venda_detalhe' c.venda.id %}" class="fw-bold text-decoration-none">
-                                            {{ c.venda.codigo_venda }}
-                                        </a>
+                                        <span class="fw-bold text-primary">
+                                            <i class="bi bi-bag-check me-1"></i>{{ c.venda.codigo_venda }}
+                                        </span>
                                     {% else %}
                                         <span class="text-muted">-</span>
                                     {% endif %}
@@ -130,14 +151,77 @@
                                         <span class="badge bg-primary">Aberta</span>
                                     {% endif %}
                                 </td>
-                                <td class="text-end pe-4">
-                                    {% if c.saldo > 0 %}
-                                        <a href="{% url 'receber_conta_pagar' c.id %}" class="btn btn-sm btn-success fw-bold">
-                                            <i class="bi bi-cash me-1"></i> Receber
-                                        </a>
-                                    {% else %}
-                                        <span class="text-success small fw-bold"><i class="bi bi-check-circle-fill me-1"></i>Liquidada</span>
-                                    {% endif %}
+                                <td class="text-center pe-4">
+                                    <button type="button" class="btn btn-sm btn-outline-secondary py-0 px-2" title="Ver itens desta compra">
+                                        <i class="bi bi-chevron-down me-1"></i> Ver Itens
+                                    </button>
+                                </td>
+                            </tr>
+                            <tr id="collapse-conta-{{ c.id }}" class="accordion-collapse collapse" data-bs-parent="#accordionContas">
+                                <td colspan="8" class="p-0 border-0">
+                                    <div class="px-4 py-3 bg-light border-bottom shadow-inner">
+                                        <div class="d-flex justify-content-between align-items-center mb-2">
+                                            <h6 class="fw-bold mb-0 small text-muted text-uppercase">
+                                                <i class="bi bi-box-seam me-1 text-primary"></i>
+                                                {% if c.venda %}
+                                                    Itens da Compra (Venda #{{ c.venda.codigo_venda }})
+                                                {% else %}
+                                                    Detalhes da Conta #{{ c.id }}
+                                                {% endif %}
+                                            </h6>
+                                            {% if c.venda %}
+                                            <a href="{% url 'venda_detalhe' c.venda.id %}" class="btn btn-sm btn-outline-primary py-0 px-2" style="font-size: 0.8rem;">
+                                                <i class="bi bi-box-arrow-up-right me-1"></i> Ver Cupom da Venda
+                                            </a>
+                                            {% endif %}
+                                        </div>
+                                        {% if c.venda and c.venda.itens.all %}
+                                        <div class="table-responsive">
+                                            <table class="table table-sm table-bordered bg-white mb-0 rounded overflow-hidden">
+                                                <thead class="table-light small">
+                                                    <tr>
+                                                        <th>Produto</th>
+                                                        <th class="text-center">Quantidade</th>
+                                                        <th class="text-end">Preço Unitário</th>
+                                                        <th class="text-end">Subtotal</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody>
+                                                    {% for item in c.venda.itens.all %}
+                                                    <tr>
+                                                        <td class="text-dark fw-bold">
+                                                            {{ item.produto.nome }}
+                                                            {% if item.produto.is_produto_terceiro %}
+                                                                <span class="badge bg-info text-dark ms-1" style="font-size: 0.7rem;">Terceiro</span>
+                                                            {% endif %}
+                                                        </td>
+                                                        <td class="text-center text-muted">
+                                                            {{ item.quantidade|floatformat:2 }} {{ item.produto.unidade_medida|default:"un" }}
+                                                        </td>
+                                                        <td class="text-end text-muted">R$ {{ item.preco_venda_unitario|floatformat:2 }}</td>
+                                                        <td class="text-end fw-bold text-dark">R$ {{ item.subtotal|floatformat:2 }}</td>
+                                                    </tr>
+                                                    {% endfor %}
+                                                </tbody>
+                                                <tfoot class="table-light">
+                                                    <tr>
+                                                        <td colspan="3" class="text-end fw-bold small">Total desta Compra:</td>
+                                                        <td class="text-end fw-bold text-primary">R$ {{ c.venda.total|floatformat:2 }}</td>
+                                                    </tr>
+                                                </tfoot>
+                                            </table>
+                                        </div>
+                                        {% else %}
+                                        <div class="text-muted small py-2">
+                                            <i class="bi bi-info-circle me-1"></i>
+                                            {% if c.venda %}
+                                                Esta venda não possui itens registrados.
+                                            {% else %}
+                                                Título financeiro avulso: {{ c.descricao }}
+                                            {% endif %}
+                                        </div>
+                                        {% endif %}
+                                    </div>
                                 </td>
                             </tr>
                             {% empty %}
@@ -240,4 +324,126 @@
         </div>
     </div>
 </div>
+
+<!-- MODAL DE RECEBIMENTO UNIFICADO DA DÍVIDA DO CLIENTE -->
+<div class="modal fade" id="modalReceberTotalCliente" tabindex="-1" aria-labelledby="modalReceberTotalClienteLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content border-0 shadow">
+            <div class="modal-header bg-success text-white">
+                <h5 class="modal-title fw-bold" id="modalReceberTotalClienteLabel">
+                    <i class="bi bi-cash-stack me-2"></i>Receber Dívida do Cliente
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Fechar"></button>
+            </div>
+            <form method="post" id="formReceberTotalCliente">
+                {% csrf_token %}
+                <div class="modal-body p-4">
+                    <div class="card bg-light border-0 p-3 mb-3 rounded-3">
+                        <div class="d-flex justify-content-between mb-1">
+                            <span class="text-muted">Cliente:</span>
+                            <strong class="text-dark">{{ cliente.nome }}</strong>
+                        </div>
+                        <div class="d-flex justify-content-between align-items-center">
+                            <span class="fw-bold">Saldo Devedor Total:</span>
+                            <span class="fs-4 fw-bold text-danger" id="total-saldo-display" data-saldo="{{ cliente.saldo_devedor|stringformat:'.2f' }}">
+                                R$ {{ cliente.saldo_devedor|floatformat:2 }}
+                            </span>
+                        </div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="forma_pagamento_cliente" class="form-label fw-bold">Forma de Pagamento *</label>
+                        <select name="forma_pagamento" id="forma_pagamento_cliente" class="form-select form-select-lg" required onchange="aoMudarFormaCliente()">
+                            <option value="DINHEIRO">💵 Dinheiro (Entra na Gaveta do Caixa)</option>
+                            <option value="PIX">📱 PIX (Não altera saldo físico da gaveta)</option>
+                            <option value="CARTAO_DEBITO">💳 Cartão de Débito</option>
+                            <option value="CARTAO_CREDITO">💳 Cartão de Crédito</option>
+                        </select>
+                    </div>
+
+                    <div class="row g-3 mb-3">
+                        <div class="col-12 col-md-6">
+                            <label for="valor_pago_cliente" class="form-label fw-bold">Valor Pago (R$) *</label>
+                            <input type="number" step="0.01" min="0.01" max="999999" name="valor_pago" id="valor_pago_cliente" class="form-control form-control-lg fw-bold text-success fs-5" value="{{ cliente.saldo_devedor|stringformat:'.2f' }}" required oninput="calcularTrocoCliente()">
+                        </div>
+                        <div class="col-12 col-md-6" id="group-troco-cliente">
+                            <label for="troco_cliente" class="form-label fw-bold">Troco (R$)</label>
+                            <input type="number" step="0.01" min="0" name="troco" id="troco_cliente" class="form-control form-control-lg fw-bold text-muted fs-5" value="0.00" readonly>
+                        </div>
+                    </div>
+
+                    <div class="alert alert-info py-2 mb-3 d-flex justify-content-between align-items-center">
+                        <span class="small">Valor Efetivo Abatido da Dívida:</span>
+                        <strong class="text-primary" id="display-efetivo-cliente">R$ {{ cliente.saldo_devedor|floatformat:2 }}</strong>
+                    </div>
+
+                    {% if sessao_caixa %}
+                        <div class="alert alert-success py-2 mb-3 small">
+                            <i class="bi bi-shop me-1"></i> Lançamento na sessão de caixa: <strong>{{ sessao_caixa.caixa.nome }}</strong> (Operador: {{ request.user.username }})
+                        </div>
+                    {% else %}
+                        <div class="alert alert-warning py-2 mb-3 small">
+                            <i class="bi bi-exclamation-triangle me-1"></i> Nenhuma sessão de caixa aberta. O valor será registrado no Fluxo de Caixa Geral.
+                        </div>
+                    {% endif %}
+
+                    <div class="mb-2">
+                        <label for="observacao_cliente" class="form-label fw-bold small">Observações / Comprovante</label>
+                        <input type="text" name="observacao" id="observacao_cliente" class="form-control" placeholder="Ex: Quitação total de crediário / fiado">
+                    </div>
+                </div>
+                <div class="modal-footer bg-light border-0">
+                    <button type="button" class="btn btn-secondary fw-bold" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="submit" class="btn btn-success fw-bold px-4">
+                        <i class="bi bi-check-circle me-1"></i> Confirmar Recebimento
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    const totalSaldoCliente = parseFloat(document.getElementById('total-saldo-display')?.getAttribute('data-saldo')) || 0;
+
+    function aoMudarFormaCliente() {
+        const forma = document.getElementById('forma_pagamento_cliente')?.value;
+        const gTroco = document.getElementById('group-troco-cliente');
+        if (!forma || !gTroco) return;
+
+        if (forma !== 'DINHEIRO') {
+            gTroco.classList.add('d-none');
+            document.getElementById('troco_cliente').value = '0.00';
+        } else {
+            gTroco.classList.remove('d-none');
+            calcularTrocoCliente();
+        }
+    }
+
+    function calcularTrocoCliente() {
+        const forma = document.getElementById('forma_pagamento_cliente')?.value;
+        const inputValor = document.getElementById('valor_pago_cliente');
+        if (!inputValor) return;
+
+        const valorPago = parseFloat(inputValor.value) || 0;
+        let troco = 0;
+
+        if (forma === 'DINHEIRO' && valorPago > totalSaldoCliente) {
+            troco = valorPago - totalSaldoCliente;
+        }
+
+        const inputTroco = document.getElementById('troco_cliente');
+        if (inputTroco) {
+            inputTroco.value = troco.toFixed(2);
+        }
+
+        const efetivo = Math.min(valorPago - troco, totalSaldoCliente);
+        const displayEfetivo = document.getElementById('display-efetivo-cliente');
+        if (displayEfetivo) {
+            displayEfetivo.innerText = 'R$ ' + Math.max(0, efetivo).toLocaleString('pt-BR', {minimumFractionDigits: 2, maximumFractionDigits: 2});
+        }
+    }
+</script>
 {% endblock %}

@@ -36,6 +36,7 @@
                     <p class="mb-1"><strong>Documento / NF:</strong> {{ compra.numero_nota|default:"Sem número" }}</p>
                     <p class="mb-1"><strong>Data do Pedido:</strong> {{ compra.data_compra|date:"d/m/Y H:i" }}</p>
                     <p class="mb-0"><strong>Total Previsto:</strong> <span class="text-success fw-bold">R$ {{ compra.total|floatformat:2 }}</span></p>
+                    <p class="mb-0 mt-2"><strong>Total Desta Entrega:</strong> <span id="card-total-entrega" class="badge bg-success fs-6">R$ 0,00</span></p>
                 </div>
             </div>
 
@@ -81,15 +82,16 @@
                 <span class="small text-muted">Apenas as quantidades informadas na coluna "Qtd. Deste Recebimento" entrarão no estoque.</span>
             </div>
             <div class="table-responsive">
-                <table class="table table-bordered align-middle mb-0">
+                <table class="table table-bordered align-middle mb-0" id="tabela-itens-recebimento">
                     <thead class="table-light">
                         <tr>
-                            <th style="width: 35%;">Produto</th>
-                            <th style="width: 12%;" class="text-center">Qtd. Pedida</th>
-                            <th style="width: 12%;" class="text-center">Já Recebido</th>
-                            <th style="width: 12%;" class="text-center">Pendente</th>
-                            <th style="width: 15%;" class="text-center bg-success-subtle">Qtd. Deste Recebimento</th>
-                            <th style="width: 14%;" class="text-center">Custo Unit. (R$)</th>
+                            <th style="width: 30%;">Produto</th>
+                            <th style="width: 10%;" class="text-center">Qtd. Pedida</th>
+                            <th style="width: 10%;" class="text-center">Já Recebido</th>
+                            <th style="width: 10%;" class="text-center">Pendente</th>
+                            <th style="width: 14%;" class="text-center bg-success-subtle">Qtd. Deste Recebimento</th>
+                            <th style="width: 13%;" class="text-center">Custo Unit. (R$)</th>
+                            <th style="width: 13%;" class="text-end bg-light">Subtotal (R$)</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -104,14 +106,25 @@
                             <td class="text-center text-success fw-bold">{{ item.quantidade_recebida|floatformat:0 }} {{ item.produto.unidade_medida }}</td>
                             <td class="text-center text-danger fw-bold">{{ item.quantidade_pendente|floatformat:0 }} {{ item.produto.unidade_medida }}</td>
                             <td class="bg-success-subtle">
-                                <input type="number" step="0.001" min="0" name="quantidade_recebida[]" class="form-control form-control-lg text-center fw-bold border-success" value="{{ item.quantidade_pendente|stringformat:'.3f' }}">
+                                <input type="number" step="0.001" min="0" name="quantidade_recebida[]" class="form-control form-control-lg text-center fw-bold border-success input-qtd-recebimento" value="{{ item.quantidade_pendente|stringformat:'.3f' }}" oninput="recalcularSubtotal(this)">
                             </td>
                             <td>
-                                <input type="number" step="0.01" min="0" name="preco_custo[]" class="form-control text-center" value="{{ item.preco_custo_unitario|stringformat:'.2f' }}">
+                                <input type="number" step="0.01" min="0" name="preco_custo[]" class="form-control text-center input-custo-recebimento" value="{{ item.preco_custo_unitario|stringformat:'.2f' }}" oninput="recalcularSubtotal(this)">
+                            </td>
+                            <td class="text-end fw-bold text-dark fs-6 bg-light py-3">
+                                R$ <span class="subtotal-item-display">0,00</span>
                             </td>
                         </tr>
                         {% endfor %}
                     </tbody>
+                    <tfoot class="table-light border-top border-2">
+                        <tr>
+                            <th colspan="4" class="text-end fw-bold fs-6">Total Deste Recebimento:</th>
+                            <th class="text-center text-success fw-bold fs-5" id="total-itens-recebidos-display">0 un</th>
+                            <th class="text-center text-muted small">Soma:</th>
+                            <th class="text-end text-success fw-bold fs-5" id="total-valor-recebimento-display">R$ 0,00</th>
+                        </tr>
+                    </tfoot>
                 </table>
             </div>
             <div class="p-4 bg-white border-top d-flex justify-content-between align-items-center flex-wrap gap-2">
@@ -123,4 +136,52 @@
         </div>
     </form>
 </div>
+
+<script>
+    function recalcularSubtotal(elemento) {
+        const tr = elemento.closest('tr');
+        const inputQtd = tr.querySelector('.input-qtd-recebimento');
+        const inputCusto = tr.querySelector('.input-custo-recebimento');
+        const spanSubtotal = tr.querySelector('.subtotal-item-display');
+
+        const qtd = parseFloat(inputQtd.value) || 0;
+        const custo = parseFloat(inputCusto.value) || 0;
+        const subtotal = Math.max(0, qtd * custo);
+
+        spanSubtotal.textContent = subtotal.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+        recalcularTotalGeralRecebimento();
+    }
+
+    function recalcularTotalGeralRecebimento() {
+        let totalValor = 0;
+        let totalItens = 0;
+
+        document.querySelectorAll('#tabela-itens-recebimento tbody tr').forEach(tr => {
+            const inputQtd = tr.querySelector('.input-qtd-recebimento');
+            const inputCusto = tr.querySelector('.input-custo-recebimento');
+            if (inputQtd && inputCusto) {
+                const q = parseFloat(inputQtd.value) || 0;
+                const c = parseFloat(inputCusto.value) || 0;
+                totalItens += Math.max(0, q);
+                totalValor += Math.max(0, q * c);
+            }
+        });
+
+        const displayValor = document.getElementById('total-valor-recebimento-display');
+        const displayItens = document.getElementById('total-itens-recebidos-display');
+        const cardValor = document.getElementById('card-total-entrega');
+
+        const textoFormatado = 'R$ ' + totalValor.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+        if (displayValor) displayValor.textContent = textoFormatado;
+        if (cardValor) cardValor.textContent = textoFormatado;
+        if (displayItens) displayItens.textContent = totalItens.toLocaleString('pt-BR', { minimumFractionDigits: 0, maximumFractionDigits: 3 }) + ' un';
+    }
+
+    document.addEventListener('DOMContentLoaded', () => {
+        document.querySelectorAll('#tabela-itens-recebimento tbody tr').forEach(tr => {
+            const inputQtd = tr.querySelector('.input-qtd-recebimento');
+            if (inputQtd) recalcularSubtotal(inputQtd);
+        });
+    });
+</script>
 {% endblock %}
