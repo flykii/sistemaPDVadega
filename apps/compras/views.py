@@ -157,6 +157,133 @@ def nova_compra_view(request):
 
 
 @login_required
+@cargo_required('ADMIN', 'GERENTE', 'ESTOQUISTA', 'FINANCEIRO')
+def editar_compra_view(request, pk):
+    empresa = request.tenant or request.user.empresa
+    compra = get_object_or_404(
+        Compra.objects.prefetch_related('itens__produto', 'contas_pagar'),
+        pk=pk,
+        empresa=empresa
+    )
+
+    if compra.status != 'PENDENTE':
+        messages.error(
+            request,
+            f"O pedido #{compra.numero_nota or compra.id} possui status '{compra.get_status_display()}' e não pode ser editado. Somente pedidos pendentes de recebimento podem ser alterados."
+        )
+        return redirect('compra_detalhe', pk=compra.id)
+
+    fornecedores = Fornecedor.objects.filter(empresa=empresa, ativo=True).order_by('nome_fantasia', 'razao_social')
+    produtos = Produto.objects.filter(empresa=empresa, ativo=True).order_by('nome')
+    storage_scope_key = f"pdv_compra_edit_{empresa.id}_{compra.id}"
+
+    fornecedores_json = json.dumps([
+        {
+            'id': f.id,
+            'nome': f.nome_fantasia or f.razao_social,
+            'prazo_dias': f.dias_prazo_calculados,
+            'condicao': f.condicao_pagamento_padrao or 'A_PRAZO',
+        }
+        for f in fornecedores
+    ])
+
+    conta_vinculada = compra.contas_pagar.first()
+    data_vencimento_inicial = (
+        conta_vinculada.data_vencimento.strftime('%Y-%m-%d')
+        if (conta_vinculada and conta_vinculada.data_vencimento)
+        else timezone.now().date().strftime('%Y-%m-%d')
+    )
+
+    if request.method == 'POST':
+        fornecedor_id = request.POST.get('fornecedor_id')
+        numero_nota = request.POST.get('numero_nota', '').strip()
+        data_vencimento = request.POST.get('data_vencimento', '').strip()
+        observacoes = request.POST.get('observacoes', '').strip()
+
+        fornecedor = Fornecedor.objects.filter(id=fornecedor_id, empresa=empresa).first() if fornecedor_id else None
+
+        produto_ids = request.POST.getlist('produto_id[]')
+        quantidades = request.POST.getlist('quantidade[]')
+        custos = request.POST.getlist('preco_custo[]')
+
+        itens_data = []
+        for p_id, q, c in zip(produto_ids, quantidades, custos):
+            if p_id and q and c:
+                try:
+                    p_id_int = int(p_id)
+                    q_val = safe_decimal(q, '0.000')
+                    c_val = safe_decimal(c, '0.00')
+                    if q_val > Decimal('0.000') and c_val >= Decimal('0.00'):
+                        itens_data.append({
+                            'produto_id': p_id_int,
+                            'quantidade': q_val,
+                            'preco_custo_unitario': c_val
+                        })
+                except (ValueError, TypeError):
+                    continue
+
+        if not itens_data:
+            messages.error(request, "Adicione ao menos um item com quantidade e custo válidos.")
+            itens_iniciais = [
+                {
+                    'produto_id': item.produto_id,
+                    'quantidade': float(item.quantidade),
+                    'preco_custo': float(item.preco_custo_unitario)
+                }
+                for item in compra.itens.all()
+            ]
+            return render(request, 'compras/form.html', {
+                'compra': compra,
+                'fornecedores': fornecedores,
+                'fornecedores_json': fornecedores_json,
+                'produtos': produtos,
+                'itens_iniciais_json': json.dumps(itens_iniciais),
+                'fornecedor_selecionado_id': compra.fornecedor_id if compra.fornecedor else '',
+                'data_vencimento_inicial': data_vencimento or data_vencimento_inicial,
+                'numero_nota_inicial': numero_nota,
+                'observacoes_iniciais': observacoes,
+                'storage_scope_key': storage_scope_key,
+            })
+
+        try:
+            compra = PurchaseService.editar_pedido_compra(
+                compra=compra,
+                fornecedor=fornecedor,
+                numero_nota=numero_nota,
+                itens_data=itens_data,
+                data_vencimento=data_vencimento,
+                observacoes=observacoes,
+                usuario=request.user
+            )
+            messages.success(request, f"Pedido de Compra #{compra.numero_nota or compra.id} atualizado com sucesso! Total: R$ {compra.total:.2f}.")
+            return redirect('compra_detalhe', pk=compra.id)
+        except Exception as e:
+            messages.error(request, f"Erro ao atualizar pedido de compra: {str(e)}")
+
+    itens_iniciais = [
+        {
+            'produto_id': item.produto_id,
+            'quantidade': float(item.quantidade),
+            'preco_custo': float(item.preco_custo_unitario)
+        }
+        for item in compra.itens.all()
+    ]
+
+    return render(request, 'compras/form.html', {
+        'compra': compra,
+        'fornecedores': fornecedores,
+        'fornecedores_json': fornecedores_json,
+        'produtos': produtos,
+        'itens_iniciais_json': json.dumps(itens_iniciais),
+        'fornecedor_selecionado_id': compra.fornecedor_id if compra.fornecedor else '',
+        'data_vencimento_inicial': data_vencimento_inicial,
+        'numero_nota_inicial': compra.numero_nota,
+        'observacoes_iniciais': compra.observacoes,
+        'storage_scope_key': storage_scope_key,
+    })
+
+
+@login_required
 def compra_detalhe_view(request, pk):
     empresa = request.tenant or request.user.empresa
     compra = get_object_or_404(

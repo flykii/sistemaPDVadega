@@ -63,6 +63,11 @@
                         </td>
                         <td class="text-end pe-4">
                             <div class="btn-group">
+                                {% if c.status == 'PENDENTE' %}
+                                <a href="{% url 'compra_editar' c.id %}" class="btn btn-sm btn-outline-warning fw-bold text-dark" title="Editar Pedido de Compra">
+                                    <i class="bi bi-pencil me-1"></i> Editar
+                                </a>
+                                {% endif %}
                                 {% if c.status == 'PENDENTE' or c.status == 'PARCIAL' %}
                                 <a href="{% url 'compra_receber' c.id %}" class="btn btn-sm btn-success fw-bold" title="Conferir e Receber Mercadoria">
                                     <i class="bi bi-box-arrow-in-down me-1"></i> Receber

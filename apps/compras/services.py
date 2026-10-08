@@ -133,6 +133,113 @@ class PurchaseService:
 
     @staticmethod
     @transaction.atomic
+    def editar_pedido_compra(
+        compra: Compra,
+        fornecedor,
+        numero_nota: str,
+        itens_data: list,
+        data_vencimento = None,
+        observacoes: str = '',
+        usuario = None
+    ) -> Compra:
+        """
+        Permite editar um Pedido de Compra que esteja com status 'PENDENTE'.
+        - Atualiza fornecedor, número de nota e observações.
+        - Atualiza os itens (produtos, quantidades e preços de custo unitários).
+        - Recalcula o total da compra.
+        - Sincroniza a Conta a Pagar vinculada (valor, valor original, vencimento, fornecedor e descrição).
+        """
+        compra_db = Compra.objects.select_for_update().get(id=compra.id)
+
+        if compra_db.status != 'PENDENTE':
+            raise ValueError(f"O pedido #{compra_db.numero_nota or compra_db.id} possui status '{compra_db.get_status_display()}' e não pode ser editado. Somente pedidos pendentes de recebimento podem ser alterados.")
+
+        if not itens_data:
+            raise ValueError("Uma compra precisa ter ao menos um item.")
+
+        dt_venc = data_vencimento
+        if not dt_venc:
+            prazo_dias = fornecedor.dias_prazo_calculados if fornecedor else 0
+            dt_venc = timezone.now().date() + timedelta(days=prazo_dias)
+        elif isinstance(dt_venc, str):
+            try:
+                dt_venc = date.fromisoformat(dt_venc.strip())
+            except ValueError:
+                prazo_dias = fornecedor.dias_prazo_calculados if fornecedor else 0
+                dt_venc = timezone.now().date() + timedelta(days=prazo_dias)
+
+        compra_db.fornecedor = fornecedor
+        compra_db.numero_nota = numero_nota.strip()
+        compra_db.observacoes = observacoes.strip()
+
+        # Remove os itens antigos da compra (ainda pendente, sem movimentação física de estoque)
+        compra_db.itens.all().delete()
+
+        total_compra = Decimal('0.00')
+
+        for item in itens_data:
+            prod_id = item['produto_id']
+            quant = Decimal(str(item['quantidade'])).quantize(Decimal('0.001'))
+            custo_unit = Decimal(str(item['preco_custo_unitario'])).quantize(Decimal('0.01'))
+
+            if quant <= Decimal('0.000'):
+                raise ValueError("A quantidade de cada item na compra deve ser maior que zero.")
+
+            if custo_unit < Decimal('0.00'):
+                raise ValueError("O custo unitário não pode ser negativo.")
+
+            try:
+                produto = Produto.objects.select_for_update().get(id=prod_id, empresa=compra_db.empresa)
+            except Produto.DoesNotExist:
+                raise ValueError(f"Produto ID {prod_id} não encontrado nesta empresa.")
+
+            subtotal_item = (quant * custo_unit).quantize(Decimal('0.01'))
+            total_compra += subtotal_item
+
+            ItemCompra.objects.create(
+                empresa=compra_db.empresa,
+                compra=compra_db,
+                produto=produto,
+                quantidade=quant,
+                quantidade_recebida=Decimal('0.000'),
+                preco_custo_unitario=custo_unit,
+                subtotal=subtotal_item
+            )
+
+        compra_db.total = total_compra
+        compra_db.save()
+
+        # Sincroniza a Conta a Pagar vinculada
+        fornec_desc = fornecedor.nome_fantasia if fornecedor else 'Fornecedor Avulso'
+        contas_vinculadas = ContaPagar.objects.filter(compra=compra_db, status__in=['ABERTA', 'PENDENTE'])
+        for cp in contas_vinculadas:
+            cp.fornecedor = fornecedor
+            cp.descricao = f"Compra NF #{numero_nota or compra_db.id} - {fornec_desc}"
+            cp.valor = total_compra
+            cp.valor_original = total_compra
+            cp.data_vencimento = dt_venc
+            cp.observacoes = f"Atualizado pelo Pedido de Compra #{compra_db.id}."
+            cp.save()
+
+        AuditService.registrar(
+            empresa=compra_db.empresa,
+            usuario=usuario,
+            acao='COMPRA_REGISTRADA',
+            entidade='Compra',
+            entidade_id=compra_db.id,
+            descricao=f"Pedido de Compra #{compra_db.id} editado com {len(itens_data)} itens. Novo Total: R$ {total_compra:.2f}. Vencimento: {dt_venc.strftime('%d/%m/%Y')}",
+            dados_posteriores={
+                'compra_id': compra_db.id,
+                'total': str(total_compra),
+                'status': compra_db.status,
+                'data_vencimento': str(dt_venc)
+            }
+        )
+
+        return compra_db
+
+    @staticmethod
+    @transaction.atomic
     def registrar_recebimento(
         compra: Compra,
         itens_recebidos: list,

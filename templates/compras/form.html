@@ -1,24 +1,32 @@
 {% extends 'base.html' %}
 
-{% block title %}Novo Pedido de Compra - PDV Enterprise{% endblock %}
+{% block title %}{% if compra %}Editar Pedido de Compra #{{ compra.numero_nota|default:compra.id }}{% else %}Novo Pedido de Compra{% endif %} - PDV Enterprise{% endblock %}
 
 {% block content %}
 <div class="container-fluid py-3">
     <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
         <div>
+            {% if compra %}
+            <h2 class="fw-bold text-dark mb-0"><i class="bi bi-pencil-square text-warning me-2"></i>Editar Pedido de Compra #{{ compra.numero_nota|default:compra.id }}</h2>
+            <p class="text-muted mb-0">Altere itens, adicione ou exclua produtos, modifique preços de custo ou ajuste os dados do pedido.</p>
+            {% else %}
             <h2 class="fw-bold text-dark mb-0"><i class="bi bi-cart-plus-fill text-primary me-2"></i>Novo Pedido de Compra</h2>
             <p class="text-muted mb-0">Registre o pedido de compra com os itens e o vencimento da fatura. A entrada no estoque ocorrerá na etapa de recebimento.</p>
+            {% endif %}
         </div>
         <div class="d-flex gap-2">
+            {% if not compra %}
             <button type="button" class="btn btn-outline-danger fw-bold" onclick="descartarRascunho()" id="btn-descartar-topo" title="Limpar formulário e apagar rascunho em andamento">
                 <i class="bi bi-trash me-1"></i> Descartar Rascunho
             </button>
-            <a href="{% url 'compras_list' %}" class="btn btn-outline-secondary fw-bold">
-                <i class="bi bi-arrow-left me-1"></i> Voltar aos Pedidos
+            {% endif %}
+            <a href="{% if compra %}{% url 'compra_detalhe' compra.id %}{% else %}{% url 'compras_list' %}{% endif %}" class="btn btn-outline-secondary fw-bold">
+                <i class="bi bi-arrow-left me-1"></i> {% if compra %}Voltar ao Pedido{% else %}Voltar aos Pedidos{% endif %}
             </a>
         </div>
     </div>
 
+    {% if not compra %}
     <!-- Barra informativa de rascunho recuperado -->
     <div id="alerta-rascunho" class="alert alert-warning py-2 px-3 small d-flex justify-content-between align-items-center mb-3 shadow-sm rounded-3" style="display:none;">
         <div>
@@ -29,6 +37,7 @@
             <i class="bi bi-trash me-1"></i> Limpar / Iniciar do Zero
         </button>
     </div>
+    {% endif %}
 
     <form method="post" id="form-compra">
         {% csrf_token %}
@@ -55,7 +64,7 @@
 
                     <div class="mb-3">
                         <label for="numero_nota" class="form-label fw-bold">Número da Nota Fiscal / Pedido</label>
-                        <input type="text" name="numero_nota" id="numero_nota" class="form-control" placeholder="Ex: NF-e 12345 ou Pedido #001" oninput="dispararAutoSave()">
+                        <input type="text" name="numero_nota" id="numero_nota" class="form-control" placeholder="Ex: NF-e 12345 ou Pedido #001" value="{{ numero_nota_inicial|default:'' }}" oninput="dispararAutoSave()">
                     </div>
 
                     <div class="mb-3">
@@ -66,7 +75,7 @@
 
                     <div class="mb-3">
                         <label for="observacoes" class="form-label fw-bold">Observações / Condições</label>
-                        <textarea name="observacoes" id="observacoes" class="form-control" rows="3" placeholder="Informações de pagamento, vencimento, entrega..." oninput="dispararAutoSave()"></textarea>
+                        <textarea name="observacoes" id="observacoes" class="form-control" rows="3" placeholder="Informações de pagamento, vencimento, entrega..." oninput="dispararAutoSave()">{{ observacoes_iniciais|default:'' }}</textarea>
                     </div>
 
                     <div class="card bg-light p-3 border mt-auto">
@@ -123,13 +132,17 @@
                     </div>
 
                     <div class="mt-4 d-flex justify-content-between align-items-center flex-wrap gap-2">
+                        {% if not compra %}
                         <button type="button" class="btn btn-outline-danger px-3 py-2 fw-bold" onclick="descartarRascunho()">
                             <i class="bi bi-trash me-1"></i> Limpar Formulário
                         </button>
+                        {% else %}
+                        <div></div>
+                        {% endif %}
                         <div class="d-flex gap-2">
-                            <a href="{% url 'compras_list' %}" class="btn btn-secondary px-4 py-2 fw-bold">Cancelar</a>
+                            <a href="{% if compra %}{% url 'compra_detalhe' compra.id %}{% else %}{% url 'compras_list' %}{% endif %}" class="btn btn-secondary px-4 py-2 fw-bold">Cancelar</a>
                             <button type="submit" class="btn btn-primary px-4 py-2 fw-bold fs-5 shadow">
-                                <i class="bi bi-check2-circle me-1"></i> Salvar Pedido de Compra
+                                <i class="bi bi-check2-circle me-1"></i> {% if compra %}Salvar Alterações do Pedido{% else %}Salvar Pedido de Compra{% endif %}
                             </button>
                         </div>
                     </div>
@@ -139,6 +152,7 @@
     </form>
 </div>
 
+{% if not compra %}
 <!-- Modal de Conflito de Rascunho x Novos Produtos do Relatório -->
 <div class="modal fade" id="modalConflitoRascunho" tabindex="-1" data-bs-backdrop="static" data-bs-keyboard="false" aria-labelledby="modalConflitoLabel" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered">
@@ -170,10 +184,12 @@
         </div>
     </div>
 </div>
+{% endif %}
 {% endblock %}
 
 {% block extra_js %}
 <script>
+    const isEdicao = {% if compra %}true{% else %}false{% endif %};
     const produtosDisponiveis = [
         {% for p in produtos %}
         {
@@ -607,6 +623,20 @@
     });
 
     document.addEventListener("DOMContentLoaded", function() {
+        if (isEdicao) {
+            const tbody = document.getElementById('tbody-itens');
+            tbody.innerHTML = '';
+            if (itensIniciais && itensIniciais.length > 0) {
+                itensIniciais.forEach(item => {
+                    adicionarLinhaItem(item.produto_id, item.quantidade, item.preco_custo);
+                });
+            } else {
+                adicionarLinhaItem();
+            }
+            recalcularTotais();
+            return;
+        }
+
         const rascunhoExistente = obterRascunho();
         const temNovosItensRelatorio = itensIniciais && itensIniciais.length > 0;
 
