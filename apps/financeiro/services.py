@@ -372,7 +372,7 @@ class FinancialService:
                 empresa=empresa,
                 despesa_recorrente=rec,
                 recorrente_competencia=competencia
-            ).exists()
+            ).exclude(status='CANCELADA').exists()
 
             if ja_existe:
                 continue

@@ -109,7 +109,7 @@
                                 <input type="number" step="0.001" min="0" name="quantidade_recebida[]" class="form-control form-control-lg text-center fw-bold border-success input-qtd-recebimento" value="{{ item.quantidade_pendente|stringformat:'.3f' }}" oninput="recalcularSubtotal(this)">
                             </td>
                             <td>
-                                <input type="number" step="0.01" min="0" name="preco_custo[]" class="form-control text-center input-custo-recebimento" value="{{ item.preco_custo_unitario|stringformat:'.2f' }}" oninput="recalcularSubtotal(this)">
+                                <input type="number" step="0.0001" min="0" name="preco_custo[]" class="form-control text-center input-custo-recebimento" value="{{ item.preco_custo_unitario|stringformat:'.4f' }}" oninput="recalcularSubtotal(this)">
                             </td>
                             <td class="text-end fw-bold text-dark fs-6 bg-light py-3">
                                 R$ <span class="subtotal-item-display">0,00</span>

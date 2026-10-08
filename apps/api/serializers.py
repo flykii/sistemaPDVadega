@@ -76,6 +76,9 @@ class VendaSerializer(serializers.ModelSerializer):
     itens = ItemVendaSerializer(many=True, read_only=True)
     pagamentos = PagamentoVendaSerializer(many=True, read_only=True)
     cliente_nome = serializers.ReadOnlyField(source='cliente.nome')
+    cliente_saldo_devedor = serializers.ReadOnlyField(source='cliente.saldo_devedor')
+    cliente_limite_credito = serializers.ReadOnlyField(source='cliente.limite_credito')
+    cliente_credito_disponivel = serializers.ReadOnlyField(source='cliente.credito_disponivel')
     operador_nome = serializers.ReadOnlyField(source='operador.username')
     lucro_total = serializers.ReadOnlyField()
 
@@ -83,6 +86,7 @@ class VendaSerializer(serializers.ModelSerializer):
         model = Venda
         fields = [
             'id', 'codigo_venda', 'sessao_caixa', 'cliente', 'cliente_nome',
+            'cliente_saldo_devedor', 'cliente_limite_credito', 'cliente_credito_disponivel',
             'operador', 'operador_nome', 'subtotal', 'desconto', 'total',
             'lucro_total', 'status', 'offline_uuid', 'data_venda', 'itens', 'pagamentos'
         ]

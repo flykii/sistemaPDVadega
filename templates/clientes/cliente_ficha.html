@@ -1,4 +1,5 @@
 {% extends 'base.html' %}
+{% load l10n %}
 
 {% block title %}Ficha Financeira: {{ cliente.nome }} - PDV Enterprise{% endblock %}
 
@@ -62,8 +63,14 @@
                 <span class="text-primary small text-uppercase fw-bold">Utilização do Limite</span>
                 <div class="d-flex align-items-center justify-content-between mt-1">
                     <h3 class="fw-bold text-dark mb-0">{{ cliente.percentual_utilizado|floatformat:1 }}%</h3>
-                    <div class="progress w-50" style="height: 10px;">
-                        <div class="progress-bar {% if cliente.percentual_utilizado > 85 %}bg-danger{% elif cliente.percentual_utilizado > 50 %}bg-warning{% else %}bg-success{% endif %}" style="width: {{ cliente.percentual_utilizado }}%;"></div>
+                    <div class="progress w-50" style="height: 10px; overflow: hidden; position: relative;">
+                        <div id="limite-bar" class="progress-bar" 
+                             style="width: 0%; transition: width 0.8s ease-in-out; 
+                                    {% if cliente.percentual_utilizado <= 30 %}background-color: #10b981;
+                                    {% elif cliente.percentual_utilizado <= 70 %}background-color: #f59e0b;
+                                    {% else %}background-color: #ef4444;{% endif %}"
+                             data-width="{% if cliente.percentual_utilizado > 100 %}100{% else %}{{ cliente.percentual_utilizado|unlocalize }}{% endif %}%">
+                        </div>
                     </div>
                 </div>
             </div>
@@ -445,5 +452,14 @@
             displayEfetivo.innerText = 'R$ ' + Math.max(0, efetivo).toLocaleString('pt-BR', {minimumFractionDigits: 2, maximumFractionDigits: 2});
         }
     }
+
+    document.addEventListener("DOMContentLoaded", function() {
+        const bar = document.getElementById("limite-bar");
+        if (bar) {
+            setTimeout(() => {
+                bar.style.width = bar.getAttribute("data-width");
+            }, 100);
+        }
+    });
 </script>
 {% endblock %}

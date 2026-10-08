@@ -255,7 +255,7 @@
                 <input type="number" step="0.001" min="0.001" name="quantidade[]" class="form-control item-qtd text-center" value="${qtdFmt}" required oninput="recalcularTotais(); dispararAutoSave();">
             </td>
             <td>
-                <input type="number" step="0.001" min="0" name="preco_custo[]" class="form-control item-custo text-end" value="${custoFmt}" required oninput="recalcularTotais(); dispararAutoSave();">
+                <input type="number" step="0.0001" min="0" name="preco_custo[]" class="form-control item-custo text-end" value="${custoFmt}" required oninput="recalcularTotais(); dispararAutoSave();">
             </td>
             <td class="text-end fw-bold item-subtotal text-success">
                 R$ 0,00
@@ -284,11 +284,17 @@
 
     function aoSelecionarProduto(select) {
         const selectedOpt = select.options[select.selectedIndex];
+        if (!selectedOpt.value) return;
         const custo = selectedOpt.getAttribute('data-custo') || '0.00';
         const tr = select.closest('tr');
         const inputCusto = tr.querySelector('.item-custo');
-        if (inputCusto && (!inputCusto.value || parseFloat(inputCusto.value) === 0)) {
-            inputCusto.value = parseFloat(custo).toFixed(2);
+        const inputQtd = tr.querySelector('.item-qtd');
+        
+        if (inputCusto) {
+            inputCusto.value = parseFloat(custo).toFixed(4); // Keep 4 decimals ready for compras
+        }
+        if (inputQtd && (!inputQtd.value || parseFloat(inputQtd.value) === 0)) {
+            inputQtd.value = "1.000";
         }
         recalcularTotais();
     }

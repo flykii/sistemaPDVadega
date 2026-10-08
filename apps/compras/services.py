@@ -194,7 +194,7 @@ class PurchaseService:
 
             custo_praticado = item_data.get('preco_custo')
             if custo_praticado is not None and str(custo_praticado).strip() != '':
-                custo_unit = Decimal(str(custo_praticado)).quantize(Decimal('0.01'))
+                custo_unit = Decimal(str(custo_praticado)).quantize(Decimal('0.0001'))
             else:
                 custo_unit = item_db.preco_custo_unitario
 
@@ -215,7 +215,7 @@ class PurchaseService:
                 preco_custo=custo_unit
             )
 
-            # Entrada física no estoque com rastreabilidade
+            # Entrada fsica no estoque com rastreabilidade
             motivo_log = f"Recebimento Compra #{compra_db.id}"
             if compra_db.numero_nota:
                 motivo_log += f" (NF {compra_db.numero_nota})"
@@ -229,7 +229,7 @@ class PurchaseService:
                 usuario=usuario
             )
 
-            # Vincula fornecedor principal se ainda não tiver
+            # Vincula fornecedor principal se ainda nǜo tiver
             if compra_db.fornecedor and not produto_db.fornecedor_principal_id:
                 Produto.objects.filter(id=produto_db.id, fornecedor_principal__isnull=True).update(fornecedor_principal=compra_db.fornecedor)
 
@@ -241,6 +241,12 @@ class PurchaseService:
         else:
             compra_db.status = 'PARCIAL'
         compra_db.save()
+
+        # Sincroniza o valor final do pedido com a Conta a Pagar gerada (se ainda pendente)
+        ContaPagar.objects.filter(
+            compra=compra_db,
+            status__in=['PENDENTE', 'ABERTA']
+        ).update(valor=compra_db.total, valor_original=compra_db.total)
 
         AuditService.registrar(
             empresa=compra_db.empresa,

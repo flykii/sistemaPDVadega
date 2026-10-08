@@ -1569,6 +1569,40 @@ class PDVApp {
                         }
                         this.closeModals();
 
+                        // Atualiza dropdowns de cliente se houver mudança de saldo
+                        const cliId = data.cliente || data.cliente_id;
+                        if (cliId) {
+                            const cliIdStr = cliId.toString();
+                            const options = document.querySelectorAll(`option[value="${cliIdStr}"]`);
+                            const devedor = (data.cliente_saldo_devedor !== undefined) ? data.cliente_saldo_devedor : data.saldo_devedor_restante;
+                            const limite = data.cliente_limite_credito || 0.00;
+                            const disponivel = data.cliente_credito_disponivel || 0.00;
+                            const cliNome = data.cliente_nome || data.cliente || "";
+                            
+                            if (devedor !== undefined) {
+                                const limiteStr = parseFloat(limite).toFixed(2).replace('.', ',');
+                                const devedorStr = parseFloat(devedor).toFixed(2).replace('.', ',');
+                                const dispStr = parseFloat(disponivel).toFixed(2).replace('.', ',');
+
+                                options.forEach(opt => {
+                                    if (opt.closest('#modal-cliente-select')) {
+                                        opt.dataset.limite = parseFloat(limite).toFixed(2);
+                                        opt.dataset.devedor = parseFloat(devedor).toFixed(2);
+                                        opt.dataset.disponivel = parseFloat(disponivel).toFixed(2);
+                                        opt.innerText = `${cliNome} [Limite: R$ ${limiteStr} | Devedor: R$ ${devedorStr} | Disp: R$ ${dispStr}]`;
+                                    } else {
+                                        opt.innerText = parseFloat(devedor) > 0 
+                                            ? `${cliNome} (Dívida: R$ ${devedorStr})` 
+                                            : cliNome;
+                                    }
+                                });
+                                // Atualiza a variável global _dividaClienteAtual se for ele que está sendo exibido
+                                if (window._dividaClienteAtual && window._dividaClienteAtual.cliente_id === parseInt(cliId)) {
+                                    window._dividaClienteAtual.total_divida = parseFloat(devedor);
+                                }
+                            }
+                        }
+
                         if (data.codigo_venda) {
                             this._lastVendaId = data.id;
                             const printModalEl = document.getElementById('printConfirmModal');

@@ -46,8 +46,16 @@ def dashboard_view(request):
     horas_labels = [d['hora'] for d in vendas_hora]
     horas_valores = [float(d['total']) for d in vendas_hora]
 
+    # Calculate Balanço: Faturamento Líquido - Despesas Pagas
+    faturamento = data.get('vendas_atual', {}).get('faturamento_liquido', Decimal('0.00'))
+    despesas_pagas = data.get('despesas_data', {}).get('total_pagas', Decimal('0.00'))
+    balanco = faturamento - despesas_pagas
+    is_superavit = balanco >= 0
+
     context = {
         **data,
+        'balanco': balanco,
+        'is_superavit': is_superavit,
         'chart_dias_labels': json.dumps(dias_labels),
         'chart_vendas_valores': json.dumps(vendas_valores),
         'chart_lucro_valores': json.dumps(lucro_valores),
