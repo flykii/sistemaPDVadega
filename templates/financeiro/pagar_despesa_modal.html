@@ -52,7 +52,8 @@
 
                 <div class="mb-3">
                     <label for="forma_pagamento" class="form-label fw-bold">Forma de Pagamento *</label>
-                    <select name="forma_pagamento" id="forma_pagamento" class="form-select form-select-lg fw-bold" onchange="verificarForma(this)">
+                    <select name="forma_pagamento" id="forma_pagamento" class="form-select form-select-lg fw-bold" required onchange="verificarForma(this)">
+                        <option value="" selected disabled>-- Selecione a forma de pagamento --</option>
                         <option value="DINHEIRO">💵 Dinheiro do Caixa (Reduz Caixa Físico da Gaveta)</option>
                         <option value="DINHEIRO_EXTERNO">💵 Dinheiro Próprio / Carteira (Fora do Caixa - Não altera Gaveta)</option>
                         <option value="PIX">📱 PIX (Conta Bancária - Não altera Gaveta)</option>

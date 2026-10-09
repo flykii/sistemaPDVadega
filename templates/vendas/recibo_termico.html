@@ -22,9 +22,31 @@
         .line { border-bottom: 1px dashed #000; margin: 5px 0; }
         table { width: 100%; border-collapse: collapse; }
         th, td { text-align: left; padding: 2px 0; }
+        @media print {
+            .no-print { display: none !important; }
+        }
     </style>
+    <script>
+        window.onload = function() {
+            window.print();
+        };
+        window.onafterprint = function() {
+            if (window.history.length > 1) {
+                window.history.back();
+            } else {
+                window.close();
+            }
+        };
+    </script>
 </head>
-<body onload="window.print()">
+<body>
+    <div class="no-print" style="text-align: center; margin-bottom: 15px; padding: 10px; background: #f0f0f0; border: 1px solid #ccc; font-family: sans-serif;">
+        <p style="margin-top: 0; font-size: 14px; color: #333;">Impressão do Cupom</p>
+        <button onclick="window.history.back()" style="padding: 8px 15px; margin: 5px; cursor: pointer;">Voltar</button>
+        <button onclick="window.location.href='{% url 'clientes_list' %}'" style="padding: 8px 15px; margin: 5px; cursor: pointer;">Voltar à Lista de Clientes</button>
+        <button onclick="window.print()" style="padding: 8px 15px; margin: 5px; cursor: pointer; background: #0056b3; color: white; border: none;">Imprimir Manualmente</button>
+    </div>
+
     <div class="text-center bold">
         <h3 style="margin: 0;">{{ empresa.nome_fantasia|default:empresa.razao_social|default:"MINHA LOJA PDV" }}</h3>
         {% if empresa.razao_social and empresa.nome_fantasia != empresa.razao_social %}<div>{{ empresa.razao_social }}</div>{% endif %}
