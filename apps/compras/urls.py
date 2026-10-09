@@ -2,7 +2,7 @@ from django.urls import path
 from .views import (
     compras_list, nova_compra_view, editar_compra_view, compra_detalhe_view,
     receber_compra_view, cancelar_compra_view,
-    fornecedores_list, fornecedor_form
+    fornecedores_list, fornecedor_form, editar_compra_view
 )
 
 urlpatterns = [
@@ -11,6 +11,7 @@ urlpatterns = [
     path('nova-compra/', nova_compra_view, name='nova_compra'),
     path('editar/<int:pk>/', editar_compra_view, name='compra_editar'),
     path('detalhe/<int:pk>/', compra_detalhe_view, name='compra_detalhe'),
+    path('editar/<int:pk>/', editar_compra_view, name='compra_editar'),
     path('receber/<int:pk>/', receber_compra_view, name='compra_receber'),
     path('cancelar/<int:pk>/', cancelar_compra_view, name='compra_cancelar'),
     path('fornecedores/', fornecedores_list, name='fornecedores_list'),

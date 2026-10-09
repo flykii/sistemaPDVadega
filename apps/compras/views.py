@@ -452,3 +452,125 @@ def fornecedor_form(request, pk=None):
         'fornecedor': fornecedor,
         'next_url': next_url,
     })
+
+@login_required
+@cargo_required('ADMIN', 'GERENTE', 'ESTOQUISTA', 'FINANCEIRO')
+def editar_compra_view(request, pk):
+    from django.db import transaction
+    from apps.financeiro.models import ContaPagar
+    empresa = request.tenant or request.user.empresa
+    compra = get_object_or_404(Compra, pk=pk, empresa=empresa)
+    
+    if compra.status not in ['PENDENTE']:
+        messages.error(request, "Somente pedidos de compra PENDENTES podem ser editados.")
+        return redirect('compra_detalhe', pk=pk)
+
+    fornecedores = Fornecedor.objects.filter(empresa=empresa, ativo=True).order_by('nome_fantasia', 'razao_social')
+    produtos = Produto.objects.filter(empresa=empresa, ativo=True).order_by('nome')
+    storage_scope_key = f"pdv_compra_draft_{empresa.id}_{request.user.id}_edit_{pk}"
+
+    fornecedores_json = json.dumps([
+        {
+            'id': f.id,
+            'nome': f.nome_fantasia or f.razao_social,
+            'prazo_dias': f.dias_prazo_calculados,
+            'condicao': f.condicao_pagamento_padrao or 'A_PRAZO',
+        }
+        for f in fornecedores
+    ])
+
+    if request.method == 'POST':
+        fornecedor_id = request.POST.get('fornecedor_id')
+        numero_nota = request.POST.get('numero_nota', '').strip()
+        data_vencimento = request.POST.get('data_vencimento', '').strip()
+        observacoes = request.POST.get('observacoes', '').strip()
+
+        fornecedor = Fornecedor.objects.filter(id=fornecedor_id, empresa=empresa).first() if fornecedor_id else None
+
+        produto_ids = request.POST.getlist('produto_id[]')
+        quantidades = request.POST.getlist('quantidade[]')
+        custos = request.POST.getlist('preco_custo[]')
+
+        itens_data = []
+        for p_id, q, c in zip(produto_ids, quantidades, custos):
+            if p_id and q and c:
+                try:
+                    p_id_int = int(p_id)
+                    q_val = safe_decimal(q, '0.000')
+                    c_val = safe_decimal(c, '0.00')
+                    if q_val > Decimal('0.000') and c_val >= Decimal('0.00'):
+                        itens_data.append({
+                            'produto_id': p_id_int,
+                            'quantidade': q_val,
+                            'preco_custo_unitario': c_val
+                        })
+                except (ValueError, TypeError):
+                    continue
+
+        if not itens_data:
+            messages.error(request, "Adicione ao menos um item com quantidade e custo válidos.")
+            return redirect('compra_editar', pk=pk)
+
+        try:
+            with transaction.atomic():
+                compra.fornecedor = fornecedor
+                compra.numero_nota = numero_nota
+                compra.observacoes = observacoes
+                
+                compra.itens.all().delete()
+                
+                total = Decimal('0.00')
+                for data in itens_data:
+                    produto = Produto.objects.get(id=data['produto_id'], empresa=empresa)
+                    subtotal = data['quantidade'] * data['preco_custo_unitario']
+                    ItemCompra.objects.create(
+                        compra=compra,
+                        produto=produto,
+                        quantidade=data['quantidade'],
+                        preco_custo_unitario=data['preco_custo_unitario'],
+                        subtotal=subtotal
+                    )
+                    total += subtotal
+                    
+                compra.total = total
+                compra.save()
+                
+                conta_pagar = ContaPagar.objects.filter(compra=compra).first()
+                if conta_pagar:
+                    conta_pagar.valor = total
+                    conta_pagar.valor_original = total
+                    if data_vencimento:
+                        conta_pagar.data_vencimento = data_vencimento
+                    if fornecedor:
+                        conta_pagar.fornecedor = fornecedor
+                    conta_pagar.save()
+                    
+            messages.success(request, f"Pedido de Compra #{compra.id} atualizado com sucesso!")
+            return redirect('compra_detalhe', pk=pk)
+        except Exception as e:
+            messages.error(request, f"Erro ao atualizar pedido: {str(e)}")
+
+    itens_iniciais = []
+    for item in compra.itens.all():
+        itens_iniciais.append({
+            'produto_id': item.produto.id,
+            'produto_nome': item.produto.nome,
+            'quantidade': str(item.quantidade),
+            'preco_custo': str(item.preco_custo_unitario)
+        })
+        
+    conta_pagar = ContaPagar.objects.filter(compra=compra).first()
+    data_venc_str = ''
+    if conta_pagar and conta_pagar.data_vencimento:
+        data_venc_str = conta_pagar.data_vencimento.strftime('%Y-%m-%d')
+
+    return render(request, 'compras/form.html', {
+        'fornecedores': fornecedores,
+        'fornecedores_json': fornecedores_json,
+        'produtos': produtos,
+        'itens_iniciais_json': json.dumps(itens_iniciais),
+        'fornecedor_selecionado_id': compra.fornecedor.id if compra.fornecedor else '',
+        'data_vencimento_inicial': data_venc_str,
+        'storage_scope_key': storage_scope_key,
+        'compra': compra,
+    })
