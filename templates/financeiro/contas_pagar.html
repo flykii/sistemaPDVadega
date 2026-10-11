@@ -61,6 +61,12 @@
             <a href="?status=abertas&periodo={{ periodo }}" class="btn btn-sm {% if filtro_status == 'abertas' %}btn-primary{% else %}btn-outline-primary{% endif %} fw-bold">
                 <i class="bi bi-clock me-1"></i> Em Aberto
             </a>
+            <a href="?status=aguardando_recebimento&periodo={{ periodo }}" class="btn btn-sm {% if filtro_status == 'aguardando_recebimento' %}btn-warning text-dark{% else %}btn-outline-warning text-dark{% endif %} fw-bold">
+                <i class="bi bi-box-seam me-1"></i> Aguardando Recebimento
+                {% if qtd_aguardando_recebimento > 0 %}
+                    <span class="badge bg-danger text-white rounded-pill ms-1">{{ qtd_aguardando_recebimento }}</span>
+                {% endif %}
+            </a>
             <a href="?status=vencidas&periodo={{ periodo }}" class="btn btn-sm {% if filtro_status == 'vencidas' %}btn-danger{% else %}btn-outline-danger{% endif %} fw-bold">
                 <i class="bi bi-exclamation-triangle me-1"></i> Vencidas
             </a>
@@ -154,6 +160,13 @@
                                         <span class="badge bg-info-subtle text-dark border border-info ms-1"><i class="bi bi-arrow-repeat me-1"></i>Fixa</span>
                                     {% elif c.compra %}
                                         <span class="badge bg-secondary-subtle text-dark border ms-1"><i class="bi bi-truck me-1"></i>Pedido #{{ c.compra.id }}</span>
+                                        {% if c.compra.status == 'PENDENTE' %}
+                                            <span class="badge bg-warning text-dark border border-warning ms-1"><i class="bi bi-hourglass-split me-1"></i>Não Recebida</span>
+                                        {% elif c.compra.status == 'PARCIAL' %}
+                                            <span class="badge bg-info text-dark border border-info ms-1"><i class="bi bi-box-arrow-in-down me-1"></i>Rec. Parcial</span>
+                                        {% elif c.compra.status == 'CONCLUIDA' %}
+                                            <span class="badge bg-success-subtle text-success border border-success-subtle ms-1"><i class="bi bi-check-all me-1"></i>Recebida</span>
+                                        {% endif %}
                                     {% endif %}
                                 </div>
                             </div>
@@ -205,7 +218,7 @@
                                     <a href="{% url 'despesa_editar' c.id %}" class="btn btn-sm btn-outline-primary" title="Editar"><i class="bi bi-pencil"></i></a>
                                     {% if c.valor_pago == 0 %}
                                         <form method="post" action="{% url 'cancelar_despesa' c.id %}" class="d-inline" onsubmit="return confirm('Deseja realmente cancelar a despesa \'{{ c.descricao }}\'?');">
-                                            {% csrf_token %}
+                                             {% csrf_token %}
                                             <button type="submit" class="btn btn-sm btn-outline-danger" title="Cancelar Despesa"><i class="bi bi-x-circle"></i></button>
                                         </form>
                                     {% endif %}
@@ -243,10 +256,30 @@
                                                 <h6 class="fw-bold mb-0 small text-primary text-uppercase">
                                                     <i class="bi bi-truck me-1"></i>Itens do Pedido de Compra #{{ c.compra.id }} {% if c.compra.numero_nota %}(NF: {{ c.compra.numero_nota }}){% endif %}
                                                 </h6>
-                                                <a href="{% url 'compra_detalhe' c.compra.id %}" class="btn btn-outline-primary btn-sm py-0 fw-bold" style="font-size: 0.75rem;">
-                                                    <i class="bi bi-box-arrow-up-right me-1"></i>Ver Pedido
-                                                </a>
+                                                <div class="d-flex gap-1">
+                                                    {% if c.compra.status == 'PENDENTE' or c.compra.status == 'PARCIAL' %}
+                                                    <a href="{% url 'compra_receber' c.compra.id %}" class="btn btn-success btn-sm py-0 fw-bold" style="font-size: 0.75rem;">
+                                                        <i class="bi bi-box-arrow-in-down me-1"></i>Receber Mercadoria
+                                                    </a>
+                                                    {% endif %}
+                                                    <a href="{% url 'compra_detalhe' c.compra.id %}" class="btn btn-outline-primary btn-sm py-0 fw-bold" style="font-size: 0.75rem;">
+                                                        <i class="bi bi-box-arrow-up-right me-1"></i>Ver Pedido
+                                                    </a>
+                                                </div>
                                             </div>
+                                            {% if c.compra.status == 'PENDENTE' %}
+                                            <div class="alert alert-warning py-1 px-2 mb-2 small fw-bold">
+                                                <i class="bi bi-exclamation-triangle-fill me-1"></i>Status da Entrega: Aguardando Recebimento físico no estoque.
+                                            </div>
+                                            {% elif c.compra.status == 'PARCIAL' %}
+                                            <div class="alert alert-info py-1 px-2 mb-2 small fw-bold">
+                                                <i class="bi bi-box-arrow-in-down me-1"></i>Status da Entrega: Recebimento Parcial de mercadoria.
+                                            </div>
+                                            {% elif c.compra.status == 'CONCLUIDA' %}
+                                            <div class="alert alert-success py-1 px-2 mb-2 small fw-bold">
+                                                <i class="bi bi-check-circle-fill me-1"></i>Status da Entrega: Mercadoria 100% conferida e recebida no estoque.
+                                            </div>
+                                            {% endif %}
                                             <div class="card p-2 bg-white border-0 shadow-sm rounded-3">
                                                 <div class="table-responsive">
                                                     <table class="table table-sm table-borderless align-middle mb-0" style="font-size: 0.85rem;">

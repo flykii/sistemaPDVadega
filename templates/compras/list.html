@@ -19,9 +19,55 @@
         </div>
     </div>
 
+    <!-- Filtros de Busca Dinâmicos -->
+    <div class="card card-custom p-3 border-0 shadow-sm rounded-4 mb-3">
+        <form method="get" id="form-filtro-compras" class="row g-2 align-items-end">
+            <div class="col-12 col-md-3">
+                <label class="form-label small fw-bold text-muted mb-1"><i class="bi bi-search me-1"></i>Buscar</label>
+                <div class="input-group">
+                    <span class="input-group-text bg-white"><i class="bi bi-search text-muted"></i></span>
+                    <input type="text" name="q" id="filtro-busca" value="{{ query }}" class="form-control" placeholder="NF, Pedido ou Fornecedor..." autocomplete="off">
+                </div>
+            </div>
+            <div class="col-12 col-md-3">
+                <label class="form-label small fw-bold text-muted mb-1"><i class="bi bi-building me-1"></i>Fornecedor</label>
+                <select name="fornecedor" id="filtro-fornecedor" class="form-select">
+                    <option value="">Todos os Fornecedores</option>
+                    {% for f in fornecedores %}
+                        <option value="{{ f.id }}" {% if fornecedor_id|slugify == f.id|slugify %}selected{% endif %}>{{ f }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-12 col-md-2">
+                <label class="form-label small fw-bold text-muted mb-1"><i class="bi bi-check2-circle me-1"></i>Status</label>
+                <select name="status" id="filtro-status" class="form-select">
+                    <option value="">Todos os Status</option>
+                    <option value="PENDENTE" {% if filtro_status == 'PENDENTE' %}selected{% endif %}>Aguardando Recebimento</option>
+                    <option value="PARCIAL" {% if filtro_status == 'PARCIAL' %}selected{% endif %}>Recebimento Parcial</option>
+                    <option value="CONCLUIDA" {% if filtro_status == 'CONCLUIDA' %}selected{% endif %}>Concluída / Recebida</option>
+                    <option value="CANCELADA" {% if filtro_status == 'CANCELADA' %}selected{% endif %}>Cancelada</option>
+                </select>
+            </div>
+            <div class="col-12 col-md-3">
+                <label class="form-label small fw-bold text-muted mb-1"><i class="bi bi-calendar3 me-1"></i>Data Pedido</label>
+                <div class="input-group">
+                    <input type="date" name="data_inicio" id="filtro-data-inicio" value="{{ data_inicio }}" class="form-control" title="Data Inicial">
+                    <span class="input-group-text bg-light text-muted px-2">até</span>
+                    <input type="date" name="data_fim" id="filtro-data-fim" value="{{ data_fim }}" class="form-control" title="Data Final">
+                </div>
+            </div>
+            <div class="col-12 col-md-1 d-flex gap-1">
+                <button type="submit" class="btn btn-primary w-100 fw-bold" title="Buscar no Servidor"><i class="bi bi-funnel"></i></button>
+                {% if query or fornecedor_id or filtro_status or data_inicio or data_fim %}
+                    <a href="{% url 'compras_list' %}" class="btn btn-outline-secondary" title="Limpar Filtros"><i class="bi bi-x-lg"></i></a>
+                {% endif %}
+            </div>
+        </form>
+    </div>
+
     <div class="card card-custom p-0 border-0 shadow-sm rounded-4 overflow-hidden mb-4">
         <div class="table-responsive">
-            <table class="table table-hover align-middle mb-0">
+            <table class="table table-hover align-middle mb-0" id="tabela-compras">
                 <thead class="table-light">
                     <tr>
                         <th class="ps-4">Pedido / NF</th>
@@ -33,9 +79,15 @@
                         <th class="text-end pe-4">Ações</th>
                     </tr>
                 </thead>
-                <tbody>
+                <tbody id="tbody-compras">
                     {% for c in compras %}
-                    <tr>
+                    <tr class="compra-row"
+                        data-id="{{ c.id }}"
+                        data-fornecedor-id="{{ c.fornecedor_id|default:'' }}"
+                        data-fornecedor-nome="{% if c.fornecedor %}{{ c.fornecedor|lower }}{% endif %}"
+                        data-status="{{ c.status }}"
+                        data-data="{{ c.data_compra|date:'Y-m-d' }}"
+                        data-nf="#{{ c.numero_nota|default:c.id }} {{ c.id }}">
                         <td class="ps-4">
                             <strong class="text-primary fs-6">#{{ c.numero_nota|default:c.id }}</strong>
                             <small class="d-block text-muted">ID: #{{ c.id }}</small>
@@ -43,7 +95,7 @@
                         <td>{{ c.data_compra|date:"d/m/Y H:i" }}</td>
                         <td>
                             {% if c.fornecedor %}
-                                <strong class="text-dark">{{ c.fornecedor.nome_fantasia|default:c.fornecedor.razao_social }}</strong>
+                                <strong class="text-dark">{{ c.fornecedor }}</strong>
                                 {% if c.fornecedor.cnpj %}<small class="d-block text-muted">CNPJ: {{ c.fornecedor.cnpj }}</small>{% endif %}
                             {% else %}
                                 <span class="text-muted">Sem Fornecedor</span>
@@ -80,13 +132,19 @@
                         </td>
                     </tr>
                     {% empty %}
-                    <tr>
+                    <tr id="empty-initial-row">
                         <td colspan="7" class="text-center text-muted py-5">
                             <i class="bi bi-truck fs-1 d-block mb-2 text-muted"></i>
                             Nenhum pedido de compra ou entrada registrada no sistema.
                         </td>
                     </tr>
                     {% endfor %}
+                    <tr id="no-dynamic-results" style="display: none;">
+                        <td colspan="7" class="text-center text-muted py-5">
+                            <i class="bi bi-search fs-1 d-block mb-2 text-muted"></i>
+                            Nenhum pedido encontrado para os filtros selecionados.
+                        </td>
+                    </tr>
                 </tbody>
             </table>
         </div>
@@ -97,6 +155,7 @@
 {% block extra_js %}
 <script>
     document.addEventListener("DOMContentLoaded", function() {
+        // Limpeza de rascunho de compras salvas
         const successAlert = document.querySelector('.alert-success');
         if (successAlert && successAlert.innerText.includes('registrado com sucesso')) {
             const storageKey = "pdv_compra_draft_{{ request.user.empresa_id }}_{{ request.user.id }}";
@@ -104,6 +163,58 @@
                 localStorage.removeItem(storageKey);
             } catch (e) {}
         }
+
+        // Filtro dinâmico e reativo em tempo real
+        const inputBusca = document.getElementById('filtro-busca');
+        const selectFornecedor = document.getElementById('filtro-fornecedor');
+        const selectStatus = document.getElementById('filtro-status');
+        const inputDtInicio = document.getElementById('filtro-data-inicio');
+        const inputDtFim = document.getElementById('filtro-data-fim');
+        const rows = document.querySelectorAll('.compra-row');
+        const noResults = document.getElementById('no-dynamic-results');
+
+        function filtrarTabelaDinamica() {
+            const termo = (inputBusca.value || '').toLowerCase().trim();
+            const fornecedorId = selectFornecedor.value;
+            const status = selectStatus.value;
+            const dtInicio = inputDtInicio.value;
+            const dtFim = inputDtFim.value;
+
+            let visiveis = 0;
+
+            rows.forEach(row => {
+                const rowFornId = row.dataset.fornecedorId || '';
+                const rowFornNome = row.dataset.fornecedorNome || '';
+                const rowStatus = row.dataset.status || '';
+                const rowData = row.dataset.data || '';
+                const rowNf = (row.dataset.nf || '').toLowerCase();
+                const textoCompleto = rowNf + ' ' + rowFornNome;
+
+                let matchBusca = !termo || textoCompleto.includes(termo);
+                let matchForn = !fornecedorId || rowFornId === fornecedorId;
+                let matchStatus = !status || rowStatus === status;
+                let matchDtInicio = !dtInicio || rowData >= dtInicio;
+                let matchDtFim = !dtFim || rowData <= dtFim;
+
+                if (matchBusca && matchForn && matchStatus && matchDtInicio && matchDtFim) {
+                    row.style.display = '';
+                    visiveis++;
+                } else {
+                    row.style.display = 'none';
+                }
+            });
+
+            if (noResults) {
+                noResults.style.display = (visiveis === 0 && rows.length > 0) ? '' : 'none';
+            }
+        }
+
+        // Eventos imediatos para filtragem reativa instantânea
+        if (inputBusca) inputBusca.addEventListener('input', filtrarTabelaDinamica);
+        if (selectFornecedor) selectFornecedor.addEventListener('change', filtrarTabelaDinamica);
+        if (selectStatus) selectStatus.addEventListener('change', filtrarTabelaDinamica);
+        if (inputDtInicio) inputDtInicio.addEventListener('change', filtrarTabelaDinamica);
+        if (inputDtFim) inputDtFim.addEventListener('change', filtrarTabelaDinamica);
     });
 </script>
 {% endblock %}

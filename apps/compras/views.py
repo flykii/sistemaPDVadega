@@ -5,6 +5,7 @@ from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth.decorators import login_required
 from django.contrib import messages
 from django.utils import timezone
+from django.db.models import Q
 from apps.clientes.models import Fornecedor
 from apps.produtos.models import Produto
 from apps.usuarios.permissions import cargo_required
@@ -24,14 +25,55 @@ def safe_decimal(value, default='0.00'):
 @login_required
 def compras_list(request):
     empresa = request.tenant or request.user.empresa
-    compras = (
+    data_inicio = request.GET.get('data_inicio', '').strip()
+    data_fim = request.GET.get('data_fim', '').strip()
+    fornecedor_id = request.GET.get('fornecedor', '').strip()
+    filtro_status = request.GET.get('status', '').strip()
+    query = request.GET.get('q', '').strip()
+
+    compras_qs = (
         Compra.objects.filter(empresa=empresa)
-        .exclude(status='CANCELADA')
         .select_related('fornecedor')
         .prefetch_related('itens__produto', 'recebimentos')
         .order_by('-data_compra')
     )
-    return render(request, 'compras/list.html', {'compras': compras})
+
+    if filtro_status and filtro_status != 'TODOS':
+        compras_qs = compras_qs.filter(status=filtro_status)
+    else:
+        if filtro_status != 'TODOS':
+            compras_qs = compras_qs.exclude(status='CANCELADA')
+
+    if fornecedor_id:
+        compras_qs = compras_qs.filter(fornecedor_id=fornecedor_id)
+
+    if data_inicio:
+        compras_qs = compras_qs.filter(data_compra__date__gte=data_inicio)
+
+    if data_fim:
+        compras_qs = compras_qs.filter(data_compra__date__lte=data_fim)
+
+    if query:
+        q_filter = (
+            Q(numero_nota__icontains=query) |
+            Q(fornecedor__nome_fantasia__icontains=query) |
+            Q(fornecedor__razao_social__icontains=query)
+        )
+        if query.isdigit():
+            q_filter = q_filter | Q(id=int(query))
+        compras_qs = compras_qs.filter(q_filter)
+
+    fornecedores = Fornecedor.objects.filter(empresa=empresa, ativo=True).order_by('nome_fantasia', 'razao_social')
+
+    return render(request, 'compras/list.html', {
+        'compras': compras_qs,
+        'fornecedores': fornecedores,
+        'data_inicio': data_inicio,
+        'data_fim': data_fim,
+        'fornecedor_id': fornecedor_id,
+        'filtro_status': filtro_status,
+        'query': query,
+    })
 
 
 @login_required

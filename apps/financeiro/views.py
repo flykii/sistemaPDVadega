@@ -365,6 +365,8 @@ def contas_pagar_list(request):
     elif filtro_status == '7dias':
         limite_7d = hoje + timedelta(days=7)
         contas = [c for c in contas_qs if hoje <= c.data_vencimento <= limite_7d and c.saldo > 0]
+    elif filtro_status == 'aguardando_recebimento':
+        contas = [c for c in contas_qs if c.compra and c.compra.status == 'PENDENTE']
     else:
         contas = list(contas_qs)
 
@@ -376,6 +378,7 @@ def contas_pagar_list(request):
     )
     total_aberto = sum((c.saldo for c in todas_despesas if c.status in ['ABERTA', 'PARCIAL', 'PENDENTE'] and c.saldo > 0), Decimal('0.00'))
     total_vencido = sum((c.saldo for c in todas_despesas if c.is_vencida), Decimal('0.00'))
+    qtd_aguardando_recebimento = sum(1 for c in todas_despesas if c.compra and c.compra.status == 'PENDENTE')
     
     pagamentos_mes_despesas = PagamentoContaPagar.objects.filter(
         empresa=empresa,
@@ -405,6 +408,7 @@ def contas_pagar_list(request):
         'total_vencido': total_vencido,
         'total_pago_mes': total_pago_mes,
         'total_recorrentes': total_recorrentes,
+        'qtd_aguardando_recebimento': qtd_aguardando_recebimento,
         'sessao_aberta': sessao_aberta,
     })
 
