@@ -244,6 +244,7 @@ class ReportService:
             'venda_maxima': venda_maxima,
             'total_itens_vendidos': total_itens_vendidos,
             'qtd_clientes': qtd_clientes,
+            'custo_total': total_custo,
             'lucro_bruto': lucro_bruto,
             'margem_lucro_pct': margem_lucro_pct,
             'vendas_por_dia': vendas_por_dia,

@@ -52,10 +52,18 @@ def dashboard_view(request):
     balanco = faturamento - despesas_pagas
     is_superavit = balanco >= 0
 
+    # Calculate Lucro Real: Lucro Bruto - Total Despesas (Pagas + Abertas)
+    lucro_bruto = data.get('vendas_atual', {}).get('lucro_bruto', Decimal('0.00'))
+    total_despesas = data.get('despesas_data', {}).get('total_despesas', Decimal('0.00'))
+    lucro_real = lucro_bruto - total_despesas
+    margem_real_pct = float((lucro_real / faturamento) * 100) if faturamento > Decimal('0.00') else 0.0
+
     context = {
         **data,
         'balanco': balanco,
         'is_superavit': is_superavit,
+        'lucro_real': lucro_real,
+        'margem_real_pct': margem_real_pct,
         'chart_dias_labels': json.dumps(dias_labels),
         'chart_vendas_valores': json.dumps(vendas_valores),
         'chart_lucro_valores': json.dumps(lucro_valores),
