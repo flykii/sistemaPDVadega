@@ -105,7 +105,7 @@
                 <div class="small text-muted">
                     <span>Custo Mercadoria: R$ {{ vendas_atual.custo_total|default:"0.00"|floatformat:2 }}</span>
                 </div>
-                <small class="fw-bold d-block mt-1" style="color: #6f42c1;" title="Lucro das Vendas - Total de Despesas do Mês">Lucro Real: R$ {{ lucro_real|floatformat:2 }}</small>
+                <small class="fw-bold d-block mt-1" style="color: #6f42c1;" title="Lucro Bruto - Despesas Operacionais (deduz apenas despesas da loja, sem duplicar custo de mercadoria)">Lucro Real: R$ {{ lucro_real|floatformat:2 }}</small>
             </div>
         </div>
 

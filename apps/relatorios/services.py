@@ -648,8 +648,23 @@ class ReportService:
 
         total_despesas = sum((d.valor for d in despesas_qs), Decimal('0.00'))
         total_pagas = sum((d.valor_pago for d in despesas_qs), Decimal('0.00'))
-        total_abertas = sum((d.saldo for d in despesas_qs), Decimal('0.00'))
+        total_abertas = sum((d.saldo for d in despesas_qs if d.status not in ['PAGA', 'PAGO', 'CANCELADA']), Decimal('0.00'))
         total_vencidas = sum((d.saldo for d in despesas_qs if d.is_vencida), Decimal('0.00'))
+
+        # Separação: Despesas de Mercadorias (já contidas no CMV) vs Despesas Operacionais da Loja
+        def _is_mercadoria(d):
+            if d.compra_id:
+                return True
+            cat_nome = (d.categoria.nome if d.categoria else "").lower()
+            if any(k in cat_nome for k in ['mercadoria', 'fornecedor', 'estoque']):
+                return True
+            return False
+
+        despesas_operacionais_qs = [d for d in despesas_qs if not _is_mercadoria(d)]
+        despesas_mercadorias_qs = [d for d in despesas_qs if _is_mercadoria(d)]
+
+        total_despesas_operacionais = sum((d.valor for d in despesas_operacionais_qs), Decimal('0.00'))
+        total_pagas_operacionais = sum((d.valor_pago for d in despesas_operacionais_qs), Decimal('0.00'))
 
         cats_dict = {}
         for d in despesas_qs:
@@ -668,6 +683,8 @@ class ReportService:
             'total_pagas': total_pagas,
             'total_abertas': total_abertas,
             'total_vencidas': total_vencidas,
+            'total_despesas_operacionais': total_despesas_operacionais,
+            'total_pagas_operacionais': total_pagas_operacionais,
             'despesas_por_categoria': despesas_por_categoria,
         }
 
