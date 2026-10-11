@@ -328,7 +328,7 @@ def contas_pagar_list(request):
         ContaPagar.objects.filter(empresa=empresa)
         .select_related('fornecedor', 'categoria', 'despesa_recorrente', 'usuario', 'compra__fornecedor')
         .prefetch_related('pagamentos_detalhes__usuario', 'compra__itens__produto')
-        .order_by('data_vencimento', '-id')
+        .order_by('-data_vencimento', '-id')
     )
 
     if categoria_id:
@@ -380,12 +380,11 @@ def contas_pagar_list(request):
     total_vencido = sum((c.saldo for c in todas_despesas if c.is_vencida), Decimal('0.00'))
     qtd_aguardando_recebimento = sum(1 for c in todas_despesas if c.compra and c.compra.status == 'PENDENTE')
     
-    pagamentos_mes_despesas = PagamentoContaPagar.objects.filter(
-        empresa=empresa,
-        data_hora__year=hoje.year,
-        data_hora__month=hoje.month
+    # Total pago referente às contas com vencimento no mês corrente (coincidindo com o filtro da tabela)
+    total_pago_mes = sum(
+        (c.valor_pago for c in todas_despesas if c.data_vencimento.year == hoje.year and c.data_vencimento.month == hoje.month and (c.status in ['PAGA', 'PAGO'] or c.saldo <= 0)),
+        Decimal('0.00')
     )
-    total_pago_mes = sum((p.valor for p in pagamentos_mes_despesas), Decimal('0.00'))
     total_recorrentes = DespesaRecorrente.objects.filter(empresa=empresa, ativo=True).count()
 
     categorias = CategoriaDespesa.objects.filter(empresa=empresa, ativo=True).order_by('nome')
