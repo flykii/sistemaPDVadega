@@ -118,7 +118,7 @@
             <tbody>
                 {% for v in vendas %}
                 <!-- Linha principal da venda (clicável) -->
-                <tr class="cursor-pointer" data-bs-toggle="collapse" data-bs-target="#detalhe-venda-{{ v.id }}" aria-expanded="false" style="cursor: pointer;">
+                <tr class="cursor-pointer venda-row-selectable" data-target="#detalhe-venda-{{ v.id }}" aria-expanded="false" title="Clique para ver os detalhes">
                     <td><code class="fw-bold text-dark fs-6">#{{ v.codigo_venda }}</code></td>
                     <td>{{ v.data_venda|date:"d/m/Y H:i" }}</td>
                     <td>{{ v.cliente.nome|default:"Consumidor" }}</td>
@@ -165,9 +165,9 @@
                 </tr>
 
                 <!-- Linha expandível com produtos da venda e detalhes de cancelamento -->
-                <tr class="collapse" id="detalhe-venda-{{ v.id }}">
+                <tr id="detalhe-venda-{{ v.id }}" class="venda-detalhe-row d-none">
                     <td colspan="8" class="p-0 border-0">
-                        <div class="bg-light p-3 m-0 rounded-bottom">
+                        <div class="px-4 py-3 bg-light border-bottom shadow-inner">
                             {% if v.status == 'CANCELADA' %}
                             <div class="alert alert-danger mb-3 border-danger shadow-sm">
                                 <div class="d-flex align-items-center mb-2">
@@ -191,38 +191,29 @@
                             </div>
                             {% endif %}
 
-                            <h6 class="fw-bold text-primary mb-2"><i class="bi bi-box-seam me-1"></i> Produtos da Venda #{{ v.codigo_venda }}</h6>
-                            <table class="table table-sm table-bordered align-middle mb-0 bg-white">
-                                <thead>
-                                    <tr class="table-light">
-                                        <th>Produto</th>
-                                        <th class="text-center">Qtd</th>
-                                        <th class="text-end">Preço Unit.</th>
-                                        <th class="text-end">Subtotal</th>
-                                    </tr>
-                                </thead>
+                            <h6 class="fw-bold mb-2 small text-muted text-uppercase"><i class="bi bi-box-seam me-1"></i>Itens da Venda</h6>
+                            <table class="table table-sm table-borderless mb-0">
                                 <tbody>
                                     {% for item in v.itens.all %}
                                     <tr>
-                                        <td><strong>{{ item.produto.nome }}</strong></td>
-                                        <td class="text-center">{{ item.quantidade }}</td>
-                                        <td class="text-end">R$ {{ item.preco_venda_unitario }}</td>
-                                        <td class="text-end fw-bold {% if v.status == 'CANCELADA' %}text-muted" style="text-decoration: line-through;{% else %}text-success{% endif %}">R$ {{ item.subtotal }}</td>
+                                        <td class="text-dark">{{ item.produto.nome }}</td>
+                                        <td class="text-center text-muted">{{ item.quantidade|floatformat:0 }} {{ item.produto.unidade_medida|default:"un" }} <span class="text-black-50 mx-1">x</span> R$ {{ item.preco_venda_unitario|floatformat:2 }}</td>
+                                        <td class="text-end fw-bold text-dark">R$ {{ item.subtotal|floatformat:2 }}</td>
                                     </tr>
                                     {% empty %}
-                                    <tr><td colspan="4" class="text-center text-muted">Nenhum item registrado.</td></tr>
+                                    <tr><td colspan="3" class="text-center text-muted">Nenhum item registrado.</td></tr>
                                     {% endfor %}
+                                    {% if v.desconto > 0 %}
+                                    <tr class="border-top">
+                                        <td colspan="2" class="text-end text-muted small">Desconto:</td>
+                                        <td class="text-end fw-bold text-danger">- R$ {{ v.desconto|floatformat:2 }}</td>
+                                    </tr>
+                                    {% endif %}
+                                    <tr class="border-top">
+                                        <td colspan="2" class="text-end fw-bold text-dark">Total Final:</td>
+                                        <td class="text-end fw-bold {% if v.status == 'CANCELADA' %}text-muted" style="text-decoration: line-through;{% else %}text-success{% endif %}">R$ {{ v.total|floatformat:2 }}</td>
+                                    </tr>
                                 </tbody>
-                                <tfoot>
-                                    <tr class="table-light">
-                                        <td colspan="3" class="text-end fw-bold">Desconto:</td>
-                                        <td class="text-end fw-bold text-danger">- R$ {{ v.desconto }}</td>
-                                    </tr>
-                                    <tr class="table-light">
-                                        <td colspan="3" class="text-end fw-bold">Total Final:</td>
-                                        <td class="text-end fw-bold {% if v.status == 'CANCELADA' %}text-muted fs-6" style="text-decoration: line-through;{% else %}text-success fs-6{% endif %}">R$ {{ v.total }}</td>
-                                    </tr>
-                                </tfoot>
                             </table>
                         </div>
                     </td>
@@ -431,5 +422,53 @@
             }
         }
     }
+
+    document.addEventListener('DOMContentLoaded', function() {
+        const tableBody = document.querySelector('table.table-custom tbody') || document.querySelector('table tbody');
+        if (!tableBody) return;
+
+        function fecharTodosDetalhes() {
+            tableBody.querySelectorAll('tr.venda-detalhe-row').forEach(dr => dr.classList.add('d-none'));
+            tableBody.querySelectorAll('tr.venda-row-selectable').forEach(r => {
+                r.classList.remove('row-selected');
+                r.setAttribute('aria-expanded', 'false');
+            });
+        }
+
+        tableBody.addEventListener('click', function(e) {
+            // Não fecha nem abre ao clicar em botões de ação (Recibo, Cancelar, etc.) ou inputs
+            if (e.target.closest('button, a, input, select')) return;
+
+            const row = e.target.closest('tr.venda-row-selectable');
+            if (!row) return;
+
+            const targetId = row.getAttribute('data-target');
+            const detailRow = targetId ? document.querySelector(targetId) : null;
+            if (!detailRow) return;
+
+            const isCurrentlyOpen = !detailRow.classList.contains('d-none');
+
+            // Accordion exclusivo imediato: fecha qualquer item aberto
+            fecharTodosDetalhes();
+
+            // Se não estava aberto, abre instantaneamente com destaque
+            if (!isCurrentlyOpen) {
+                detailRow.classList.remove('d-none');
+                row.classList.add('row-selected');
+                row.setAttribute('aria-expanded', 'true');
+            }
+        });
+
+        // Fechar ao clicar fora da tabela ou fora de linhas selecionáveis/detalhes
+        document.addEventListener('click', function(e) {
+            if (e.target.closest('.modal') || e.target.closest('.modal-backdrop')) return;
+            const clickedSelectable = e.target.closest('tr.venda-row-selectable');
+            const clickedDetail = e.target.closest('tr.venda-detalhe-row');
+            if (!clickedSelectable && !clickedDetail) {
+                fecharTodosDetalhes();
+            }
+        });
+    });
 </script>
 {% endblock %}
+

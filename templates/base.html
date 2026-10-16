@@ -65,7 +65,7 @@
     <script>
         if ('serviceWorker' in navigator) {
             window.addEventListener('load', () => {
-                navigator.serviceWorker.register('/static/sw.js')
+                navigator.serviceWorker.register('/sw.js', { scope: '/' })
                     .then(reg => console.log('PWA Service Worker registrado com sucesso! Scope:', reg.scope))
                     .catch(err => console.log('Falha no Service Worker:', err));
             });

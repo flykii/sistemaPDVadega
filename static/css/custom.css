@@ -89,3 +89,36 @@ a {
     color: #15803d;
     font-weight: 600;
 }
+
+/* Missão 6: Destaque visual na linha selecionada das tabelas de vendas */
+tr.venda-row-selectable {
+    cursor: pointer;
+    transition: background-color 0.15s ease, border-left-color 0.15s ease;
+}
+
+tr.venda-row-selectable:hover {
+    background-color: rgba(37, 99, 235, 0.04) !important;
+}
+
+tr.venda-row-selectable.row-selected {
+    background-color: rgba(37, 99, 235, 0.12) !important;
+    border-left: 4px solid var(--cor-destaque, var(--cor-principal, #2563eb)) !important;
+}
+
+tr.venda-row-selectable.row-selected > td {
+    background-color: transparent !important;
+}
+
+/* Linhas de detalhes das tabelas de vendas (Abertura instantânea, zero lag) */
+tr.venda-detalhe-row {
+    transition: none !important;
+}
+
+tr.venda-detalhe-row.d-none {
+    display: none !important;
+}
+
+tr.venda-detalhe-row > td {
+    background-color: transparent !important;
+}
+

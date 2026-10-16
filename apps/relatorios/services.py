@@ -651,10 +651,15 @@ class ReportService:
         total_abertas = sum((d.saldo for d in despesas_qs if d.status not in ['PAGA', 'PAGO', 'CANCELADA']), Decimal('0.00'))
         total_vencidas = sum((d.saldo for d in despesas_qs if d.is_vencida), Decimal('0.00'))
 
-        # Separação: Despesas de Mercadorias (já contidas no CMV) vs Despesas Operacionais da Loja
+        # Separação: Despesas de Mercadorias/Fornecedor (já contidas no CMV ou fora do escopo) vs Despesas Operacionais
         def _is_mercadoria(d):
+            # Despesa vinculada a uma NF/compra de mercadoria → já no CMV
             if d.compra_id:
                 return True
+            # Despesa avulsa de fornecedor (boleto de distribuidora etc.) → NÃO abate Lucro Real
+            if d.fornecedor_id:
+                return True
+            # Categoria com nome indicando mercadoria/estoque
             cat_nome = (d.categoria.nome if d.categoria else "").lower()
             if any(k in cat_nome for k in ['mercadoria', 'fornecedor', 'estoque']):
                 return True
@@ -663,8 +668,14 @@ class ReportService:
         despesas_operacionais_qs = [d for d in despesas_qs if not _is_mercadoria(d)]
         despesas_mercadorias_qs = [d for d in despesas_qs if _is_mercadoria(d)]
 
+        # Apenas despesas operacionais PAGAS reduzem o Lucro Real
+        STATUS_PAGO = {'PAGA', 'PAGO'}
+        despesas_operacionais_pagas = [d for d in despesas_operacionais_qs if d.status in STATUS_PAGO]
+
         total_despesas_operacionais = sum((d.valor for d in despesas_operacionais_qs), Decimal('0.00'))
-        total_pagas_operacionais = sum((d.valor_pago for d in despesas_operacionais_qs), Decimal('0.00'))
+        total_pagas_operacionais = sum((d.valor_pago for d in despesas_operacionais_pagas), Decimal('0.00'))
+        total_pagas_operacionais_valor = sum((d.valor for d in despesas_operacionais_pagas), Decimal('0.00'))
+
 
         cats_dict = {}
         for d in despesas_qs:
@@ -685,8 +696,10 @@ class ReportService:
             'total_vencidas': total_vencidas,
             'total_despesas_operacionais': total_despesas_operacionais,
             'total_pagas_operacionais': total_pagas_operacionais,
+            'total_pagas_operacionais_valor': total_pagas_operacionais_valor,
             'despesas_por_categoria': despesas_por_categoria,
         }
+
 
     # =========================================================================
     # 11. DADOS EXECUTIVOS CONSOLIDADOS DO DASHBOARD GERENCIAL

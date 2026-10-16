@@ -6,6 +6,7 @@ from django.conf.urls.static import static
 from django.http import HttpResponse
 from apps.relatorios.views import dashboard_view
 from apps.usuarios.views import login_view, logout_view
+from apps.vendas.views import pdv_front_view
 
 def service_worker_view(request):
     sw_path = os.path.join(settings.BASE_DIR, 'static', 'sw.js')
@@ -13,6 +14,7 @@ def service_worker_view(request):
         with open(sw_path, 'rb') as f:
             resp = HttpResponse(f.read(), content_type='application/javascript')
             resp['Service-Worker-Allowed'] = '/'
+            resp['Cache-Control'] = 'no-cache'
             return resp
     return HttpResponse("// sw not found", content_type='application/javascript', status=404)
 
@@ -26,6 +28,7 @@ def manifest_view(request):
 urlpatterns = [
     path('admin/', admin.site.urls),
     path('', dashboard_view, name='dashboard'),
+    path('pdv/', pdv_front_view, name='pdv_direct'),
     path('login/', login_view, name='login'),
     path('logout/', logout_view, name='logout'),
     path('cadastro/', include('apps.usuarios.urls')),

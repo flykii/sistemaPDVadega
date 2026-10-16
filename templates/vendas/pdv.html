@@ -297,7 +297,7 @@
                             </label>
                             <div class="input-group input-group-lg">
                                 <span class="input-group-text fw-bold bg-white text-primary">R$</span>
-                                <input type="number" id="modal-pay-valor" class="form-control fw-bold fs-4 text-dark" placeholder="0,00" step="0.01" oninput="pdvApp.onValorRecebidoInput()" onkeydown="if(event.key === 'Enter'){ event.preventDefault(); event.stopPropagation(); pdvApp.adicionarParcelaPagamento(); }">
+                                <input type="number" id="modal-pay-valor" class="form-control fw-bold fs-4 text-dark" placeholder="0,00" step="0.01" oninput="pdvApp.onValorRecebidoInput(true)" onkeydown="if(event.key === 'Enter'){ event.preventDefault(); event.stopPropagation(); pdvApp.adicionarParcelaPagamento(); }">
                             </div>
                         </div>
                         <div class="col-12 col-md-5 d-flex gap-2 align-items-end pt-md-4">

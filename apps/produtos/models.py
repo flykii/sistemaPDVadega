@@ -79,6 +79,13 @@ class Produto(TenantModelMixin):
         return (self.preco_venda - self.valor_repasse_unitario).quantize(Decimal('0.01'))
 
     @property
+    def percentual_empresa(self) -> Decimal:
+        """Percentual retido pela empresa no produto de terceiro (100 - percentual_repasse)."""
+        repasse = self.percentual_repasse if self.percentual_repasse is not None else Decimal('70.00')
+        return (Decimal('100.00') - repasse).quantize(Decimal('0.01'))
+
+
+    @property
     def lucro_real(self) -> Decimal:
         """Retorna o lucro líquido em moeda (R$) conforme regra do cliente."""
         return calculate_profit_amount(self.preco_custo, self.preco_venda)
@@ -108,6 +115,11 @@ class Produto(TenantModelMixin):
             self.nome = self.nome.upper()
         # Tratamento especial de preço e custo para produto de terceiro
         if self.is_produto_terceiro:
+            if self.percentual_repasse is not None:
+                if self.percentual_repasse < Decimal('0.00'):
+                    self.percentual_repasse = Decimal('0.00')
+                elif self.percentual_repasse > Decimal('100.00'):
+                    self.percentual_repasse = Decimal('100.00')
             pct = (self.percentual_repasse if self.percentual_repasse is not None else Decimal('70.00')) / Decimal('100.00')
             self.preco_custo = (self.preco_venda * pct).quantize(Decimal('0.001'))
             if self.preco_venda > 0:

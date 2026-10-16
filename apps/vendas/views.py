@@ -53,7 +53,7 @@ def vendas_historico_view(request):
         Venda.objects.filter(empresa=empresa)
         .select_related('cliente', 'operador')
         .prefetch_related('itens__produto', 'pagamentos')
-        .order_by('-data_venda')
+        .order_by('-data_venda', '-id')
     )
 
     # 1. Filtro de busca textual (Código da Venda ou Nome do Cliente)

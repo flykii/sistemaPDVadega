@@ -133,7 +133,7 @@ def relatorio_caixa_view(request, sessao_id):
         sessao.vendas.filter(status='CONCLUIDA')
         .select_related('cliente', 'operador')
         .prefetch_related('pagamentos', 'itens__produto')
-        .order_by('data_venda')
+        .order_by('-data_venda', '-id')
     )
     movimentacoes = sessao.movimentacoes.all().order_by('data_hora')
 
@@ -152,7 +152,7 @@ def relatorio_caixa_print_view(request, sessao_id):
         sessao.vendas.filter(status='CONCLUIDA')
         .select_related('cliente')
         .prefetch_related('pagamentos', 'itens__produto')
-        .order_by('data_venda')
+        .order_by('-data_venda', '-id')
     )
     movimentacoes = sessao.movimentacoes.all().order_by('data_hora')
 

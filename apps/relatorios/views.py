@@ -54,13 +54,12 @@ def dashboard_view(request):
     balanco_previsto = faturamento - total_despesas
     is_superavit = balanco >= 0
 
-    # Calculate Lucro Líquido Real: Lucro Bruto - Despesas Operacionais (sem duplicar compras de mercadorias já no CMV)
+    # Lucro Real = Lucro Bruto - Despesas Fixas/Operacionais PAGAS (exclui mercadorias/fornecedores e despesas abertas)
     lucro_bruto = data.get('vendas_atual', {}).get('lucro_bruto', Decimal('0.00'))
-    total_despesas_operacionais = data.get('despesas_data', {}).get('total_despesas_operacionais', Decimal('0.00'))
-    
-    # Se houver despesas operacionais identificadas, deduz as operacionais; caso contrário (ex: nenhuma classificada como mercadoria), deduz total_despesas
-    despesa_dedutivel = total_despesas_operacionais if total_despesas_operacionais > 0 else total_despesas
+    # Somente despesas operacionais (não-fornecedor, não-compra) com status PAGA/PAGO
+    despesa_dedutivel = data.get('despesas_data', {}).get('total_pagas_operacionais_valor', Decimal('0.00'))
     lucro_real = lucro_bruto - despesa_dedutivel
+
     margem_real_pct = float((lucro_real / faturamento) * 100) if faturamento > Decimal('0.00') else 0.0
 
     context = {

@@ -216,6 +216,13 @@ class PDVApp {
                 }
                 this.isTransitioningToConfirm = false;
             });
+
+            const valorInputModal = document.getElementById('modal-pay-valor');
+            if (valorInputModal) {
+                valorInputModal.addEventListener('input', () => {
+                    this.onValorRecebidoInput(true);
+                });
+            }
         }
 
         const confirmModalEl = document.getElementById('confirmSaleModal');
@@ -929,6 +936,7 @@ class PDVApp {
     resetModalPagamento() {
         this.payments = [];
         this.selectedPaymentMethod = 'DINHEIRO';
+        this._hasUserEditedValue = false;
         const crediarioBox = document.getElementById('modal-crediario-customer-box');
         if (crediarioBox) crediarioBox.classList.add('d-none');
         this.salvarCarrinhoPersistido();
@@ -956,6 +964,7 @@ class PDVApp {
         if (modalEl) {
             const modal = bootstrap.Modal.getInstance(modalEl) || new bootstrap.Modal(modalEl);
             modal.show();
+            this._hasUserEditedValue = false;
             this.selecionarFormaPagamento('DINHEIRO');
             this.renderPaymentModal();
         }
@@ -998,8 +1007,14 @@ class PDVApp {
         const remaining = this.getRemainingToPay();
         const valorInput = document.getElementById('modal-pay-valor');
         if (valorInput) {
-            if (remaining > 0) {
-                valorInput.value = remaining.toFixed(2);
+            const currentVal = parseFloat(String(valorInput.value).replace(',', '.'));
+            const inputIsEmpty = isNaN(currentVal) || valorInput.value.trim() === '';
+
+            // Se o usuário ainda NÃO alterou o valor manualmente ou se o campo está vazio, preenche com o restante
+            if (!this._hasUserEditedValue || inputIsEmpty) {
+                if (remaining > 0) {
+                    valorInput.value = remaining.toFixed(2);
+                }
             }
             valorInput.focus();
             valorInput.select();
@@ -1009,7 +1024,7 @@ class PDVApp {
             }, 50);
         }
 
-        this.onValorRecebidoInput();
+        this.onValorRecebidoInput(false);
     }
 
     toggleCrediarioBox(forceOpen = false) {
@@ -1079,12 +1094,16 @@ class PDVApp {
         }
     }
 
-    onValorRecebidoInput() {
+    onValorRecebidoInput(fromUserInput = false) {
+        if (fromUserInput === true) {
+            this._hasUserEditedValue = true;
+        }
+
+        const valorInput = document.getElementById('modal-pay-valor');
         const totalVenda = this.getTotal();
         const totalPaidEffective = this.getTotalPaidEffective();
         const remainingBefore = Math.max(0.00, roundMoney(totalVenda - totalPaidEffective));
 
-        const valorInput = document.getElementById('modal-pay-valor');
         const inputVal = valorInput ? parseFloat(String(valorInput.value).replace(',', '.')) : 0.00;
         const currentVal = isNaN(inputVal) || inputVal < 0 ? 0.00 : roundMoney(inputVal);
 
@@ -1197,6 +1216,7 @@ class PDVApp {
         });
 
         this.salvarCarrinhoPersistido();
+        this._hasUserEditedValue = false;
         this.renderPaymentModal();
 
         const novoRestante = this.getRemainingToPay();
@@ -1218,6 +1238,7 @@ class PDVApp {
         if (index >= 0 && index < this.payments.length) {
             this.payments.splice(index, 1);
             this.salvarCarrinhoPersistido();
+            this._hasUserEditedValue = false;
             this.renderPaymentModal();
             const valorInput = document.getElementById('modal-pay-valor');
             if (valorInput) {
@@ -1251,7 +1272,7 @@ class PDVApp {
         if (remEl) remEl.innerText = `R$ ${remaining.toFixed(2).replace('.', ',')}`;
         if (trocoEl) trocoEl.innerText = `R$ ${totalTroco.toFixed(2).replace('.', ',')}`;
 
-        if (valorInput && remaining > 0) {
+        if (valorInput && remaining > 0 && !this._hasUserEditedValue) {
             valorInput.value = remaining.toFixed(2);
         }
 
@@ -1288,7 +1309,7 @@ class PDVApp {
             });
         }
 
-        this.onValorRecebidoInput();
+        this.onValorRecebidoInput(false);
     }
 
     // --- MODAL DE CONFIRMAÇÃO FINAL PRÉ-GRAVAÇÃO ---
