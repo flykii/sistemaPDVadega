@@ -11,8 +11,8 @@ from apps.caixas.models import Caixa, SessaoCaixa
 from apps.caixas.services import CashService
 from apps.vendas.models import Venda, ItemVenda, PagamentoVenda
 from apps.vendas.services import SaleService
-from apps.clientes.models import Cliente
-from apps.financeiro.models import ContaPagar, ContaReceber, CategoriaDespesa
+from apps.clientes.models import Cliente, Fornecedor
+from apps.financeiro.models import ContaPagar, ContaReceber, CategoriaDespesa, DespesaRecorrente
 from apps.financeiro.services import FinancialService
 from apps.relatorios.services import ReportService
 
@@ -476,3 +476,63 @@ class RelatoriosGerenciaisTestCase(TestCase):
         p = ReportService.parse_periodo('hoje')
         rep = ReportService.get_vendas_report(self.empresa_a, p['start_datetime'], p['end_datetime'])
         self.assertEqual(rep['faturamento_liquido'], total_banco)
+
+    # 31. Lucro Real: Abate Despesas Fixas (com fornecedor) e Ignora Mercadorias/CMV
+    def test_31_lucro_real_abate_despesas_fixas_e_ignora_mercadorias(self):
+        hoje = timezone.localdate()
+        forn_locador = Fornecedor.objects.create(empresa=self.empresa_a, razao_social="Imobiliaria Central", nome_fantasia="Imobiliaria Central")
+        forn_bebidas = Fornecedor.objects.create(empresa=self.empresa_a, razao_social="Distribuidora de Bebidas", nome_fantasia="Distribuidora de Bebidas")
+
+        # 1. Despesa Fixa Recorrente (Aluguel) vinculada a um fornecedor (locador)
+        rec = DespesaRecorrente.objects.create(
+            empresa=self.empresa_a,
+            descricao="Aluguel do Galpão",
+            fornecedor=forn_locador,
+            valor_estimado=Decimal('1200.00'),
+            dia_vencimento=hoje.day,
+            data_inicio=hoje
+        )
+        despesa_fixa = ContaPagar.objects.create(
+            empresa=self.empresa_a,
+            descricao="Aluguel do Galpão - Mes Atual",
+            fornecedor=forn_locador,
+            despesa_recorrente=rec,
+            valor=Decimal('1200.00'),
+            valor_pago=Decimal('1200.00'),
+            data_vencimento=hoje,
+            status='PAGA'
+        )
+
+        # 2. Despesa de Compra de Mercadorias para Revenda (categoria Mercadorias)
+        cat_mercadoria = CategoriaDespesa.objects.create(empresa=self.empresa_a, nome="Mercadorias para Revenda")
+        despesa_mercadoria = ContaPagar.objects.create(
+            empresa=self.empresa_a,
+            descricao="Boleto Fornecedor Cervejas",
+            fornecedor=forn_bebidas,
+            categoria=cat_mercadoria,
+            valor=Decimal('2500.00'),
+            valor_pago=Decimal('2500.00'),
+            data_vencimento=hoje,
+            status='PAGA'
+        )
+
+        # 3. Despesa Operacional Avulsa PENDENTE / EM ABERTO (não deve abater enquanto não paga)
+        cat_manutencao = CategoriaDespesa.objects.create(empresa=self.empresa_a, nome="Manutenção")
+        despesa_aberta = ContaPagar.objects.create(
+            empresa=self.empresa_a,
+            descricao="Reparo de Freezer",
+            categoria=cat_manutencao,
+            valor=Decimal('300.00'),
+            valor_pago=Decimal('0.00'),
+            data_vencimento=hoje,
+            status='ABERTA'
+        )
+
+        p = ReportService.parse_periodo('hoje')
+        rep = ReportService.get_despesas_report(self.empresa_a, p['start_datetime'], p['end_datetime'])
+
+        # Validar que a despesa fixa de 1200.00 entrou em despesas operacionais
+        # e que o valor pago operacional dedutivel eh exatamente 1200.00 (desconsiderando os 2500.00 de mercadoria)
+        self.assertEqual(rep['total_despesas_operacionais'], Decimal('1500.00'))  # 1200 fixa + 300 manutencao
+        self.assertEqual(rep['total_pagas_operacionais_valor'], Decimal('1200.00'))
+

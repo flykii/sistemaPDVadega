@@ -651,18 +651,19 @@ class ReportService:
         total_abertas = sum((d.saldo for d in despesas_qs if d.status not in ['PAGA', 'PAGO', 'CANCELADA']), Decimal('0.00'))
         total_vencidas = sum((d.saldo for d in despesas_qs if d.is_vencida), Decimal('0.00'))
 
-        # Separação: Despesas de Mercadorias/Fornecedor (já contidas no CMV ou fora do escopo) vs Despesas Operacionais
+        # Separação: Despesas de Mercadorias/CMV (já contidas no CMV da venda) vs Despesas Operacionais (Fixas e Variáveis da Loja)
         def _is_mercadoria(d):
-            # Despesa vinculada a uma NF/compra de mercadoria → já no CMV
-            if d.compra_id:
+            # 1. Despesas Fixas / Recorrentes (aluguel, água, luz, internet, etc.) são SEMPRE operacionais, NUNCA mercadoria
+            if getattr(d, 'despesa_recorrente_id', None) or getattr(d, 'despesa_recorrente', None):
+                return False
+            # 2. Despesa vinculada a uma NF/compra de mercadorias para estoque → já entra no CMV quando vendida
+            if getattr(d, 'compra_id', None):
                 return True
-            # Despesa avulsa de fornecedor (boleto de distribuidora etc.) → NÃO abate Lucro Real
-            if d.fornecedor_id:
-                return True
-            # Categoria com nome indicando mercadoria/estoque
+            # 3. Categoria com nome indicando mercadoria/estoque para revenda
             cat_nome = (d.categoria.nome if d.categoria else "").lower()
-            if any(k in cat_nome for k in ['mercadoria', 'fornecedor', 'estoque']):
+            if any(k in cat_nome for k in ['mercadoria', 'estoque', 'revenda', 'compra de produto', 'produtos para revenda']):
                 return True
+            # 4. Despesas operacionais da loja (mesmo que tenham prestador/fornecedor vinculado) são operacionais
             return False
 
         despesas_operacionais_qs = [d for d in despesas_qs if not _is_mercadoria(d)]
@@ -670,11 +671,17 @@ class ReportService:
 
         # Apenas despesas operacionais PAGAS reduzem o Lucro Real
         STATUS_PAGO = {'PAGA', 'PAGO'}
-        despesas_operacionais_pagas = [d for d in despesas_operacionais_qs if d.status in STATUS_PAGO]
+        despesas_operacionais_pagas = [
+            d for d in despesas_operacionais_qs
+            if d.status in STATUS_PAGO or (d.valor_pago and d.valor_pago > Decimal('0.00'))
+        ]
 
         total_despesas_operacionais = sum((d.valor for d in despesas_operacionais_qs), Decimal('0.00'))
-        total_pagas_operacionais = sum((d.valor_pago for d in despesas_operacionais_pagas), Decimal('0.00'))
-        total_pagas_operacionais_valor = sum((d.valor for d in despesas_operacionais_pagas), Decimal('0.00'))
+        total_pagas_operacionais = sum(
+            (max(d.valor_pago, d.valor if d.status in STATUS_PAGO else Decimal('0.00')) for d in despesas_operacionais_qs),
+            Decimal('0.00')
+        )
+        total_pagas_operacionais_valor = total_pagas_operacionais
 
 
         cats_dict = {}
